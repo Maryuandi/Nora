@@ -17,6 +17,9 @@ const EXPECTED: Record<UiAction, Role[]> = {
   "snapshot.cancel": ["administrator", "analis"],
   "mapping.view": ["administrator", "analis", "pemilik_proses"],
   "mapping.edit": ["administrator", "analis"],
+  "quality.view": ["administrator", "analis", "pemilik_proses"],
+  "repair.edit": ["administrator", "analis"],
+  "dataset.publish": ["analis"],
 };
 
 describe("can", () => {

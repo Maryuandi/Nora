@@ -145,4 +145,4 @@ const mappings: MappingVersion[] = [
     createdBy: "u-rina", createdAt: "2026-10-15T08:00:00Z" },
 ];
 
-export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, viewerId: "u-dimas" };
+export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, repairRules: [], datasetVersions: [], viewerId: "u-dimas" };
