@@ -6,7 +6,7 @@ export default async function HealthPage() {
   const results = await checkAll();
   return (
     <main>
-      <h1>Health</h1>
+      <h1 className="text-[24px] leading-8 font-semibold tracking-[-0.02em]">Health</h1>
       <ul>
         {results.map((r) => (
           <li key={r.name}>
