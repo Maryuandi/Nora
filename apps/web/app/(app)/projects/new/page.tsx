@@ -75,8 +75,8 @@ export default function NewProjectPage() {
             <Input label="Kebijakan retensi" {...field("retention")} isRequired />
           </FormSection>
           <div className="flex justify-end gap-2 border-t border-line py-4">
-            <Button color="secondary" size="sm" href="/">Batal</Button>
-            <Button color="primary" size="sm" type="submit">Buat proyek</Button>
+            <Button color="secondary" size="xs" href="/">Batal</Button>
+            <Button color="primary" size="xs" type="submit">Buat proyek</Button>
           </div>
         </Card>
       </form>

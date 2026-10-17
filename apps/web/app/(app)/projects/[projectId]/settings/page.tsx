@@ -67,7 +67,7 @@ export default function SettingsPage() {
         {next.length > 0 ? (
           <div className="mt-5 flex flex-wrap gap-2 border-t border-line pt-4">
             {next.map((s) => (
-              <Button key={s} size="sm" color={s === "aktif" ? "primary" : s === "berakhir" ? "secondary-destructive" : "secondary"} onClick={() => setTarget(s)}>
+              <Button key={s} size="xs" color={s === "aktif" ? "primary" : s === "berakhir" ? "secondary-destructive" : "secondary"} onClick={() => setTarget(s)}>
                 {ACTION_LABEL[s]}
               </Button>
             ))}
@@ -109,8 +109,8 @@ export default function SettingsPage() {
         title={target ? `${ACTION_LABEL[target]} proyek?` : ""}
         description={target ? STATUS_HELP[target] : undefined}
         footer={<>
-          <Button color="secondary" size="sm" onClick={close}>Batal</Button>
-          <Button color={target === "berakhir" ? "primary-destructive" : "primary"} size="sm" onClick={confirm}>{target ? ACTION_LABEL[target] : ""}</Button>
+          <Button color="secondary" size="xs" onClick={close}>Batal</Button>
+          <Button color={target === "berakhir" ? "primary-destructive" : "primary"} size="xs" onClick={confirm}>{target ? ACTION_LABEL[target] : ""}</Button>
         </>}
       >
         <TextArea label="Alasan" placeholder="Tuliskan alasan perubahan status" rows={3} value={reason} onChange={(v) => { setReason(v); setError(null); }} isInvalid={!!error} hint={error ?? "Wajib diisi. Tercatat di audit log."} isRequired />

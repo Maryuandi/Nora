@@ -20,7 +20,7 @@ interface TextAreaBaseProps extends AriaTextAreaProps {
     size?: "sm" | "md";
 }
 
-export const TextAreaBase = ({ className, size = "md", ...props }: TextAreaBaseProps) => {
+export const TextAreaBase = ({ className, size = "sm", ...props }: TextAreaBaseProps) => {
     return (
         <AriaTextArea
             {...props}
@@ -90,7 +90,7 @@ export const TextArea = ({
     className,
     rows,
     cols,
-    size = "md",
+    size = "sm",
     ...props
 }: TextFieldProps) => {
     return (

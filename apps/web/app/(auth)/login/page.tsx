@@ -26,7 +26,7 @@ export default function LoginPage() {
       <form onSubmit={submit} className="mt-5 flex flex-col gap-4" noValidate>
         <Input label="Email" type="email" placeholder="nama@javan.co.id" value={email} onChange={(v) => { setEmail(v); setError(null); }} autoComplete="email" />
         <Input label="Kata sandi" type="password" value={password} onChange={(v) => { setPassword(v); setError(null); }} autoComplete="current-password" />
-        {error && <p role="alert" className="text-sm text-[#b42318]">{error}</p>}
+        {error && <p role="alert" className="text-sm text-error-primary">{error}</p>}
         <Button type="submit" color="primary" size="md" className="w-full">Masuk</Button>
       </form>
     </Card>

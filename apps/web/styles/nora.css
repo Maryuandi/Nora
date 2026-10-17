@@ -12,6 +12,23 @@
     --color-status-suspended: #e5a100;
     --color-status-neutral: #c8c5c0;
     --color-status-ended: #d8402b;
+    /* Warm grays + Nora red, so Untitled UI controls match the cards. */
+    --color-neutral-50: #faf9f7;
+    --color-neutral-100: #f3f1ee;
+    --color-neutral-200: #e6e4e1;
+    --color-neutral-300: #d6d3ce;
+    --color-neutral-400: #a8a49f;
+    --color-neutral-500: #7a7773;
+    --color-neutral-600: #5e5b57;
+    --color-neutral-700: #3a3836;
+    --color-neutral-800: #2a2826;
+    --color-neutral-900: #1c1b1a;
+    --color-neutral-950: #12110f;
+    --color-red-50: #fdf3f1;
+    --color-red-100: #fbe4df;
+    --color-red-500: #e5553f;
+    --color-red-600: #d8402b;
+    --color-red-700: #b33322;
     --shadow-card: 0 1px 2px rgb(20 18 15 / 0.04);
 }
 

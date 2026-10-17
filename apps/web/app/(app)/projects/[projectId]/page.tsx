@@ -50,14 +50,14 @@ export default function ProjectOverview() {
           </Card>
         </div>
         <Card>
-          <CardTitle action={<Button color="link-color" size="sm" href={`/projects/${project.id}/audit`}>Lihat semua</Button>}>Aktivitas terbaru</CardTitle>
+          <CardTitle action={<Button color="link-color" size="xs" href={`/projects/${project.id}/audit`}>Lihat semua</Button>}>Aktivitas terbaru</CardTitle>
           <div className="px-4">
             {audit.length ? <AuditFeed events={audit} users={state.users} /> : <p className="py-6 text-sm text-ink-3">Belum ada aktivitas.</p>}
           </div>
         </Card>
       </div>
       <Card className="self-start">
-        <CardTitle action={<Button color="link-color" size="sm" href={`/projects/${project.id}/members`}>Kelola</Button>}>Anggota ({members.length})</CardTitle>
+        <CardTitle action={<Button color="link-color" size="xs" href={`/projects/${project.id}/members`}>Kelola</Button>}>Anggota ({members.length})</CardTitle>
         <ul className="divide-y divide-line px-4">
           {members.map((m) => (
             <li key={m.userId} className="flex items-center gap-3 py-2.5">

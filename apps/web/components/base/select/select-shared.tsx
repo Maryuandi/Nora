@@ -38,7 +38,7 @@ export interface CommonProps {
 
 export const sizes = {
     sm: {
-        root: "py-2 pl-3 pr-2.5 gap-2 *:data-icon:size-4 *:data-icon:stroke-[2.25px]",
+        root: "py-1.5 pl-3 pr-2.5 gap-2 *:data-icon:size-4 *:data-icon:stroke-[2.25px]",
         withIcon: "",
         text: "text-sm",
         textContainer: "gap-x-1.5",

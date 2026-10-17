@@ -48,7 +48,7 @@ function AddMemberModal({ open, onClose, projectId }: { open: boolean; onClose: 
   if (link)
     return (
       <NoraModal open={open} onClose={reset} title="Anggota ditambahkan" description="Bagikan tautan aktivasi ini. Email undangan belum dikirim otomatis."
-        footer={<Button color="primary" size="sm" onClick={reset}>Selesai</Button>}>
+        footer={<Button color="primary" size="xs" onClick={reset}>Selesai</Button>}>
         <div className="flex items-center gap-2 rounded-lg border border-line bg-canvas px-3 py-2 text-sm">
           <span className="min-w-0 flex-1 truncate font-mono text-xs">{link}</span>
           <Button color="secondary" size="xs" iconLeading={Copy} onClick={() => navigator.clipboard?.writeText(link)}>Salin</Button>
@@ -59,8 +59,8 @@ function AddMemberModal({ open, onClose, projectId }: { open: boolean; onClose: 
   return (
     <NoraModal open={open} onClose={reset} title="Tambah anggota" description="Anggota hanya bisa melihat proyek ini sesuai perannya."
       footer={<>
-        <Button color="secondary" size="sm" onClick={reset}>Batal</Button>
-        <Button color="primary" size="sm" onClick={submit}>{confirmRole ? "Ubah peran" : "Tambah anggota"}</Button>
+        <Button color="secondary" size="xs" onClick={reset}>Batal</Button>
+        <Button color="primary" size="xs" onClick={submit}>{confirmRole ? "Ubah peran" : "Tambah anggota"}</Button>
       </>}>
       <Input label="Email" placeholder="nama@perusahaan.co.id" value={email} onChange={(v) => { setEmail(v); setErrors({}); setConfirmRole(null); }} isInvalid={!!errors.email} hint={errors.email} />
       <Select label="Peran" items={ROLE_ITEMS} selectedKey={role} onSelectionChange={(k) => { setRole(k as Role); setConfirmRole(null); }}>
@@ -97,7 +97,7 @@ export default function MembersPage() {
             <h2 className="text-sm font-semibold">Anggota proyek</h2>
             <p className="text-sm text-ink-3">{manage ? "Hanya anggota yang bisa membuka data proyek ini." : "Hanya Administrator yang bisa mengubah anggota."}</p>
           </div>
-          {manage && <Button color="primary" size="sm" iconLeading={Plus} onClick={() => setAdding(true)}>Tambah anggota</Button>}
+          {manage && <Button color="primary" size="xs" iconLeading={Plus} onClick={() => setAdding(true)}>Tambah anggota</Button>}
         </div>
         <Table aria-label="Anggota proyek" size="sm">
           <Table.Header>
@@ -166,8 +166,8 @@ export default function MembersPage() {
         title="Cabut akses?"
         description={revoke ? `${revoke.name} tidak akan bisa membuka proyek ini lagi mulai request berikutnya.` : undefined}
         footer={<>
-          <Button color="secondary" size="sm" onClick={() => setRevoke(null)}>Batal</Button>
-          <Button color="primary-destructive" size="sm" onClick={() => { run(dispatch({ type: "removeMember", projectId: project.id, userId: revoke!.userId })); setRevoke(null); }}>Cabut akses</Button>
+          <Button color="secondary" size="xs" onClick={() => setRevoke(null)}>Batal</Button>
+          <Button color="primary-destructive" size="xs" onClick={() => { run(dispatch({ type: "removeMember", projectId: project.id, userId: revoke!.userId })); setRevoke(null); }}>Cabut akses</Button>
         </>}
       />
     </div>

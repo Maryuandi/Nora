@@ -40,8 +40,8 @@ export function ProjectList({ status }: { status: ProjectStatus | null }) {
         ]}
         actions={
           <>
-            {can("client.create") && <Button color="secondary" size="sm" href="/clients/new" iconLeading={Buildings}>Tambah klien</Button>}
-            {can("project.create") && <Button color="primary" size="sm" href="/projects/new" iconLeading={Plus}>Buat proyek</Button>}
+            {can("client.create") && <Button color="secondary" size="xs" href="/clients/new" iconLeading={Buildings}>Tambah klien</Button>}
+            {can("project.create") && <Button color="primary" size="xs" href="/projects/new" iconLeading={Plus}>Buat proyek</Button>}
           </>
         }
         tabs={TABS.map((t) => ({
@@ -54,7 +54,7 @@ export function ProjectList({ status }: { status: ProjectStatus | null }) {
       />
       <div className="flex flex-col gap-4 px-8 py-6">
         {ending.length > 0 && (
-          <Banner action={<Link href={`/projects/${ending[0].id}/settings`}>Tinjau</Link>}>
+          <Banner action={<Link href={can("project.status", ending[0].id) ? `/projects/${ending[0].id}/settings` : `/projects/${ending[0].id}`}>Tinjau</Link>}>
             {ending.length === 1 ? `Kontrak ${ending[0].name} berakhir dalam 14 hari.` : `${ending.length} kontrak berakhir dalam 14 hari.`}
           </Banner>
         )}

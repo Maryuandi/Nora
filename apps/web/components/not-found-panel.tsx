@@ -8,7 +8,7 @@ export function NotFoundPanel() {
       <MagnifyingGlass size={32} className="text-ink-3" aria-hidden />
       <h1 className="mt-3 text-base font-semibold">Tidak ditemukan</h1>
       <p className="mt-1 max-w-sm text-sm text-ink-2">Halaman ini tidak ada atau tidak tersedia untuk akunmu.</p>
-      <Button className="mt-5" color="secondary" size="sm" href="/">Kembali ke proyek</Button>
+      <Button className="mt-5" color="secondary" size="xs" href="/">Kembali ke proyek</Button>
     </div>
   );
 }

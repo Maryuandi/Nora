@@ -48,7 +48,7 @@ export const InputBase = ({
     tooltip,
     shortcut,
     groupRef,
-    size = "md",
+    size = "sm",
     isInvalid,
     isDisabled,
     isRequired,
@@ -74,7 +74,7 @@ export const InputBase = ({
 
     const sizes = sortCx({
         sm: {
-            root: cx("px-3 py-2 text-sm", hasLeadingIcon && "pl-9", hasTrailingIcon && "pr-9"),
+            root: cx("px-3 py-1.5 text-sm", hasLeadingIcon && "pl-9", hasTrailingIcon && "pr-9"),
             iconLeading: "left-3 size-4 stroke-[2.25px]",
             iconTrailing: "right-3",
             shortcut: "pr-1.5",
@@ -210,7 +210,7 @@ const TextFieldContext = createContext<TextFieldContextProps>({});
 
 export interface TextFieldProps extends AriaTextFieldProps, TextFieldContextProps {}
 
-export const TextField = ({ className, size = "md", inputClassName, wrapperClassName, iconClassName, tooltipClassName, ...props }: TextFieldProps) => {
+export const TextField = ({ className, size = "sm", inputClassName, wrapperClassName, iconClassName, tooltipClassName, ...props }: TextFieldProps) => {
     return (
         <TextFieldContext.Provider value={{ inputClassName, wrapperClassName, iconClassName, tooltipClassName, size }}>
             <AriaTextField
@@ -253,7 +253,7 @@ export interface InputProps
 }
 
 export const Input = ({
-    size = "md",
+    size = "sm",
     placeholder,
     icon: Icon,
     label,

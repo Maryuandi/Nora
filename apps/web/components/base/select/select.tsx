@@ -108,7 +108,7 @@ const SelectValue = ({ isOpen, isFocused, isDisabled, size, placeholder, icon, r
 const Select = ({
     placeholder = "Select",
     icon,
-    size = "md",
+    size = "sm",
     children,
     items,
     label,

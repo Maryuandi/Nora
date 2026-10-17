@@ -54,7 +54,7 @@ export function Sidebar() {
   const first = projectsForViewer(mock.state)[0];
 
   return (
-    <aside className="sticky top-0 flex h-dvh w-[248px] shrink-0 flex-col border-r border-line bg-sidebar px-3 py-4">
+    <aside className="sticky top-0 flex h-dvh w-[248px] shrink-0 flex-col bg-sidebar px-3 py-4">
       <div className="mb-4 flex items-center justify-between px-2">
         <span className="flex items-center gap-1">
           <Logo />

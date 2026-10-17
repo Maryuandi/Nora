@@ -27,7 +27,7 @@ export default function NewClientPage() {
     if (!parsed.success) return setErrors(fieldErrors(parsed.error));
     const error = dispatch({ type: "createClient", input: parsed.data });
     if (error) return setErrors({ name: error });
-    router.push("/");
+    router.push("/projects/new");
   }
 
   return (
@@ -41,8 +41,8 @@ export default function NewClientPage() {
             <Input label="Kontak" placeholder="nama@klien.co.id" value={form.contact} onChange={set("contact")} isInvalid={!!errors.contact} hint={errors.contact} isRequired />
           </FormSection>
           <div className="flex justify-end gap-2 border-t border-line py-4">
-            <Button color="secondary" size="sm" href="/">Batal</Button>
-            <Button color="primary" size="sm" type="submit">Simpan klien</Button>
+            <Button color="secondary" size="xs" href="/">Batal</Button>
+            <Button color="primary" size="xs" type="submit">Simpan klien</Button>
           </div>
         </Card>
       </form>
