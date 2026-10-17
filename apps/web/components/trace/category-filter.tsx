@@ -4,10 +4,10 @@ import { cx } from "@/utils/cx";
 
 const CATS = Object.keys(RELATION_META) as RelationCategory[];
 
-export function CategoryFilter({ value, onChange }: { value: ReadonlySet<RelationCategory>; onChange: (v: Set<RelationCategory>) => void }) {
+export function CategoryFilter({ value, onChange, categories = CATS }: { value: ReadonlySet<RelationCategory>; onChange: (v: Set<RelationCategory>) => void; categories?: readonly RelationCategory[] }) {
   return (
     <div role="group" aria-label="Kategori hubungan" className="flex flex-wrap gap-2">
-      {CATS.map((c) => {
+      {categories.map((c) => {
         const on = value.has(c);
         const I = RELATION_META[c].icon;
         return (

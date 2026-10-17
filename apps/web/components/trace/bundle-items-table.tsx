@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Table } from "@/components/application/table/table";
 import { Pill } from "@/components/nora/badges";
 import { Card } from "@/components/nora/card";
-import type { BuiltGraph } from "@/lib/mock/graph";
+import { KIND_LABEL, type BuiltGraph } from "@/lib/mock/graph";
 import type { EvidenceBundle } from "@/lib/mock/types";
 
 export function BundleItemsTable({ bundle, graph }: { bundle: EvidenceBundle; graph: BuiltGraph }) {
@@ -26,7 +26,7 @@ export function BundleItemsTable({ bundle, graph }: { bundle: EvidenceBundle; gr
                 const href = byId.get(i.nodeId)?.href;
                 return (
                   <Table.Row key={i.nodeId} id={i.nodeId}>
-                    <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{i.kind}</Table.Cell>
+                    <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{KIND_LABEL[i.kind]}</Table.Cell>
                     <Table.Cell className="max-w-[280px] px-6 text-sm font-medium text-ink"><span className="block truncate" title={labelOf(i.nodeId)}>{labelOf(i.nodeId)}</span></Table.Cell>
                     <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{i.version === null ? "—" : `v${i.version}`}</Table.Cell>
                     <Table.Cell className="px-6 text-sm text-ink-2">{i.summary}</Table.Cell>
@@ -53,7 +53,7 @@ export function BundleItemsTable({ bundle, graph }: { bundle: EvidenceBundle; gr
               <Table.Body>
                 {bundle.excluded.map((x) => (
                   <Table.Row key={x.nodeId} id={x.nodeId}>
-                    <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{x.kind}</Table.Cell>
+                    <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{KIND_LABEL[x.kind]}</Table.Cell>
                     <Table.Cell className="px-6 text-sm font-medium text-ink">{labelOf(x.nodeId)}</Table.Cell>
                     <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{x.reason}</Table.Cell>
                   </Table.Row>

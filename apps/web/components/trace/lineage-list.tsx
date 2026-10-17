@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Database, FileText, Flask, ListChecks, Scales, TreeStructure, type Icon } from "@phosphor-icons/react";
 import { Pill } from "@/components/nora/badges";
-import type { BuiltGraph, LineageResult } from "@/lib/mock/graph";
+import { KIND_LABEL, type BuiltGraph, type LineageResult } from "@/lib/mock/graph";
 import type { GraphNode, GraphNodeKind } from "@/lib/mock/types";
 
 const KIND_ICON: Partial<Record<GraphNodeKind, Icon>> = {
@@ -25,10 +25,10 @@ export function LineageList({ result, onSelect, graph }: { result: LineageResult
                   <button type="button" onClick={() => onSelect(n)} className="text-sm font-medium text-ink hover:underline">
                     {n.label}{n.sublabel && <span className="ml-1 font-normal text-ink-3">{n.sublabel}</span>}
                   </button>
-                  <span className="text-xs text-ink-3">{n.kind}</span>
+                  <span className="text-xs text-ink-3">{KIND_LABEL[n.kind]}</span>
                   {newer && (
                     <Pill>
-                      {newer.href ? <Link href={newer.href} className="hover:underline">ada versi lebih baru</Link> : "ada versi lebih baru"}
+                      {(() => { const t = `ada versi lebih baru${newer.sublabel ? ` (${newer.sublabel})` : ""}`; return newer.href ? <Link href={newer.href} className="hover:underline">{t}</Link> : t; })()}
                     </Pill>
                   )}
                   <span className="ml-auto">

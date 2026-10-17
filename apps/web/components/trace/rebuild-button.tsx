@@ -30,7 +30,7 @@ export function RebuildButton({ projectId, status }: { projectId: string; status
         open={open}
         onClose={close}
         title="Bangun ulang graph?"
-        description="Graph akan diproyeksikan ulang dari data terbaru. Proses ini sekitar 3 detik dan tercatat di audit log."
+        description={`Graph akan diproyeksikan ulang dari data terbaru. Proses ini sekitar ${REBUILD_MS / 1000} detik dan tercatat di audit log.`}
         footer={<>
           <Button color="secondary" size="xs" onClick={close}>Batal</Button>
           <Button color="primary" size="xs" onClick={confirm}>Bangun ulang</Button>

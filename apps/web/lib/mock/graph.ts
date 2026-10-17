@@ -1,5 +1,5 @@
 import { Compass, GitBranch, Lightbulb, Scales, type Icon } from "@phosphor-icons/react";
-import type { EvidenceBundle, GraphEdge, GraphNode, GraphStatus, MockState, RelationCategory, RuleVersion } from "./types";
+import type { EvidenceBundle, GraphEdge, GraphNode, GraphNodeKind, GraphStatus, MockState, RelationCategory, RuleVersion } from "./types";
 
 export type RelationTone = "accent" | "ink" | "warning" | "neutral";
 export const STALE_THRESHOLD_MIN = 5;
@@ -8,6 +8,11 @@ export const RELATION_META: Record<RelationCategory, { label: string; icon: Icon
   observasi: { label: "Observasi", icon: Compass, tone: "ink", unproven: false },
   dukungan_hipotesis: { label: "Dukungan hipotesis", icon: Lightbulb, tone: "warning", unproven: true },
   keputusan: { label: "Keputusan", icon: Scales, tone: "neutral", unproven: false },
+};
+export const KIND_LABEL: Record<GraphNodeKind, string> = {
+  Source: "Sumber data", Snapshot: "Snapshot", MappingVersion: "Versi pemetaan", Rule: "Aturan", Document: "Dokumen",
+  Activity: "Aktivitas", Transition: "Transisi", Analysis: "Analisis", MetricDefinition: "Definisi metrik", Finding: "Temuan",
+  Hypothesis: "Hipotesis", Intervention: "Intervensi", Assessment: "Penilaian", EvidenceBundle: "Paket bukti", Decision: "Keputusan",
 };
 const CATEGORY_ORDER = Object.keys(RELATION_META) as RelationCategory[];
 

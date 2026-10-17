@@ -30,8 +30,8 @@ export function NeighborGroups({ groups, expanded, onExpand }: { groups: Neighbo
               ))}
             </ul>
             {g.hidden > 0 && !expanded.has(g.category) && (
-              <button type="button" aria-label={`Tampilkan semua ${label} (${g.total})`} onClick={() => onExpand(g.category)} className="mt-2 text-sm font-medium text-accent hover:underline">
-                Tampilkan semua ({g.total})
+              <button type="button" onClick={() => onExpand(g.category)} className="mt-2 text-sm font-medium text-accent hover:underline">
+                Tampilkan semua <span className="sr-only">{label} </span>({g.total})
               </button>
             )}
           </section>
