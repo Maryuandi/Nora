@@ -35,9 +35,9 @@ export function PageHeader({
       {stats && (
         <dl className="-mx-8 mt-5 flex border-y border-line">
           {stats.map((s) => (
-            <div key={s.label} className="border-l border-line px-8 py-3 first:border-l-0">
+            <div key={s.label} className="border-l border-line px-10 py-4 first:border-l-0 first:pl-8">
               <dt className="text-[11px] font-medium uppercase tracking-[0.05em] text-ink-3">{s.label}</dt>
-              <dd className="mt-0.5 text-[15px] leading-6 font-medium tracking-[-0.01em] text-ink">{s.value}</dd>
+              <dd className="mt-1 text-[15px] leading-6 font-medium tracking-[-0.01em] text-ink">{s.value}</dd>
             </div>
           ))}
         </dl>
