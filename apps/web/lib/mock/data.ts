@@ -1,5 +1,7 @@
 import { candidates, findings } from "./assessment-data";
 import { runFixture } from "./assessment";
+import { runClassFixture } from "./classification";
+import { classItems } from "./classification-data";
 import { DEFAULT_THRESHOLDS } from "./specs";
 import type { AuditEvent, Client, Membership, MappingVersion, MockState, Project, QuestionSpec, RuleSourceRef, RuleVersion, Snapshot, Source, User } from "./types";
 
@@ -205,4 +207,7 @@ export const specs: QuestionSpec[] = [
   ]),
 ];
 
-export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, rules, findings, candidates, assessments, corrections: [], specs, classItems: [], classResults: [], classCorrections: [], goldItems: [], evaluations: [], viewerId: "u-dimas" };
+const classResults = (["aktivitas", "catatan"] as const).flatMap((task) =>
+  runClassFixture(classItems.filter((i) => i.task === task), specs.find((x) => x.task === task)!, { runId: "run-seed-cls", at: MOCK_TODAY + "T09:00:00Z" }));
+
+export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, rules, findings, candidates, assessments, corrections: [], specs, classItems, classResults, classCorrections: [], goldItems: [], evaluations: [], viewerId: "u-dimas" };

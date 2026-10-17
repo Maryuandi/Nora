@@ -85,3 +85,30 @@ describe("assessment fixture", () => {
     for (const c of s.candidates) if (FIXTURE[c.id]) expect(FIXTURE[c.id].levels.length).toBeLessThanOrEqual(c.criteria.length);
   });
 });
+
+describe("seed classification", () => {
+  const ids = s.classItems.map((i) => i.id);
+  it("has 20 activities and 16 synthetic notes with unique ids", () => {
+    expect(s.classItems.filter((i) => i.task === "aktivitas")).toHaveLength(20);
+    expect(s.classItems.filter((i) => i.task === "catatan")).toHaveLength(16);
+    expect(new Set(ids).size).toBe(36);
+    for (const i of s.classItems) expect(i.synthetic).toBe(i.task === "catatan");
+  });
+  it("notes read as 8-20 word sentences", () => {
+    for (const i of s.classItems.filter((x) => x.task === "catatan")) {
+      const n = i.text.trim().split(/\s+/).length;
+      expect(n).toBeGreaterThanOrEqual(8);
+      expect(n).toBeLessThanOrEqual(20);
+    }
+  });
+  it("results sum to 1, match spec keys, and exactly six need review", () => {
+    expect(s.classResults).toHaveLength(36);
+    for (const r of s.classResults) {
+      const spec = s.specs.find((x) => x.task === r.task && x.version === r.specVersion)!;
+      expect(Object.keys(r.probs).sort()).toEqual(spec.categories.map((c) => c.key).sort());
+      expect(Math.abs(Object.values(r.probs).reduce((a, b) => a + b, 0) - 1)).toBeLessThan(1e-9);
+    }
+    expect(s.classResults.filter((r) => r.status === "perlu_review").map((r) => r.itemId).sort()).toEqual(["a02", "a06", "a14", "a18", "n11", "n14"]);
+    expect(s.classResults.filter((r) => r.status === "gagal")).toHaveLength(0);
+  });
+});
