@@ -4,7 +4,7 @@ import { AvatarStack } from "@/components/nora/avatar";
 import { RoleBadge, StatusBadge } from "@/components/nora/badges";
 import type { Project, Role } from "@/lib/mock/types";
 
-const fmt = (d: string) => new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+import { formatDate as fmt } from "@/lib/format";
 export const formatPeriod = (p: Project) => (p.contractEnd ? `${fmt(p.contractStart)} – ${fmt(p.contractEnd)}` : "Belum diatur");
 
 export function ProjectCard({ project, clientName, role, members }: { project: Project; clientName: string; role: Role; members: string[] }) {

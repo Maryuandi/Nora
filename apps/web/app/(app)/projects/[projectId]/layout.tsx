@@ -1,0 +1,47 @@
+"use client";
+
+import { usePathname } from "next/navigation";
+import { ClockCounterClockwise, GearSix, SquaresFour, UsersThree } from "@phosphor-icons/react";
+import { StatusBadge } from "@/components/nora/badges";
+import { NotFoundPanel } from "@/components/not-found-panel";
+import { formatPeriod } from "@/components/project-card";
+import { useProject } from "@/components/project/use-project";
+import { PageHeader } from "@/components/shell/page-header";
+
+export default function ProjectLayout({ children }: { children: React.ReactNode }) {
+  const path = usePathname();
+  const ctx = useProject();
+  if (!ctx) return <NotFoundPanel />;
+  const { project, client, state, can } = ctx;
+  const base = `/projects/${project.id}`;
+  const members = state.memberships.filter((m) => m.projectId === project.id).length;
+  const audit = state.audit.filter((a) => a.projectId === project.id).length;
+
+  const tabs = [
+    { label: "Ringkasan", icon: SquaresFour, href: base },
+    { label: "Anggota", icon: UsersThree, href: `${base}/members`, count: members },
+    { label: "Audit log", icon: ClockCounterClockwise, href: `${base}/audit`, count: audit },
+    ...(can("project.status", project.id) ? [{ label: "Pengaturan", icon: GearSix, href: `${base}/settings` }] : []),
+  ].map((t) => ({ ...t, active: path === t.href }));
+
+  return (
+    <>
+      <PageHeader
+        eyebrow={client.name}
+        title={
+          <span className="flex items-center gap-3">
+            <span className="truncate">{project.name}</span>
+            <StatusBadge status={project.status} />
+          </span>
+        }
+        stats={[
+          { label: "Proses", value: project.process.name },
+          { label: "Periode kontrak", value: formatPeriod(project) },
+          { label: "Peranmu", value: ({ administrator: "Administrator", analis: "Analis", pemilik_proses: "Pemilik proses" } as const)[ctx.role] },
+        ]}
+        tabs={tabs}
+      />
+      <div className="px-8 py-6">{children}</div>
+    </>
+  );
+}
