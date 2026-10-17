@@ -7,7 +7,7 @@ export default async function ModulePage({ params }: { params: Promise<{ module:
   if (!mod) notFound();
   return (
     <main>
-      <h1 className="text-[24px] leading-8 font-semibold tracking-[-0.02em]">
+      <h1 className="text-[20px] leading-7 font-semibold tracking-[-0.02em]">
         {mod.id.toUpperCase()} - {mod.title}
       </h1>
       <p>PRD: {mod.prdFile}</p>

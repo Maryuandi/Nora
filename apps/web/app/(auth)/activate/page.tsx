@@ -25,7 +25,7 @@ export default function ActivatePage() {
 
   return (
     <Card className="p-6">
-      <h1 className="text-[24px] leading-8 font-semibold tracking-[-0.02em]">Aktifkan akun</h1>
+      <h1 className="text-[20px] leading-7 font-semibold tracking-[-0.02em]">Aktifkan akun</h1>
       <p className="mt-1 text-sm text-ink-2">Setel kata sandi untuk mulai memakai Nora.</p>
       <form onSubmit={submit} className="mt-5 flex flex-col gap-4" noValidate>
         <Input label="Kata sandi" type="password" value={password} onChange={setPassword} isInvalid={!!errors.password} hint={errors.password ?? `Minimal ${MIN} karakter`} autoComplete="new-password" />

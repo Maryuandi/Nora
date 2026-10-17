@@ -21,7 +21,7 @@ export default function LoginPage() {
 
   return (
     <Card className="p-6">
-      <h1 className="text-[24px] leading-8 font-semibold tracking-[-0.02em]">Masuk ke Nora</h1>
+      <h1 className="text-[20px] leading-7 font-semibold tracking-[-0.02em]">Masuk ke Nora</h1>
       <p className="mt-1 text-sm text-ink-2">Gunakan akun yang diberikan Administrator proyek.</p>
       <form onSubmit={submit} className="mt-5 flex flex-col gap-4" noValidate>
         <Input label="Email" type="email" placeholder="nama@javan.co.id" value={email} onChange={(v) => { setEmail(v); setError(null); }} autoComplete="email" />

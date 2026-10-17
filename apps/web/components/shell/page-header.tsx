@@ -28,7 +28,7 @@ export function PageHeader({
       <div className="flex items-start justify-between gap-6">
         <div className="min-w-0">
           {eyebrow && <div className="mb-1 text-[13px] text-ink-3">{eyebrow}</div>}
-          <h1 className="truncate text-[24px] leading-8 font-semibold tracking-[-0.02em] text-ink">{title}</h1>
+          <h1 className="truncate text-[20px] leading-7 font-semibold tracking-[-0.02em] text-ink">{title}</h1>
         </div>
         {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
       </div>
