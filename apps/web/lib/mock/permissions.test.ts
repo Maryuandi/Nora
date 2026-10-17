@@ -20,6 +20,8 @@ const EXPECTED: Record<UiAction, Role[]> = {
   "rule.view": ["administrator", "analis", "pemilik_proses"],
   "rule.edit": ["analis"],
   "rule.confirm": ["pemilik_proses"],
+  "rec.view": ["administrator", "analis", "pemilik_proses"],
+  "rec.edit": ["analis"],
 };
 
 describe("can", () => {
