@@ -7,7 +7,7 @@ import { Table } from "@/components/application/table/table";
 import { Button } from "@/components/base/buttons/button";
 import { STATUS_META } from "@/components/nora/badges";
 import { Card } from "@/components/nora/card";
-import { INTERPRETATION_STATUS_LABEL, InterpretationStatusBadge } from "@/components/project/interpretation-status";
+import { INTERPRETATION_STATUS_LABEL, InterpretationStatusBadge, OverriddenPill } from "@/components/project/interpretation-status";
 import { RequestInterpretationModal } from "@/components/project/request-interpretation-modal";
 import { useProject } from "@/components/project/use-project";
 import { formatDateTime } from "@/lib/format";
@@ -73,7 +73,7 @@ export default function InterpretationsPage() {
                       <Link href={`${base}/interpretations/${i.id}`} title={title} className="block truncate hover:underline">{title}</Link>
                     </Table.Cell>
                     <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{AUDIENCE_LABEL[i.audience]}</Table.Cell>
-                    <Table.Cell className="px-6"><InterpretationStatusBadge status={i.status} /></Table.Cell>
+                    <Table.Cell className="px-6"><div className="flex flex-wrap gap-1.5"><InterpretationStatusBadge status={i.status} />{i.overrides.length > 0 && <OverriddenPill />}</div></Table.Cell>
                     <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{i.attempts.length}</Table.Cell>
                     <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{state.users.find((u) => u.id === i.createdBy)?.name ?? i.createdBy}</Table.Cell>
                     <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{formatDateTime(i.createdAt)}</Table.Cell>

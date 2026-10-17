@@ -27,6 +27,17 @@ export const CLAIM_TYPE_LABEL: Record<ClaimType, string> = {
 };
 export const AUDIENCE_LABEL: Record<Audience, string> = { analis: "Analis", pemilik_proses: "Pemilik proses" };
 export const DECISION_PHRASES = ["dipilih", "akan diterapkan", "diputuskan", "pasti disebabkan", "jelas disebabkan", "membuktikan bahwa"];
+export const CHECK_LABEL: Record<CheckKey, string> = {
+  skema: "Skema",
+  placeholder: "Placeholder",
+  angka_literal: "Angka literal",
+  rujukan: "Rujukan",
+  tipe_klaim: "Tipe klaim",
+  tindakan_tidak_dikenal: "Tindakan tidak dikenal",
+  bahasa_keputusan: "Bahasa keputusan",
+  ketidakpastian: "Ketidakpastian",
+};
+
 export const ACTION_PHRASES = ["hentikan", "otomatisasi", "tambah staf", "outsourcing", "ganti sistem", "hapus langkah"];
 
 // ---------- Placeholder ----------

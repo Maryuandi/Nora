@@ -1,18 +1,7 @@
 import { CheckCircle, XCircle } from "@phosphor-icons/react";
 import { Pill } from "@/components/nora/badges";
-import { CHECKS } from "@/lib/mock/interpretation";
-import type { CheckKey, CheckOverride, CheckResult } from "@/lib/mock/types";
-
-export const CHECK_LABEL: Record<CheckKey, string> = {
-  skema: "Skema",
-  placeholder: "Placeholder",
-  angka_literal: "Angka literal",
-  rujukan: "Rujukan",
-  tipe_klaim: "Tipe klaim",
-  tindakan_tidak_dikenal: "Tindakan tidak dikenal",
-  bahasa_keputusan: "Bahasa keputusan",
-  ketidakpastian: "Ketidakpastian",
-};
+import { CHECKS, CHECK_LABEL } from "@/lib/mock/interpretation";
+import type { CheckOverride, CheckResult } from "@/lib/mock/types";
 
 export function CheckReport({ results, overrides }: { results: CheckResult[]; overrides: CheckOverride[] }) {
   return (

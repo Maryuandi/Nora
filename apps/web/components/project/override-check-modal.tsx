@@ -5,7 +5,7 @@ import { Button } from "@/components/base/buttons/button";
 import { TextArea } from "@/components/base/textarea/textarea";
 import { Banner } from "@/components/nora/banner";
 import { NoraModal } from "@/components/nora/modal";
-import { CHECK_LABEL } from "@/components/project/check-report";
+import { CHECK_LABEL } from "@/lib/mock/interpretation";
 import { useMock } from "@/lib/mock/store";
 import type { Violation } from "@/lib/mock/types";
 

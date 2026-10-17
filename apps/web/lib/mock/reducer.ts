@@ -1,7 +1,7 @@
 import { MOCK_TODAY, initialState } from "./data";
 import { isStale } from "../format";
 import { fabricate } from "./fabricate";
-import { AUDIENCE_LABEL, isOverridable, runCheckedGeneration, statusOf, violationKey } from "./interpretation";
+import { AUDIENCE_LABEL, CHECK_LABEL, isOverridable, runCheckedGeneration, statusOf, violationKey } from "./interpretation";
 import { validateMapping } from "./mapping";
 import { acceptsData } from "./permissions";
 import { nextStatuses, previewDataset, previewRule, projectCanonicalLabels, validateRule, type RuleInput } from "./rules";
@@ -331,7 +331,7 @@ export function reduce(state: MockState, action: MockAction): ReduceResult {
       const updated: Interpretation = { ...interp, overrides, status: statusOf(interp.attempts, overrides) };
       const finding = state.findings.find((f) => f.id === interp.findingId);
       const next = { ...state, interpretations: state.interpretations.map((x) => (x === interp ? updated : x)) };
-      return { state: withAudit(next, { action: "interpretation.kesampingkan", objectType: "Interpretation", objectLabel: `${finding?.title ?? interp.findingId} · ${AUDIENCE_LABEL[interp.audience]}`, projectId: project.id }), interpretationId: interp.id };
+      return { state: withAudit(next, { action: "interpretation.kesampingkan", objectType: "Interpretation", objectLabel: `${finding?.title ?? interp.findingId} · ${CHECK_LABEL[action.check]} — ${reason}`, projectId: project.id }), interpretationId: interp.id };
     }
 
     case "confirmSnapshot":

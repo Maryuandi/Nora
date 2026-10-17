@@ -5,16 +5,16 @@ import { CheckCircle, XCircle } from "@phosphor-icons/react";
 import { Button } from "@/components/base/buttons/button";
 import { Banner } from "@/components/nora/banner";
 import { Card } from "@/components/nora/card";
-import { Pill } from "@/components/nora/badges";
-import { CheckReport, CHECK_LABEL } from "@/components/project/check-report";
+import { CheckReport } from "@/components/project/check-report";
 import { ClaimBadge } from "@/components/project/claim-badge";
 import { ClaimText } from "@/components/project/claim-text";
 import { EvidencePanel } from "@/components/project/evidence-panel";
-import { InterpretationStatusBadge } from "@/components/project/interpretation-status";
+import { STATUS_META } from "@/components/nora/badges";
+import { InterpretationStatusBadge, OverriddenPill } from "@/components/project/interpretation-status";
 import { OverrideCheckModal } from "@/components/project/override-check-modal";
 import { useProject } from "@/components/project/use-project";
 import { formatDateTime } from "@/lib/format";
-import { AUDIENCE_LABEL, SECTION_LABEL, SECTION_ORDER, isOverridable, unreferencedEvidence, violationKey } from "@/lib/mock/interpretation";
+import { AUDIENCE_LABEL, CHECK_LABEL, SECTION_LABEL, SECTION_ORDER, isOverridable, unreferencedEvidence, violationKey } from "@/lib/mock/interpretation";
 import { acceptsData } from "@/lib/mock/permissions";
 import type { Interpretation, MockFinding, Violation } from "@/lib/mock/types";
 import { cx } from "@/utils/cx";
@@ -25,7 +25,7 @@ export function InterpretationView({ interpretation, finding }: { interpretation
   const ctx = useProject();
   const [picked, setPicked] = useState<number | null>(null);
   const [itemId, setItemId] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("bukti");
+  const [tab, setTab] = useState<Tab>(interpretation.status === "gagal_pemeriksaan" ? "pemeriksaan" : "bukti");
   const [overriding, setOverriding] = useState<Violation | null>(null);
   if (!ctx) return null;
   const { project, state, can } = ctx;
@@ -37,7 +37,11 @@ export function InterpretationView({ interpretation, finding }: { interpretation
   const isLast = idx === lastIdx;
   const failed = isLast && status === "gagal_pemeriksaan";
   const overridden = new Set(overrides.map(violationKey));
-  const mayOverride = can("interpretation.override", project.id) && acceptsData(project.status);
+  const mayOverrideRole = can("interpretation.override", project.id);
+  const mayOverride = mayOverrideRole && acceptsData(project.status);
+  // one row per violationKey: a single override clears every violation sharing it
+  const groups = [...attempt.violations.reduce((m, v) => m.set(violationKey(v), [...(m.get(violationKey(v)) ?? []), v]), new Map<string, Violation[]>()).values()];
+  const hint = mayOverride && groups.some((g) => isOverridable(g[0].check) && !overridden.has(violationKey(g[0])));
   const flaggedIds = new Set(attempt.violations.flatMap((v) => (v.claimId ? [v.claimId] : [])));
   const overriddenClaims = new Set(isLast ? overrides.flatMap((o) => (o.claimId ? [o.claimId] : [])) : []);
   const unreferenced = unreferencedEvidence(attempt.sections, finding);
@@ -52,6 +56,7 @@ export function InterpretationView({ interpretation, finding }: { interpretation
           <h2 className="min-w-0 break-words text-[20px] leading-7 font-semibold tracking-[-0.02em]">{finding.title}</h2>
           <span className="text-sm text-ink-2">{AUDIENCE_LABEL[interpretation.audience]}</span>
           <InterpretationStatusBadge status={status} />
+          {overrides.length > 0 && <OverriddenPill />}
         </div>
         <span title="Workspace tinjauan (M11) belum tersedia"><Button color="secondary" size="xs" isDisabled>Buka di M11</Button></span>
       </div>
@@ -65,7 +70,7 @@ export function InterpretationView({ interpretation, finding }: { interpretation
             <button key={a.n} type="button" aria-pressed={i === idx} onClick={() => setPicked(i)}
               className={cx("inline-flex items-center gap-1.5 rounded-lg border px-3 py-1 text-sm", i === idx ? "border-accent bg-accent-soft font-medium text-ink" : "border-line bg-white text-ink-2 hover:text-ink")}>
               <I size={14} weight="fill" className={ok ? "text-status-active" : "text-status-ended"} aria-label={ok ? "Lolos" : "Gagal"} />
-              Percobaan {a.n}
+              Percobaan {a.n}{a.violations.length > 0 && ` · ${a.violations.length} pelanggaran`}
             </button>
           );
         })}
@@ -75,18 +80,23 @@ export function InterpretationView({ interpretation, finding }: { interpretation
         <div className="flex min-w-0 flex-col gap-4">
           {failed ? (
             <>
-              <Banner tone="warning">Draf gagal pemeriksaan dan tidak ditampilkan. Perbaiki pelanggaran di bawah atau kesampingkan pemeriksaan heuristik.</Banner>
+              <Banner tone="warning">Draf gagal pemeriksaan setelah {attempts.length} percobaan dan tidak ditampilkan.</Banner>
+              {hint && <p className="text-sm text-ink-2">Pelanggaran heuristik dapat dikesampingkan dengan alasan tercatat.</p>}
+              {mayOverrideRole && !mayOverride && <p className="text-sm text-ink-3">Proyek berstatus {STATUS_META[project.status].label}; pengesampingan dinonaktifkan</p>}
               <ul className="divide-y divide-line rounded-lg border border-line bg-white">
-                {attempt.violations.map((v) => (
-                  <li key={violationKey(v) + v.message} className="flex flex-wrap items-start justify-between gap-3 px-3 py-2.5">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-ink">{CHECK_LABEL[v.check]}</p>
-                      <p className="break-words text-xs text-ink-2">{v.message}</p>
-                    </div>
-                    {overridden.has(violationKey(v)) ? <Pill>Dikesampingkan</Pill>
-                      : isOverridable(v.check) && mayOverride && <Button color="secondary" size="xs" onClick={() => setOverriding(v)}>Kesampingkan</Button>}
-                  </li>
-                ))}
+                {groups.map((g) => {
+                  const v = g[0];
+                  return (
+                    <li key={violationKey(v)} className="flex flex-wrap items-start justify-between gap-3 px-3 py-2.5">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-ink">{CHECK_LABEL[v.check]}</p>
+                        {g.map((x, i) => <p key={i} className="break-words text-xs text-ink-2">{x.message}</p>)}
+                      </div>
+                      {overridden.has(violationKey(v)) ? <OverriddenPill />
+                        : isOverridable(v.check) && mayOverride && <Button color="secondary" size="xs" onClick={() => setOverriding(v)}>Kesampingkan</Button>}
+                    </li>
+                  );
+                })}
               </ul>
             </>
           ) : (
@@ -100,7 +110,7 @@ export function InterpretationView({ interpretation, finding }: { interpretation
                       <div key={c.id} className="flex min-w-0 flex-col items-start gap-1.5">
                         <div className="flex flex-wrap gap-1.5">
                           <ClaimBadge type={c.type} />
-                          {overriddenClaims.has(c.id) && <Pill>Dikesampingkan</Pill>}
+                          {overriddenClaims.has(c.id) && <OverriddenPill />}
                         </div>
                         <ClaimText claim={c} finding={finding} onCite={cite} flagged={flaggedIds.has(c.id)} />
                       </div>

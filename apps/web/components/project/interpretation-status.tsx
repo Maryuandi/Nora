@@ -1,4 +1,4 @@
-import { CheckCircle, XCircle } from "@phosphor-icons/react";
+import { CheckCircle, ShieldWarning, XCircle } from "@phosphor-icons/react";
 import { Pill } from "@/components/nora/badges";
 import type { InterpretationStatus } from "@/lib/mock/types";
 
@@ -14,3 +14,10 @@ export function InterpretationStatusBadge({ status }: { status: InterpretationSt
     </Pill>
   );
 }
+
+export const OverriddenPill = () => (
+  <Pill>
+    <ShieldWarning size={14} weight="fill" className="text-status-suspended" aria-hidden />
+    Dikesampingkan
+  </Pill>
+);

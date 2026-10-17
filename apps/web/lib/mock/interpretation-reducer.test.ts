@@ -59,25 +59,26 @@ describe("overrideCheck", () => {
     expect(r.interpretationId).toBe(after.id);
     expect(r.state.audit.length).toBe(before.audit.length + 1);
     expect(r.state.audit[0]).toMatchObject({ action: "interpretation.kesampingkan", objectType: "Interpretation", projectId: "p-p2p" });
+    expect(r.state.audit[0].objectLabel).toBe("Penyimpangan urutan pembayaran · Bahasa keputusan — positif palsu");
   });
   it.each([
-    ["non-overridable check", (s: MockState) => override(s, { check: "angka_literal" })],
-    ["blank reason", (s: MockState) => override(s, { reason: "   " })],
-    ["claim that does not violate", (s: MockState) => override(s, { claimId: "tidak-ada" })],
-    ["already passing draft", (s: MockState) => ({ type: "overrideCheck", interpretationId: s.interpretations[0].id, check: "bahasa_keputusan", reason: "x" }) as MockAction],
-    ["unknown id", (s: MockState) => override(s, { interpretationId: "i-nope" })],
-    ["inactive project", (s: MockState) => { s.projects.find((p) => p.id === "p-p2p")!.status = "ditangguhkan"; return override(s); }],
-  ])("rejects %s without changing state", (_n, setup) => {
+    ["non-overridable check", (s: MockState) => override(s, { check: "angka_literal" }), "Pemeriksaan ini tidak dapat dikesampingkan"],
+    ["blank reason", (s: MockState) => override(s, { reason: "   " }), "Alasan wajib diisi"],
+    ["claim that does not violate", (s: MockState) => override(s, { claimId: "tidak-ada" }), "Pelanggaran tidak ditemukan"],
+    ["already passing draft", (s: MockState) => ({ type: "overrideCheck", interpretationId: s.interpretations[0].id, check: "bahasa_keputusan", reason: "x" }) as MockAction, "Draf ini sudah lolos pemeriksaan"],
+    ["unknown id", (s: MockState) => override(s, { interpretationId: "i-nope" }), "Interpretasi tidak ditemukan"],
+    ["inactive project", (s: MockState) => { s.projects.find((p) => p.id === "p-p2p")!.status = "ditangguhkan"; return override(s); }, "Proyek ini tidak menerima data baru"],
+  ])("rejects %s without changing state", (_n, setup, message) => {
     const before = s0();
     const action = setup(before);
     const r = reduce(before, action);
-    expect(r.error).toBeTruthy();
+    expect(r.error).toBe(message);
     expect(r.state).toBe(before);
   });
   it("rejects a violation that is already overridden", () => {
     const a = reduce(s0(), override(s0()));
     const again = reduce(a.state, override(a.state));
-    expect(again.error).toBeTruthy();
+    expect(again.error).toBe("Draf ini sudah lolos pemeriksaan");
     expect(again.state).toBe(a.state);
   });
 });

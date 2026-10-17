@@ -239,5 +239,8 @@ describe("violationKey, isOverridable, statusOf", () => {
     expect(statusOf(atts63, [ov("bahasa_keputusan", "tidak-ada")])).toBe("gagal_pemeriksaan");
     const a1 = runCheckedGeneration(f57, "analis")[0];
     expect(statusOf([a1], [ov("angka_literal", a1.violations.find((v) => v.check === "angka_literal")!.claimId)])).toBe("gagal_pemeriksaan");
+    // mixed violations: overriding only the heuristic one is not enough
+    const heur = a1.violations.find((v) => v.check === "tindakan_tidak_dikenal")!;
+    expect(statusOf([a1], [ov("tindakan_tidak_dikenal", heur.claimId)])).toBe("gagal_pemeriksaan");
   });
 });
