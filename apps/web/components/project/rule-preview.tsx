@@ -1,3 +1,4 @@
+import { Banner } from "@/components/nora/banner";
 import { Card } from "@/components/nora/card";
 import type { RulePreview } from "@/lib/mock/rules";
 
@@ -28,7 +29,7 @@ export function RulePreviewCard({ preview, sourceLabel }: { preview: RulePreview
             </div>
           </>
         ) : (
-          <p className="rounded-lg border border-[#f3d48a] bg-[#fdf6e3] px-3 py-2 text-sm text-ink">Tidak dapat dievaluasi: {preview.reason}</p>
+          <Banner tone="warning"><span className="break-words">Tidak dapat dievaluasi: {preview.reason}</span></Banner>
         )}
         {preview.status === "ok" && sourceLabel && (
           <p className="truncate text-xs text-ink-3" title={sourceLabel}>Contoh tiruan dari {sourceLabel}</p>

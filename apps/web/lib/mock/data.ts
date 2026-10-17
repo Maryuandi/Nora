@@ -152,7 +152,7 @@ const rule = (o: Partial<RuleVersion> & Pick<RuleVersion, "id" | "ruleKey" | "ve
 });
 
 const rules: RuleVersion[] = [
-  rule({ id: "r-sla-1", ruleKey: "r-sla", version: 1, name: "Create Purchase Order Item ke Record Goods Receipt ≤ 14 hari kerja", status: "usang",
+  rule({ id: "r-sla-1", ruleKey: "r-sla", version: 1, name: "Create Purchase Order Item ke Record Goods Receipt ≤ 14 hari kalender", status: "usang", effectiveTo: "2026-09-10",
     description: "Batas awal sebelum direvisi.", createdAt: "2026-09-01T03:00:00Z",
     params: { type: "sla", from: "Create Purchase Order Item", to: "Record Goods Receipt", limit: 14, unit: "kalender" },
     source: sop("Bagian 4.2", "Barang harus diterima paling lambat 14 hari sejak PO dibuat.") }),

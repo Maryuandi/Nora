@@ -49,6 +49,10 @@ const Fact = ({ label, children }: { label: string; children: React.ReactNode })
 
 export default function RuleDetailPage() {
   const { ruleKey } = useParams<{ ruleKey: string }>();
+  return <RuleDetail key={ruleKey} ruleKey={ruleKey} />;
+}
+
+function RuleDetail({ ruleKey }: { ruleKey: string }) {
   const ctx = useProject();
   const [openId, setOpenId] = useState<string | null>(null);
   const [retiring, setRetiring] = useState(false);
@@ -111,7 +115,7 @@ export default function RuleDetailPage() {
 
       {error && <Banner tone="warning">{error}</Banner>}
       {blocked && <p className="text-sm text-ink-3">Proyek berstatus {STATUS_META[project.status].label}; perubahan aturan dinonaktifkan</p>}
-      {!isLatest && <Banner>Versi lama (hanya baca). <button type="button" className="font-medium text-accent hover:underline" onClick={() => setOpenId(null)}>Lihat versi terbaru</button></Banner>}
+      {!isLatest && <Banner>Versi lama (hanya baca). <button type="button" className="font-medium text-accent hover:underline" onClick={() => { setOpenId(null); setError(undefined); }}>Lihat versi terbaru</button></Banner>}
       {missing.map((a) => <Banner key={a} tone="warning">Aktivitas {a} tidak lagi ada di label kanonis; ubah aturan</Banner>)}
 
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -152,7 +156,7 @@ export default function RuleDetailPage() {
             {versions.map((v) => (
               <Table.Row key={v.id} id={v.id}>
                 <Table.Cell className="px-6 text-sm font-medium whitespace-nowrap text-ink">
-                  <button type="button" aria-pressed={v.id === shown.id} aria-label={`Lihat aturan v${v.version}`} onClick={() => setOpenId(v.id === latest.id ? null : v.id)}
+                  <button type="button" aria-pressed={v.id === shown.id} aria-label={`Lihat aturan v${v.version}`} onClick={() => { setOpenId(v.id === latest.id ? null : v.id); setError(undefined); }}
                     className="cursor-pointer text-accent hover:underline">v{v.version}</button>
                 </Table.Cell>
                 <Table.Cell className="px-6"><RuleStatusBadge status={v.status} /></Table.Cell>

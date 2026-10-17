@@ -176,7 +176,7 @@ export function RuleForm({ projectId, ruleKey, initial }: { projectId: string; r
       </div>
 
       <div className="flex flex-col gap-3 lg:sticky lg:top-4">
-        {paramsComplete && <p className="text-sm text-ink-2">{ruleSummary(draft.params)}</p>}
+        {paramsComplete && <p className="text-sm break-words text-ink-2">{ruleSummary(draft.params)}</p>}
         <RulePreviewCard preview={preview} sourceLabel={sourceLabel} />
       </div>
     </div>
