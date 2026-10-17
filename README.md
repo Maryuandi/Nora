@@ -11,4 +11,37 @@ Process intelligence platform: ingest client process logs, map and monitor how p
 
 Next.js (App Router, TypeScript) · Zod · Temporal (TypeScript + Python workers) · PM4Py · SimPy · PostgreSQL · Neo4j · S3-compatible object storage · React Flow · Recharts
 
-Status: documentation only; code scaffold coming next.
+Status: monorepo skeleton (web, TS worker, Python worker, shared contracts); feature modules not yet implemented.
+
+## Menjalankan lokal
+
+Prasyarat, berurutan: Docker Desktop atau OrbStack, Node >= 22, pnpm, uv.
+
+```bash
+cp .env.example .env     # wajib sebelum infra:up dan dev
+pnpm install
+(cd workers/python && uv sync)
+pnpm infra:up            # tunggu ~10 dtk (atau sampai http://localhost:8233 terbuka)
+pnpm dev                 # web :3000, worker TS, worker Python
+```
+
+| Perintah | Fungsi |
+| --- | --- |
+| `pnpm infra:up` | Jalankan Postgres, Neo4j, MinIO, Temporal (Docker) |
+| `pnpm infra:down` | Hentikan infra |
+| `pnpm dev` | Jalankan web, worker TS, dan worker Python sekaligus |
+| `pnpm test` | Uji semua paket TS lalu pytest worker Python |
+| `pnpm contracts:export` | Regenerasi JSON Schema di `packages/contracts/schemas/` |
+
+Uji ping end-to-end (setelah `pnpm dev` jalan):
+
+```bash
+curl -s -X POST localhost:3000/api/ping -H 'content-type: application/json' -d '{"message":"halo"}'
+# 202 {"workflowId":"<id>","status":"running"}
+curl -s localhost:3000/api/ping/<workflowId>
+# {"status":"completed","result":{"message":"halo","pm4pyVersion":"...","handledBy":"python"}}
+```
+
+Status layanan: http://localhost:3000/health
+
+Catatan: alur end-to-end (compose, /health semua ok, ping completed) belum dijalankan karena butuh Docker. Worker tidak mengulang koneksi awal ke Temporal, jadi jalankan `pnpm dev` hanya setelah Temporal siap.

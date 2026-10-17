@@ -8,3 +8,7 @@ __pycache__/
 *.pyc
 .DS_Store
 graphify-out/
+.superpowers/
+*.tsbuildinfo
+apps/web/next-env.d.ts
+apps/web/AGENTS.md
