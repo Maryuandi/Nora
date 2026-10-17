@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { ClockCounterClockwise, GearSix, SquaresFour, UsersThree } from "@phosphor-icons/react";
+import { ClockCounterClockwise, Database, GearSix, SquaresFour, UsersThree } from "@phosphor-icons/react";
 import { StatusBadge } from "@/components/nora/badges";
 import { NotFoundPanel } from "@/components/not-found-panel";
 import { formatPeriod } from "@/components/project-card";
@@ -15,14 +15,16 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
   const { project, client, state, can } = ctx;
   const base = `/projects/${project.id}`;
   const members = state.memberships.filter((m) => m.projectId === project.id).length;
+  const sources = state.sources.filter((s) => s.projectId === project.id).length;
   const audit = state.audit.filter((a) => a.projectId === project.id).length;
 
   const tabs = [
     { label: "Ringkasan", icon: SquaresFour, href: base },
+    { label: "Sumber data", icon: Database, href: `${base}/sources`, count: sources },
     { label: "Anggota", icon: UsersThree, href: `${base}/members`, count: members },
     { label: "Audit log", icon: ClockCounterClockwise, href: `${base}/audit`, count: audit },
     ...(can("project.status", project.id) ? [{ label: "Pengaturan", icon: GearSix, href: `${base}/settings` }] : []),
-  ].map((t) => ({ ...t, active: path === t.href }));
+  ].map((t) => ({ ...t, active: t.href === `${base}/sources` ? path.startsWith(t.href) || path.startsWith(`${base}/snapshots`) : path === t.href }));
 
   return (
     <>

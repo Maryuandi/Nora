@@ -23,7 +23,7 @@ export const ROLE_LABEL: Record<Role, string> = {
   pemilik_proses: "Pemilik proses",
 };
 
-function Pill({ dot, children, className }: { dot?: string; children: React.ReactNode; className?: string }) {
+export function Pill({ dot, children, className }: { dot?: string; children: React.ReactNode; className?: string }) {
   return (
     <span
       className={cx(
