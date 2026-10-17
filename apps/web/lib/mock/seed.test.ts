@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { initialState as s } from "./data";
+import { buildGraph, lineage } from "./graph";
 import { projectCanonicalLabels } from "./rules";
 
 describe("seed mappings", () => {
@@ -71,5 +72,32 @@ describe("seed graph", () => {
     expect(b1.items.length).toBe(7);
     expect(b1.excluded.length).toBe(3);
     expect(s.bundles.find((b) => b.id === "b-2")?.limitedContext).toBe(true);
+  });
+});
+
+describe("seed graph (resolved via buildGraph)", () => {
+  const reasons = ["dikecualikan karena anggaran", "di luar hak akses"];
+  it("every project's edges, bundles and findings resolve", () => {
+    for (const p of s.projects) {
+      const g = buildGraph(s, p.id);
+      const ids = new Set(g.nodes.map((n) => n.id));
+      for (const n of g.nodes) expect(n.projectId).toBe(p.id);
+      for (const e of g.edges) {
+        expect(e.projectId, e.id).toBe(p.id);
+        expect(ids.has(e.from), `${e.id} from ${e.from}`).toBe(true);
+        expect(ids.has(e.to), `${e.id} to ${e.to}`).toBe(true);
+      }
+      for (const f of s.findings.filter((x) => x.projectId === p.id)) {
+        expect(lineage(g, f.id)!.nodes.some((n) => n.kind === "Snapshot"), f.id).toBe(true);
+      }
+      for (const b of s.bundles.filter((x) => x.projectId === p.id)) {
+        expect(ids.has(b.assessmentId), b.id).toBe(true);
+        for (const i of b.items) expect(ids.has(i.nodeId), i.nodeId).toBe(true);
+        for (const x of b.excluded) {
+          expect(ids.has(x.nodeId), x.nodeId).toBe(true);
+          expect(reasons).toContain(x.reason);
+        }
+      }
+    }
   });
 });
