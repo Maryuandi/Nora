@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { ClockCounterClockwise, Database, GearSix, Scales, SquaresFour, UsersThree } from "@phosphor-icons/react";
+import { ClockCounterClockwise, Database, FlowArrow, GearSix, Scales, SquaresFour, UsersThree } from "@phosphor-icons/react";
 import { StatusBadge } from "@/components/nora/badges";
 import { NotFoundPanel } from "@/components/not-found-panel";
 import { formatPeriod } from "@/components/project-card";
@@ -25,10 +25,11 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
     { label: "Ringkasan", icon: SquaresFour, href: base },
     { label: "Sumber data", icon: Database, href: `${base}/sources`, count: sources },
     { label: "Konteks", icon: Scales, href: `${base}/context/rules`, count: rules },
+    { label: "Analisis", icon: FlowArrow, href: `${base}/analysis/map` },
     { label: "Anggota", icon: UsersThree, href: `${base}/members`, count: members },
     { label: "Audit log", icon: ClockCounterClockwise, href: `${base}/audit`, count: audit },
     ...(can("project.status", project.id) ? [{ label: "Pengaturan", icon: GearSix, href: `${base}/settings` }] : []),
-  ].map((t) => ({ ...t, active: t.href === `${base}/sources` ? path.startsWith(t.href) || path.startsWith(`${base}/snapshots`) : t.href === `${base}/context/rules` ? path.startsWith(`${base}/context`) : path === t.href }));
+  ].map((t) => ({ ...t, active: t.href === `${base}/sources` ? path.startsWith(t.href) || path.startsWith(`${base}/snapshots`) : t.href === `${base}/context/rules` ? path.startsWith(`${base}/context`) : t.href === `${base}/analysis/map` ? path.startsWith(`${base}/analysis`) : path === t.href }));
 
   return (
     <>
