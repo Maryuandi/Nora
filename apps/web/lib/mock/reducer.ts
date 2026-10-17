@@ -1,11 +1,12 @@
 import { MOCK_TODAY, initialState } from "./data";
 import { isStale } from "../format";
+import { participatingVersions } from "./compliance";
 import { fabricate } from "./fabricate";
 import { validateMapping } from "./mapping";
 import { acceptsData } from "./permissions";
 import { nextStatuses, previewDataset, previewRule, projectCanonicalLabels, validateRule, type RuleInput } from "./rules";
 import { projectSchema, type ProjectInput } from "./schemas";
-import type { AuditEvent, ColumnRole, LabelRule, MappingVersion, MockState, Project, ProjectStatus, Role, RuleStatus, RuleVersion, Snapshot, SnapshotStatus } from "./types";
+import type { AuditEvent, ColumnRole, LabelRule, MappingVersion, MockState, MonitoringRun, Project, ProjectStatus, Role, RuleStatus, RuleVersion, Snapshot, SnapshotStatus, Source } from "./types";
 
 export { MOCK_TODAY, initialState };
 
@@ -25,9 +26,10 @@ export type MockAction =
   | { type: "saveRule"; projectId: string; ruleKey?: string; input: RuleInput }
   | { type: "changeRuleStatus"; ruleId: string; to: RuleStatus }
   | { type: "confirmRuleClient"; ruleId: string }
+  | { type: "runMonitoring"; projectId: string; sourceId: string; periodFrom: string; periodTo: string }
   | { type: "setViewer"; userId: string };
 
-export type ReduceResult = { state: MockState; error?: string; snapshotId?: string; duplicateOf?: string; mappingId?: string; ruleId?: string };
+export type ReduceResult = { state: MockState; error?: string; snapshotId?: string; duplicateOf?: string; mappingId?: string; ruleId?: string; runId?: string };
 
 const MAX_BYTES = 500 * 1024 * 1024;
 // ".xes.gz" must come before ".xes".
@@ -285,6 +287,26 @@ export function reduce(state: MockState, action: MockAction): ReduceResult {
       return { state: withAudit({ ...state, rules }, { action: audit, objectType: "Aturan", objectLabel: `${rule.name} v${rule.version}`, projectId: project.id }), ruleId: rule.id };
     }
 
+    case "runMonitoring": {
+      const project = state.projects.find((x) => x.id === action.projectId);
+      if (!project) return fail("Proyek tidak ditemukan");
+      if (!acceptsData(project.status)) return fail("Proyek ini tidak menerima data baru");
+      const source = state.sources.find((x) => x.id === action.sourceId && x.projectId === project.id);
+      if (!source) return fail("Sumber tidak ditemukan");
+      const runnable = runnableSources(state, project.id).find((x) => x.source.id === source.id);
+      if (!runnable) return fail("Sumber belum punya pemetaan dan snapshot siap");
+      const { periodFrom, periodTo } = action;
+      const validDate = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d) && !Number.isNaN(Date.parse(d));
+      if (!validDate(periodFrom) || !validDate(periodTo) || periodFrom > periodTo) return fail("Periode tidak valid");
+      const versions = participatingVersions(state, project.id);
+      if (versions.length === 0) return fail("Belum ada aturan disetujui atau ditinjau");
+      const run: MonitoringRun = {
+        id: id("run"), projectId: project.id, sourceId: source.id, snapshotId: runnable.snapshot.id, mappingId: runnable.mapping.id,
+        periodFrom, periodTo, ruleVersionIds: versions.map((v) => v.id), calendar: "bawaan_tiruan", createdBy: state.viewerId, createdAt: now(),
+      };
+      return { state: withAudit({ ...state, runs: [...state.runs, run] }, { action: "monitoring.jalankan", objectType: "Monitoring", objectLabel: `${source.name} ${periodFrom}–${periodTo}`, projectId: project.id }), runId: run.id };
+    }
+
     case "confirmRuleClient": {
       const rule = state.rules.find((x) => x.id === action.ruleId);
       if (!rule) return fail("Aturan tidak ditemukan");
@@ -368,4 +390,19 @@ export function contractEndingSoon(p: Project, today = MOCK_TODAY): boolean {
   if (p.status !== "aktif" || !p.contractEnd) return false;
   const days = (Date.parse(p.contractEnd) - Date.parse(today)) / 86_400_000;
   return days >= 0 && days <= 14;
+}
+
+export const runsForProject = (s: MockState, projectId: string): MonitoringRun[] =>
+  s.runs
+    .map((x, i) => ({ x, i }))
+    .filter(({ x }) => x.projectId === projectId)
+    .sort((a, b) => b.x.createdAt.localeCompare(a.x.createdAt) || b.i - a.i)
+    .map(({ x }) => x);
+
+export function runnableSources(s: MockState, projectId: string): { source: Source; snapshot: Snapshot; mapping: MappingVersion }[] {
+  return s.sources.filter((x) => x.projectId === projectId).flatMap((source) => {
+    const snapshot = snapshotsForSource(s, source.id).find((x) => x.status === "siap_dipetakan");
+    const mapping = latestMapping(s, source.id);
+    return snapshot && mapping ? [{ source, snapshot, mapping }] : [];
+  });
 }
