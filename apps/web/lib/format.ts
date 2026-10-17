@@ -14,3 +14,10 @@ export const formatBytes = (n: number): string => {
 export const daysSince = (iso: string, today = MOCK_TODAY): number => Math.floor((Date.parse(today) - Date.parse(iso)) / 86_400_000);
 
 export const isStale = (iso: string, today?: string): boolean => daysSince(iso, today) > 30;
+
+/** One decimal with Indonesian comma ("82,5"); "–" for null/non-finite so a missing score never shows NaN. */
+export const formatScore = (n: number | null | undefined): string =>
+  n == null || !Number.isFinite(n) ? "–" : n.toLocaleString("id-ID", { maximumFractionDigits: 1 });
+
+/** Probability 0..1 as a whole percent; non-finite counts as 0%. */
+export const formatPercent = (p: number): string => `${Number.isFinite(p) ? Math.round(Math.max(0, Math.min(1, p)) * 100) : 0}%`;
