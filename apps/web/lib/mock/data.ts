@@ -140,7 +140,8 @@ const mappings: MappingVersion[] = [
   { id: "m-1", sourceId: "s-p2p-sap", snapshotId: "sn-1", projectId: "p-p2p", version: 1,
     roles: { case_id: "case_id", activity: "activity", timestamp: "timestamp_end", resource: "resource" },
     timeFormat: "YYYY-MM-DD HH:mm:ss", timezone: "Asia/Jakarta",
-    labels: [{ raw: "create order", canonical: "Create Order" }, { raw: "Ship Goods.", canonical: "Ship Goods" }],
+    labels: [{ raw: "create purchase order item", canonical: "Create Purchase Order Item" }, { raw: "Record Goods Receipt ", canonical: "Record Goods Receipt" },
+      { raw: "Cancel Invoice Receipt", canonical: null }],
     createdBy: "u-rina", createdAt: "2026-10-15T08:00:00Z" },
 ];
 
