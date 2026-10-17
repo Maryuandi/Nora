@@ -24,6 +24,8 @@ describe("formatDuration", () => {
   it.each([
     [3.2 * D, "3,2 hari"], [4 * H, "4 jam"], [0, "< 1 menit"], [90 * M, "1,5 jam"],
     [45 * M, "45 menit"], [36 * H, "1,5 hari"], [12 * H, "12 jam"], [12.5 * D, "13 hari"],
+    [59_999, "< 1 menit"], [60_000, "1 menit"], [3_599_999, "1 jam"], [3_600_000, "1 jam"],
+    [86_399_999, "1 hari"], [86_400_000, "1 hari"], [35_856_000, "10 jam"],
     [NaN, "-"], [-1, "-"], [Infinity, "-"],
   ])("%s -> %s", (ms, out) => expect(formatDuration(ms)).toBe(out));
 });

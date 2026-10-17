@@ -15,12 +15,16 @@ export const daysSince = (iso: string, today = MOCK_TODAY): number => Math.floor
 
 export const isStale = (iso: string, today?: string): boolean => daysSince(iso, today) > 30;
 
-const oneDecimal = (n: number): string => n.toLocaleString("id-ID", { maximumFractionDigits: n < 10 ? 1 : 0 });
+// One decimal only below 10; the rounded value (not the raw one) decides the unit so 59.99 min -> "1 jam".
+const compactNumber = (n: number): number => (n < 10 ? Math.round(n * 10) / 10 : Math.round(n));
+const show = (n: number): string => n.toLocaleString("id-ID");
 
 export const formatDuration = (ms: number): string => {
   if (!Number.isFinite(ms) || ms < 0) return "-";
   if (ms < 60_000) return "< 1 menit";
-  if (ms < 3_600_000) return `${Math.round(ms / 60_000)} menit`;
-  if (ms < 86_400_000) return `${oneDecimal(ms / 3_600_000)} jam`;
-  return `${oneDecimal(ms / 86_400_000)} hari`;
+  const minutes = Math.round(ms / 60_000);
+  if (minutes < 60) return `${minutes} menit`;
+  const hours = compactNumber(ms / 3_600_000);
+  if (hours < 24) return `${show(hours)} jam`;
+  return `${show(compactNumber(ms / 86_400_000))} hari`;
 };
