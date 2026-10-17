@@ -20,8 +20,8 @@ function Meter({ label, used, limit, over }: { label: string; used: number; limi
   const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 100;
   return (
     <div className="flex flex-col gap-1">
-      <div className="flex justify-between text-sm"><span className="text-ink-2">{label}</span><span className="font-medium text-ink">{used}/{limit}</span></div>
-      <div role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={limit} aria-valuenow={Math.min(used, limit)} aria-valuetext={`${used} dari ${limit}`} className="h-2 overflow-hidden rounded-full bg-sidebar">
+      <div className="flex justify-between text-sm"><span className="text-ink-2">{label}</span><span className="font-medium text-ink">{used}/{limit}{over && <span className="ml-2 text-xs font-medium text-ink-2">Melebihi anggaran</span>}</span></div>
+      <div role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={limit} aria-valuenow={Math.min(used, limit)} aria-valuetext={over ? `${used} dari ${limit}, melebihi anggaran` : `${used} dari ${limit}`} className="h-2 overflow-hidden rounded-full bg-sidebar">
         <div className={cx("h-full rounded-full", over ? "bg-status-suspended" : "bg-accent")} style={{ width: `${pct}%` }} />
       </div>
     </div>

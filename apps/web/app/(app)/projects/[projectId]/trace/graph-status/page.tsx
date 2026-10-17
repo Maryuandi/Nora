@@ -1,21 +1,32 @@
 "use client";
 
+import { useEffect } from "react";
 import { Graph } from "@phosphor-icons/react";
 import { Table } from "@/components/application/table/table";
 import { STATUS_META } from "@/components/nora/badges";
 import { Card } from "@/components/nora/card";
 import { useProject } from "@/components/project/use-project";
-import { RebuildButton } from "@/components/trace/rebuild-button";
+import { REBUILD_MS, RebuildButton } from "@/components/trace/rebuild-button";
 import { StaleBadge } from "@/components/trace/stale-badge";
 import { TraceTabs } from "@/components/trace/trace-tabs";
 import { formatDateTime } from "@/lib/format";
-import { freshness } from "@/lib/mock/graph";
+import { STALE_THRESHOLD_MIN, freshness } from "@/lib/mock/graph";
 import { acceptsData } from "@/lib/mock/permissions";
+import { useMock } from "@/lib/mock/store";
 
 const mmss = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
 export default function GraphStatusPage() {
   const ctx = useProject();
+  const { dispatch } = useMock();
+  const projectId = ctx?.project.id;
+  const rebuilding = ctx && projectId ? ctx.state.graphStatus[projectId]?.rebuilding : false;
+  // Owned by the page (not RebuildButton) so a rebuild finishes however the button mounts; also covers a rebuild already running on mount.
+  useEffect(() => {
+    if (!rebuilding || !projectId) return;
+    const t = setTimeout(() => dispatch({ type: "finishGraphRebuild", projectId }), REBUILD_MS);
+    return () => clearTimeout(t);
+  }, [rebuilding, projectId, dispatch]);
   if (!ctx) return null;
   const { project, state, can } = ctx;
   const status = state.graphStatus[project.id];
@@ -49,7 +60,7 @@ export default function GraphStatusPage() {
                 ["Proyeksi terakhir", formatDateTime(status.projectedAt)],
                 ["Posisi otoritatif", formatDateTime(status.authoritativeAt)],
                 ["Keterlambatan", `${mmss(freshness(status).lagSeconds)} menit`],
-                ["Ambang basi", "5 menit"],
+                ["Ambang basi", `${STALE_THRESHOLD_MIN} menit`],
               ] as const).map(([k, v]) => (
                 <div key={k}><dt className="text-xs text-ink-3">{k}</dt><dd className="mt-0.5 font-medium text-ink">{v}</dd></div>
               ))}

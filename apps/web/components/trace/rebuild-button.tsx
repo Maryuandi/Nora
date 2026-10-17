@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ArrowsClockwise } from "@phosphor-icons/react";
 import { Button } from "@/components/base/buttons/button";
 import { NoraModal } from "@/components/nora/modal";
@@ -13,13 +13,6 @@ export function RebuildButton({ projectId, status }: { projectId: string; status
   const { dispatch } = useMock();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Keyed on status.rebuilding so a rebuild already running on mount (or after navigating back) still finishes.
-  useEffect(() => {
-    if (!status.rebuilding) return;
-    const t = setTimeout(() => dispatch({ type: "finishGraphRebuild", projectId }), REBUILD_MS);
-    return () => clearTimeout(t);
-  }, [status.rebuilding, projectId, dispatch]);
 
   const close = () => setOpen(false);
   const confirm = () => {
