@@ -14,3 +14,13 @@ export const formatBytes = (n: number): string => {
 export const daysSince = (iso: string, today = MOCK_TODAY): number => Math.floor((Date.parse(today) - Date.parse(iso)) / 86_400_000);
 
 export const isStale = (iso: string, today?: string): boolean => daysSince(iso, today) > 30;
+
+const oneDecimal = (n: number): string => n.toLocaleString("id-ID", { maximumFractionDigits: n < 10 ? 1 : 0 });
+
+export const formatDuration = (ms: number): string => {
+  if (!Number.isFinite(ms) || ms < 0) return "-";
+  if (ms < 60_000) return "< 1 menit";
+  if (ms < 3_600_000) return `${Math.round(ms / 60_000)} menit`;
+  if (ms < 86_400_000) return `${oneDecimal(ms / 3_600_000)} jam`;
+  return `${oneDecimal(ms / 86_400_000)} hari`;
+};
