@@ -97,6 +97,23 @@ export interface Snapshot {
   errors?: { kind: string; count: number; examples: { row: number; text: string }[] }[];
 }
 
+export type ColumnRole =
+  | "case_id" | "activity" | "timestamp_end" | "timestamp_start" | "resource"
+  | "event_id" | "lifecycle" | "case_attr" | "event_attr" | "ignore";
+
+export interface LabelRule { raw: string; canonical: string | null } // null = dikecualikan
+
+export interface MappingVersion {
+  id: string; sourceId: string; snapshotId: string; projectId: string;
+  version: number; // 1, 2, ... per sumber
+  roles: Record<string, ColumnRole>; // kunci = nama kolom
+  timeFormat: string;
+  timezone: string; // IANA
+  labels: LabelRule[];
+  note?: string;
+  createdBy: string; createdAt: string;
+}
+
 export interface MockState {
   clients: Client[];
   projects: Project[];
@@ -105,5 +122,6 @@ export interface MockState {
   audit: AuditEvent[];
   sources: Source[];
   snapshots: Snapshot[];
+  mappings: MappingVersion[];
   viewerId: string;
 }

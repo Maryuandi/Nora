@@ -1,4 +1,4 @@
-import type { AuditEvent, Client, Membership, MockState, Project, Snapshot, Source, User } from "./types";
+import type { AuditEvent, Client, Membership, MappingVersion, MockState, Project, Snapshot, Source, User } from "./types";
 
 export const MOCK_TODAY = "2026-10-17";
 
@@ -136,4 +136,12 @@ const snapshots: Snapshot[] = [
     columns: COLUMNS, preview: PREVIEW },
 ];
 
-export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, viewerId: "u-dimas" };
+const mappings: MappingVersion[] = [
+  { id: "m-1", sourceId: "s-p2p-sap", snapshotId: "sn-1", projectId: "p-p2p", version: 1,
+    roles: { case_id: "case_id", activity: "activity", timestamp: "timestamp_end", resource: "resource" },
+    timeFormat: "YYYY-MM-DD HH:mm:ss", timezone: "Asia/Jakarta",
+    labels: [{ raw: "create order", canonical: "Create Order" }, { raw: "Ship Goods.", canonical: "Ship Goods" }],
+    createdBy: "u-rina", createdAt: "2026-10-15T08:00:00Z" },
+];
+
+export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, viewerId: "u-dimas" };

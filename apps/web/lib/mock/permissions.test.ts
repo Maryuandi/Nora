@@ -15,6 +15,8 @@ const EXPECTED: Record<UiAction, Role[]> = {
   "snapshot.upload": ["administrator", "analis"],
   "snapshot.confirm": ["administrator", "analis"],
   "snapshot.cancel": ["administrator", "analis"],
+  "mapping.view": ["administrator", "analis", "pemilik_proses"],
+  "mapping.edit": ["administrator", "analis"],
 };
 
 describe("can", () => {

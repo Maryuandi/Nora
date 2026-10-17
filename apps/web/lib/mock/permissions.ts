@@ -1,7 +1,8 @@
 import type { ProjectStatus, Role } from "./types";
 
 export type UiAction = "client.create" | "project.create" | "project.status" | "member.manage" | "member.view" | "audit.view"
-  | "source.view" | "source.create" | "snapshot.upload" | "snapshot.confirm" | "snapshot.cancel";
+  | "source.view" | "source.create" | "snapshot.upload" | "snapshot.confirm" | "snapshot.cancel"
+  | "mapping.view" | "mapping.edit";
 
 // Button matrix from PRD M01 "Matriks Kewenangan" (UI subset).
 const ALLOWED: Record<UiAction, readonly Role[]> = {
@@ -16,6 +17,8 @@ const ALLOWED: Record<UiAction, readonly Role[]> = {
   "snapshot.upload": ["administrator", "analis"],
   "snapshot.confirm": ["administrator", "analis"],
   "snapshot.cancel": ["administrator", "analis"],
+  "mapping.view": ["administrator", "analis", "pemilik_proses"],
+  "mapping.edit": ["administrator", "analis"],
 };
 
 export const can = (role: Role | null, action: UiAction): boolean => role !== null && ALLOWED[action].includes(role);
