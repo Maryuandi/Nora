@@ -1,9 +1,9 @@
 import { candidates, findings } from "./assessment-data";
 import { runFixture } from "./assessment";
 import { runClassFixture } from "./classification";
-import { classItems } from "./classification-data";
+import { CLASS_FIXTURE, classItems } from "./classification-data";
 import { DEFAULT_THRESHOLDS } from "./specs";
-import type { AuditEvent, Client, Membership, MappingVersion, MockState, Project, QuestionSpec, RuleSourceRef, RuleVersion, Snapshot, Source, User } from "./types";
+import type { AuditEvent, Client, GoldItem, Membership, MappingVersion, MockState, Project, QuestionSpec, RuleSourceRef, RuleVersion, Snapshot, Source, User } from "./types";
 
 export const MOCK_TODAY = "2026-10-17";
 
@@ -210,4 +210,21 @@ export const specs: QuestionSpec[] = [
 const classResults = (["aktivitas", "catatan"] as const).flatMap((task) =>
   runClassFixture(classItems.filter((i) => i.task === task), specs.find((x) => x.task === task)!, { runId: "run-seed-cls", at: MOCK_TODAY + "T09:00:00Z" }));
 
-export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, rules, findings, candidates, assessments, corrections: [], specs, classItems, classResults, classCorrections: [], goldItems: [], evaluations: [], viewerId: "u-dimas" };
+// Gold labels: the fixture's top category, except where the analyst disagrees with the model (so accuracy is 16/20 and 14/16).
+const GOLD_FIX: Record<string, string> = { a02: "pencatatan_dokumen", a14: "pencatatan_dokumen", a18: "pembuatan", a19: "pembayaran", n05: "dokumen_kurang", n11: "dokumen_kurang" };
+const LABEL_B_FIX: Record<string, string> = { a02: "pembuatan", a06: "perubahan" };
+const gold = (task: GoldItem["task"], itemRef: string, label: string, labelB?: string): GoldItem => ({
+  id: `g-${task}-${itemRef.replace(":", "-")}`, projectId: "p-p2p", task, itemRef, label, labeler: "u-dimas",
+  ...(labelB ? { labelB, labelerB: "u-anton" } : {}), createdAt: MOCK_TODAY + "T09:00:00Z",
+});
+const goldItems: GoldItem[] = [
+  ...([["f-bottleneck:c1", "relevan"], ["f-bottleneck:c2", "sebagian_relevan"], ["f-bottleneck:c3", "sebagian_relevan"], ["f-bottleneck:c4", "tidak_relevan"],
+    ["f-bottleneck:c5", "informasi_tidak_cukup"], ["f-rework:c7", "relevan"]] as const).map(([ref, label]) => gold("relevansi", ref, label)),
+  ...classItems.map((i) => {
+    const label = GOLD_FIX[i.id] ?? CLASS_FIXTURE[i.id].top;
+    const n = Number(i.id.slice(1));
+    return gold(i.task, i.id, label, i.task === "aktivitas" && n <= 12 ? (LABEL_B_FIX[i.id] ?? label) : undefined);
+  }),
+];
+
+export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, rules, findings, candidates, assessments, corrections: [], specs, classItems, classResults, classCorrections: [], goldItems, evaluations: [], viewerId: "u-dimas" };
