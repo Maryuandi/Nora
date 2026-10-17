@@ -23,7 +23,7 @@ function ExploreContent() {
 
   const explorable = graph.nodes.filter((n) => n.kind === "Activity" || n.kind === "Transition");
   const current = param === null ? explorable[0] : explorable.find((n) => n.id === param);
-  const groups = current ? (neighborhood(graph, current.id, { perGroup: 5, expanded }) ?? []) : [];
+  const groups = current ? (neighborhood(graph, current.id, { expanded }) ?? []) : [];
 
   return (
     <div className="flex flex-col gap-4">
