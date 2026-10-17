@@ -101,8 +101,8 @@ export default function RulesPage() {
         ) : (
           <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
             <Scales size={28} className="text-ink-3" aria-hidden />
-            <p className="text-sm font-medium">Belum ada aturan</p>
-            {mayCreate && open && <p className="text-sm text-ink-3">Buat aturan pertama untuk mulai mendefinisikan konteks proses.</p>}
+            <p className="text-sm font-medium">{all.length ? "Tidak ada aturan dengan status ini" : "Belum ada aturan"}</p>
+            {!all.length && mayCreate && open && <p className="text-sm text-ink-3">Buat aturan pertama untuk mulai mendefinisikan konteks proses.</p>}
           </div>
         )}
       </Card>
