@@ -214,7 +214,12 @@ export function reduce(state: MockState, action: MockAction): ReduceResult {
 }
 
 export const snapshotsForSource = (s: MockState, sourceId: string): Snapshot[] =>
-  s.snapshots.filter((x) => x.sourceId === sourceId).sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
+  s.snapshots
+    .map((x, i) => ({ x, i }))
+    .filter(({ x }) => x.sourceId === sourceId)
+    // The mock clock is fixed, so ties on uploadedAt fall back to insertion order (later first).
+    .sort((a, b) => b.x.uploadedAt.localeCompare(a.x.uploadedAt) || b.i - a.i)
+    .map(({ x }) => x);
 
 // Cancelled snapshots never count: their data was not imported.
 export function sourceFreshness(s: MockState, sourceId: string): { lastImportAt: string | null; latestEventAt: string | null; stale: boolean } {

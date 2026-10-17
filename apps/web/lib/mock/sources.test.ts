@@ -172,6 +172,17 @@ describe("sourceFreshness", () => {
   it("is empty and not stale for a source without live snapshots", () => {
     expect(sourceFreshness(s0(), "tidak-ada")).toEqual({ lastImportAt: null, latestEventAt: null, stale: false });
   });
+  it("snapshotsForSource puts a later upload first even when uploadedAt ties", () => {
+    const a = ok(s0(), "satu.csv", 220_000);
+    const b = ok(a.state, "dua.csv", 220_000);
+    const list = snapshotsForSource(b.state, SRC);
+    expect(list.map((x) => x.id).slice(0, 2)).toEqual([b.snap.id, a.snap.id]);
+    expect(sourceFreshness(b.state, SRC).latestEventAt).toBe(daysBefore(1));
+  });
+  it("fabricated error example rows never exceed the row count", () => {
+    const { snap } = ok(s0(), "rusak.csv", 220 * 10);
+    for (const e of snap.errors!) for (const ex of e.examples) expect(ex.row).toBeLessThanOrEqual(snap.stats!.rows);
+  });
   it("snapshotsForSource lists newest first", () => {
     const list = snapshotsForSource(s0(), "s-p2p-sap");
     expect(list.map((x) => x.id)).toEqual(["sn-2", "sn-1"]);

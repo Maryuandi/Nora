@@ -8,7 +8,6 @@ const COLUMNS = [
   { name: "Amount", samples: ["120000", "450000", "75000"] },
 ];
 const ACTIVITIES = ["Create Order", "Approve Order", "Ship Goods", "Send Invoice", "Receive Payment"];
-const MAX_EXAMPLES = 50;
 
 // Deterministic fake content for a mock upload: no real file is ever read.
 export function fabricate(rows: number, rejected: number): Pick<Snapshot, "columns" | "preview" | "errors"> {
@@ -29,8 +28,8 @@ export function fabricate(rows: number, rejected: number): Pick<Snapshot, "colum
     .map((k) => ({
       kind: k.kind,
       count: k.count,
-      examples: Array.from({ length: Math.min(MAX_EXAMPLES, k.count, 5) }, (_, i) => {
-        const row = 2 + Math.floor(((i + 1) * rows) / 7);
+      examples: Array.from({ length: Math.min(k.count, 5) }, (_, i) => {
+        const row = Math.min(Math.max(1, 2 + Math.floor(((i + 1) * rows) / 7)), Math.max(rows, 1));
         return { row, text: k.text(row) };
       }),
     }));
