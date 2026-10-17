@@ -1,5 +1,6 @@
 import { MOCK_TODAY, initialState } from "./data";
 import { isStale } from "../format";
+import { reduceAssessment, type AssessmentAction } from "./assessment-reducer";
 import { fabricate } from "./fabricate";
 import { validateMapping } from "./mapping";
 import { acceptsData } from "./permissions";
@@ -25,9 +26,10 @@ export type MockAction =
   | { type: "saveRule"; projectId: string; ruleKey?: string; input: RuleInput }
   | { type: "changeRuleStatus"; ruleId: string; to: RuleStatus }
   | { type: "confirmRuleClient"; ruleId: string }
+  | AssessmentAction
   | { type: "setViewer"; userId: string };
 
-export type ReduceResult = { state: MockState; error?: string; snapshotId?: string; duplicateOf?: string; mappingId?: string; ruleId?: string };
+export type ReduceResult = { state: MockState; error?: string; snapshotId?: string; duplicateOf?: string; mappingId?: string; ruleId?: string; assessmentId?: string; correctionId?: string };
 
 const MAX_BYTES = 500 * 1024 * 1024;
 // ".xes.gz" must come before ".xes".
@@ -72,6 +74,11 @@ const isLastAdmin = (s: MockState, projectId: string, userId: string) => {
 export function reduce(state: MockState, action: MockAction): ReduceResult {
   const fail = (error: string) => ({ state, error });
   switch (action.type) {
+    case "runAssessment":
+    case "correctAssessment":
+    case "confirmAssessment":
+      return reduceAssessment(state, action, { now: now(), newId: id, audit: withAudit });
+
     case "setViewer":
       return { state: { ...state, viewerId: action.userId } };
 
