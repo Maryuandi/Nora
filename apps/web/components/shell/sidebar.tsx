@@ -19,7 +19,7 @@ function NavItem({ href, label, icon: I, active, sub }: { href: string; label: s
       className={cx(
         "relative flex h-8 items-center gap-2 rounded-lg px-2 text-[13px] font-medium tracking-[-0.01em] transition-colors",
         active ? "bg-white text-accent shadow-[0_1px_3px_rgb(20_18_15/0.08)]" : "text-ink hover:bg-white/60",
-        sub && "pl-2.5",
+        sub && "h-9 pl-2",
       )}
     >
       {active && <span aria-hidden className="absolute top-1.5 bottom-1.5 left-0 w-0.5 rounded-full bg-accent" />}
@@ -37,13 +37,13 @@ function Group({ label, icon: I, children }: { label: string; icon: Icon; childr
         type="button"
         onClick={() => setOpen(!open)}
         aria-expanded={open}
-        className="flex w-full items-center gap-2 px-2 pb-1 text-[11px] font-semibold uppercase tracking-[0.05em] text-ink hover:text-ink"
+        className="flex w-full items-center gap-2 px-2 pb-1 text-[11px] font-medium uppercase tracking-[0.06em] text-ink-2 hover:text-ink"
       >
-        <I size={16} weight="fill" aria-hidden />
+        <I size={18} weight="duotone" aria-hidden />
         {label}
-        <CaretDown size={10} weight="fill" className={cx("transition-transform", !open && "-rotate-90")} aria-hidden />
+        <CaretDown size={9} weight="fill" className={cx("text-ink-3 transition-transform", !open && "-rotate-90")} aria-hidden />
       </button>
-      {open && <div className="ml-[15px] flex flex-col gap-0.5 border-l border-[#e0ddd9] pl-2">{children}</div>}
+      {open && <div className="ml-[17px] flex flex-col gap-1 border-l-2 border-[#e6e4e1] pl-3">{children}</div>}
     </div>
   );
 }
