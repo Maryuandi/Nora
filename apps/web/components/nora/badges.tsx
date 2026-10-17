@@ -1,18 +1,20 @@
+import { Circle, CheckCircle, CircleDashed, WarningCircle, XCircle } from "@phosphor-icons/react";
+import type { Icon } from "@phosphor-icons/react";
 import type { AuditResult, ProjectStatus, Role } from "@/lib/mock/types";
 import { cx } from "@/utils/cx";
 
-const STATUS: Record<ProjectStatus, { label: string; dot: string }> = {
-  draft: { label: "Draft", dot: "bg-status-neutral" },
-  aktif: { label: "Aktif", dot: "bg-status-active" },
-  ditangguhkan: { label: "Ditangguhkan", dot: "bg-status-suspended" },
-  berakhir: { label: "Berakhir", dot: "bg-status-ended" },
-  diarsipkan: { label: "Diarsipkan", dot: "bg-status-neutral" },
+const STATUS: Record<ProjectStatus, { label: string; dot: string; icon: Icon; color: string }> = {
+  draft: { label: "Draft", dot: "bg-status-neutral", icon: Circle, color: "text-ink-3" },
+  aktif: { label: "Aktif", dot: "bg-status-active", icon: CheckCircle, color: "text-status-active" },
+  ditangguhkan: { label: "Ditangguhkan", dot: "bg-status-suspended", icon: WarningCircle, color: "text-status-suspended" },
+  berakhir: { label: "Berakhir", dot: "bg-status-ended", icon: XCircle, color: "text-status-ended" },
+  diarsipkan: { label: "Diarsipkan", dot: "bg-status-neutral", icon: CircleDashed, color: "text-ink-3" },
 };
 
-const RESULT: Record<AuditResult, { label: string; dot: string }> = {
-  sukses: { label: "Sukses", dot: "bg-status-active" },
-  ditolak: { label: "Ditolak", dot: "bg-status-ended" },
-  gagal: { label: "Gagal", dot: "bg-status-suspended" },
+const RESULT: Record<AuditResult, { label: string; dot: string; icon: Icon; color: string }> = {
+  sukses: { label: "Sukses", dot: "bg-status-active", icon: CheckCircle, color: "text-status-active" },
+  ditolak: { label: "Ditolak", dot: "bg-status-ended", icon: XCircle, color: "text-status-ended" },
+  gagal: { label: "Gagal", dot: "bg-status-suspended", icon: WarningCircle, color: "text-status-suspended" },
 };
 
 export const ROLE_LABEL: Record<Role, string> = {
@@ -35,12 +37,22 @@ function Pill({ dot, children, className }: { dot?: string; children: React.Reac
   );
 }
 
+function StatusText({ meta }: { meta: { label: string; icon: Icon; color: string } }) {
+  const I = meta.icon;
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-sm font-medium text-ink">
+      <I size={18} weight={meta.icon === Circle || meta.icon === CircleDashed ? "bold" : "fill"} className={meta.color} aria-hidden />
+      {meta.label}
+    </span>
+  );
+}
+
 export function StatusBadge({ status }: { status: ProjectStatus }) {
-  return <Pill dot={STATUS[status].dot}>{STATUS[status].label}</Pill>;
+  return <StatusText meta={STATUS[status]} />;
 }
 
 export function ResultBadge({ result }: { result: AuditResult }) {
-  return <Pill dot={RESULT[result].dot}>{RESULT[result].label}</Pill>;
+  return <StatusText meta={RESULT[result]} />;
 }
 
 export function RoleBadge({ role }: { role: Role }) {
