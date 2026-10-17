@@ -1,4 +1,4 @@
-import type { BundleItem, EvidenceBundle, Finding, GraphEdge, GraphNode, GraphNodeKind, GraphStatus, MockState, RelationCategory, RelationCreator } from "./types";
+import type { BundleItem, EvidenceBundle, GraphEdge, GraphNode, GraphNodeKind, GraphStatus, MockState, RelationCategory, RelationCreator, TraceFinding } from "./types";
 
 const P = "p-p2p";
 const explore = (id: string) => `/projects/${P}/trace/explore?node=${id}`;
@@ -53,7 +53,7 @@ const graphEdges: GraphEdge[] = [
   e("as-jev-2", "DERIVED_FROM", "b-2", "asal_usul", "sistem"),
 ];
 
-const findings: Finding[] = [
+const traceFindings: TraceFinding[] = [
   { id: "f-sla", projectId: P, title: "Durasi PO ke Goods Receipt melewati SLA di 23% kasus", metric: "Waktu siklus PO→GR", value: "23% melewati SLA", analysisId: "an-q3", at: "2026-10-14T03:00:00Z" },
   { id: "f-idle", projectId: P, title: "Antrean Clear Invoice menumpuk akhir bulan", metric: "Panjang antrean Clear Invoice", value: "+38% akhir bulan", analysisId: "an-q3", at: "2026-10-15T03:00:00Z" },
 ];
@@ -97,4 +97,4 @@ const graphStatus: Record<string, GraphStatus> = {
   "p-o2c": { version: 3, projectedAt: "2026-10-17T09:18:00Z", authoritativeAt: "2026-10-17T09:30:00Z", failed: [{ eventId: "evt-0412", reason: "Neo4j timeout", attempts: 5 }], rebuilding: false },
 };
 
-export const graphSeed: Pick<MockState, "findings" | "bundles" | "graphNodes" | "graphEdges" | "graphStatus"> = { findings, bundles, graphNodes, graphEdges, graphStatus };
+export const graphSeed: Pick<MockState, "traceFindings" | "bundles" | "graphNodes" | "graphEdges" | "graphStatus"> = { traceFindings, bundles, graphNodes, graphEdges, graphStatus };

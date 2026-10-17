@@ -161,7 +161,7 @@ export interface GraphEdge {
   status: "aktif" | "digantikan"; recordId: string; at: string;
 }
 
-export interface Finding { id: string; projectId: string; title: string; metric: string; value: string; analysisId: string; at: string }
+export interface TraceFinding { id: string; projectId: string; title: string; metric: string; value: string; analysisId: string; at: string }
 
 export interface BundleItem { nodeId: string; version: number | null; kind: GraphNodeKind; summary: string; tokens: number }
 export interface EvidenceBundle {
@@ -188,7 +188,7 @@ export interface MockState {
   snapshots: Snapshot[];
   mappings: MappingVersion[];
   rules: RuleVersion[];
-  findings: Finding[];
+  traceFindings: TraceFinding[];
   bundles: EvidenceBundle[];
   graphNodes: GraphNode[];
   graphEdges: GraphEdge[];

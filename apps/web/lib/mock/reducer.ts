@@ -5,7 +5,7 @@ import { validateMapping } from "./mapping";
 import { acceptsData } from "./permissions";
 import { nextStatuses, previewDataset, previewRule, projectCanonicalLabels, validateRule, type RuleInput } from "./rules";
 import { projectSchema, type ProjectInput } from "./schemas";
-import type { AuditEvent, ColumnRole, EvidenceBundle, Finding, LabelRule, MappingVersion, MockState, Project, ProjectStatus, Role, RuleStatus, RuleVersion, Snapshot, SnapshotStatus } from "./types";
+import type { AuditEvent, ColumnRole, EvidenceBundle, LabelRule, MappingVersion, MockState, Project, ProjectStatus, Role, RuleStatus, RuleVersion, Snapshot, SnapshotStatus, TraceFinding } from "./types";
 
 export { MOCK_TODAY, initialState };
 
@@ -379,7 +379,7 @@ export function sourceFreshness(s: MockState, sourceId: string): { lastImportAt:
   return { lastImportAt: max(live.map((x) => x.uploadedAt)), latestEventAt, stale: latestEventAt ? isStale(latestEventAt) : false };
 }
 
-export const findingsForProject = (s: MockState, projectId: string): Finding[] => s.findings.filter((f) => f.projectId === projectId);
+export const traceFindingsForProject = (s: MockState, projectId: string): TraceFinding[] => s.traceFindings.filter((f) => f.projectId === projectId);
 
 export const bundleById = (s: MockState, projectId: string, bundleId: string): EvidenceBundle | null =>
   s.bundles.find((b) => b.projectId === projectId && b.id === bundleId) ?? null;

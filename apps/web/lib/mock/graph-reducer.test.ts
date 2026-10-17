@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bundleById, findingsForProject, initialState, reduce } from "./reducer";
+import { bundleById, traceFindingsForProject, initialState, reduce } from "./reducer";
 import type { MockState } from "./types";
 
 const s0 = (): MockState => structuredClone(initialState);
@@ -59,9 +59,9 @@ describe("finishGraphRebuild", () => {
 });
 
 describe("selectors", () => {
-  it("findingsForProject isolates by project", () => {
-    expect(findingsForProject(s0(), "p-o2c")).toEqual([]);
-    expect(findingsForProject(s0(), "p-p2p")).toHaveLength(2);
+  it("traceFindingsForProject isolates by project", () => {
+    expect(traceFindingsForProject(s0(), "p-o2c")).toEqual([]);
+    expect(traceFindingsForProject(s0(), "p-p2p")).toHaveLength(2);
   });
   it("bundleById isolates by project", () => {
     expect(bundleById(s0(), "p-o2c", "b-1")).toBeNull();

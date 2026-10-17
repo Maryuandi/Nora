@@ -57,7 +57,7 @@ describe("seed graph", () => {
     // Raw entries: buildGraph filters by project, so asserting on its output alone could never fail.
     for (const n of s.graphNodes) expect(s.projects.some((p) => p.id === n.projectId), n.id).toBe(true);
     for (const e of s.graphEdges) expect(s.projects.some((p) => p.id === e.projectId), e.id).toBe(true);
-    for (const f of s.findings) {
+    for (const f of s.traceFindings) {
       expect(s.projects.some((p) => p.id === f.projectId)).toBe(true);
       expect(nodeIds.has(f.analysisId)).toBe(true);
     }
@@ -90,7 +90,7 @@ describe("seed graph (resolved via buildGraph)", () => {
         expect(ids.has(e.from), `${e.id} from ${e.from}`).toBe(true);
         expect(ids.has(e.to), `${e.id} to ${e.to}`).toBe(true);
       }
-      for (const f of s.findings.filter((x) => x.projectId === p.id)) {
+      for (const f of s.traceFindings.filter((x) => x.projectId === p.id)) {
         expect(lineage(g, f.id)!.nodes.some((n) => n.kind === "Snapshot"), f.id).toBe(true);
       }
       for (const b of s.bundles.filter((x) => x.projectId === p.id)) {

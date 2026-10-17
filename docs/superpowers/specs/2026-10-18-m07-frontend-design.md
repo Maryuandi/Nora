@@ -57,7 +57,7 @@ interface GraphEdge {
   status: "aktif" | "digantikan"; recordId: string; at: string;
 }
 
-interface Finding { id: string; projectId: string; title: string; metric: string; value: string; analysisId: string; at: string }
+interface TraceFinding { id: string; projectId: string; title: string; metric: string; value: string; analysisId: string; at: string }
 
 interface BundleItem { nodeId: string; version: number | null; kind: GraphNodeKind; summary: string; tokens: number }
 interface EvidenceBundle {
@@ -75,7 +75,7 @@ interface EvidenceBundle {
 interface GraphStatus { version: number; projectedAt: string; authoritativeAt: string; failed: { eventId: string; reason: string; attempts: number }[]; rebuilding: boolean }
 ```
 
-`MockState` bertambah: `findings`, `bundles`, `graphNodes`, `graphEdges` (hanya simpul/relasi seed: Finding, Analysis, MetricDefinition, Activity, Transition, Hypothesis, Intervention, Assessment, EvidenceBundle, Decision, Document), dan `graphStatus: Record<projectId, GraphStatus>`.
+`MockState` bertambah: `traceFindings`, `bundles`, `graphNodes`, `graphEdges` (hanya simpul/relasi seed: Finding, Analysis, MetricDefinition, Activity, Transition, Hypothesis, Intervention, Assessment, EvidenceBundle, Decision, Document), dan `graphStatus: Record<projectId, GraphStatus>`.
 
 Simpul `Source`, `Snapshot`, `MappingVersion`, `Rule` **tidak diseed**: diturunkan dari `sources`, `snapshots`, `mappings`, `rules` yang sudah ada oleh `buildGraph` sehingga tautan dan "ada versi lebih baru" selalu konsisten (mapping versi lebih tinggi pada sumber yang sama, aturan versi lebih tinggi pada `ruleKey` yang sama). `href` menuju halaman M02/M03/M04c yang sudah ada.
 
