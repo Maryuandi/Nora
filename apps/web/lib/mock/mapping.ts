@@ -67,7 +67,8 @@ function toUtc(text: string, format: string, timezone: string): string | null {
 
 // ---- activityLabels ----
 // Local copy of the FNV-1a helper in reducer.ts (reducer will import this module, so no import back); returns a number.
-function hash(text: string, seed = 2166136261): number {
+// Exported so rules.ts can reuse it without importing reducer.ts.
+export function hash(text: string, seed = 2166136261): number {
   let x = seed;
   for (let i = 0; i < text.length; i++) x = Math.imul(x ^ text.charCodeAt(i), 16777619) >>> 0;
   return x;

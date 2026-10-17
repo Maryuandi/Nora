@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { initialState as s } from "./data";
+import { projectCanonicalLabels } from "./rules";
 
 describe("seed mappings", () => {
   it("refer to consistent source/snapshot/project and real columns", () => {
@@ -32,6 +33,17 @@ describe("seed rules", () => {
         approved.add(r.ruleKey);
         expect(r.approvedBy).toBeTruthy();
       }
+    }
+  });
+});
+
+describe("seed rule activities", () => {
+  it("all exist in the project's canonical labels", () => {
+    for (const r of s.rules) {
+      const labels = projectCanonicalLabels(s, r.projectId);
+      const p = r.params;
+      const acts = p.type === "sla" ? [p.from, p.to] : p.type === "urutan" ? [p.before, p.after] : p.type === "pemisahan_tugas" ? [p.activityA, p.activityB] : [p.activity];
+      for (const a of acts) expect(labels, `${r.id}: ${a}`).toContain(a);
     }
   });
 });
