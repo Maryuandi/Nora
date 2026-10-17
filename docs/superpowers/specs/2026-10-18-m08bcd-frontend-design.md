@@ -51,7 +51,7 @@ Pasangan evaluasi per item set acuan: prediksi = argmax model (hasil terkini, bu
 ## Data seed
 
 - 20 aktivitas p-p2p dan 16 catatan sintetis (`synthetic: true`), proyek `p-p2p`, hasil seed dari run `run-seed-cls`, `specVersion` 1, `modelId` "jev-demo-fixture". Tabel probabilitas aktivitas dan kecocokan label ada di plan Task 2. Catatan: Bahasa Indonesia, 12 jelas, 2 ambigu (`perlu_review`), 2 yakin tetapi salah menurut set acuan; terkait aktivitas "Change Approval for Purchase Order" atau "Record Goods Receipt" dan periode `2026-07`, `2026-08`, `2026-09`.
-- Set acuan seed: relevansi 6 item (c1, c2, c3, c4, c5, c7 temuan `f-bottleneck`/`f-rework` sesuai kandidat), aktivitas 20, catatan 16, semua dilabeli `u-dimas`; dua belas item aktivitas punya `labelB` oleh `u-lia` dengan 2 ketidaksetujuan.
+- Set acuan seed: relevansi 6 item (c1, c2, c3, c4, c5, c7 temuan `f-bottleneck`/`f-rework` sesuai kandidat), aktivitas 20, catatan 16, semua dilabeli `u-dimas`; dua belas item aktivitas punya `labelB` oleh `u-anton` dengan 2 ketidaksetujuan.
 - Seed menghasilkan: akurasi relevansi 5/6, aktivitas 16/20, catatan 14/16 (diuji).
 - Spesifikasi seed: satu `QuestionSpec` versi 1 per tugas.
 
