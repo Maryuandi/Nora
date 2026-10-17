@@ -86,4 +86,4 @@ const audit: AuditEvent[] = Array.from({ length: 40 }, (_, i) => {
   return { id: `a-${40 - i}`, at, actorId: ACTORS[i % ACTORS.length], action, objectType, objectLabel, projectId, result };
 });
 
-export const initialState: MockState = { clients, projects, users, memberships, audit, viewerId: "u-rina" };
+export const initialState: MockState = { clients, projects, users, memberships, audit, viewerId: "u-dimas" };

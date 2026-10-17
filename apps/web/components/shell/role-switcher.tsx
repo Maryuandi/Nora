@@ -6,8 +6,8 @@ import { UserAvatar } from "@/components/nora/avatar";
 import { cx } from "@/utils/cx";
 
 const PERSONAS = [
-  { persona: "rina", role: "administrator" },
   { persona: "dimas", role: "analis" },
+  { persona: "rina", role: "administrator" },
   { persona: "sari", role: "pemilik_proses" },
 ] as const;
 
