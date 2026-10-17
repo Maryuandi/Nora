@@ -21,7 +21,7 @@ Prasyarat, berurutan: Docker Desktop atau OrbStack, Node >= 22, pnpm, uv.
 cp .env.example .env     # wajib sebelum infra:up dan dev
 pnpm install
 (cd workers/python && uv sync)
-pnpm infra:up
+pnpm infra:up            # tunggu ~10 dtk (atau sampai http://localhost:8233 terbuka)
 pnpm dev                 # web :3000, worker TS, worker Python
 ```
 
@@ -37,9 +37,11 @@ Uji ping end-to-end (setelah `pnpm dev` jalan):
 
 ```bash
 curl -s -X POST localhost:3000/api/ping -H 'content-type: application/json' -d '{"message":"halo"}'
-# 202 {"workflowId":"<id>"}
+# 202 {"workflowId":"<id>","status":"running"}
 curl -s localhost:3000/api/ping/<workflowId>
 # {"status":"completed","result":{"message":"halo","pm4pyVersion":"...","handledBy":"python"}}
 ```
 
 Status layanan: http://localhost:3000/health
+
+Catatan: alur end-to-end (compose, /health semua ok, ping completed) belum dijalankan karena butuh Docker. Worker tidak mengulang koneksi awal ke Temporal, jadi jalankan `pnpm dev` hanya setelah Temporal siap.

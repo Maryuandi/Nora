@@ -21,5 +21,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   }
 }
 
-const errorMessage = (err: unknown): string =>
-  err instanceof Error ? [err.message, err.cause instanceof Error ? err.cause.message : ""].filter(Boolean).join(": ") : String(err);
+// Walk to the deepest cause: the top-level message is just "Activity task failed".
+const errorMessage = (err: unknown): string => {
+  let e = err;
+  while (e instanceof Error && e.cause instanceof Error) e = e.cause;
+  return e instanceof Error ? e.message : String(e);
+};

@@ -1,4 +1,4 @@
-import { proxyActivities } from "@temporalio/workflow";
+import { ApplicationFailure, proxyActivities } from "@temporalio/workflow";
 import { PingResult, TASK_QUEUE_PYTHON, type PingRequest } from "@nora/contracts";
 
 const { pythonPing } = proxyActivities<{ pythonPing(input: PingRequest): Promise<unknown> }>({
@@ -8,5 +8,8 @@ const { pythonPing } = proxyActivities<{ pythonPing(input: PingRequest): Promise
 });
 
 export async function pingWorkflow(input: PingRequest): Promise<PingResult> {
-  return PingResult.parse(await pythonPing(input));
+  const r = PingResult.safeParse(await pythonPing(input));
+  // A ZodError would be retried forever as a workflow-task failure; fail the workflow instead.
+  if (!r.success) throw ApplicationFailure.nonRetryable(r.error.message, "ContractMismatch");
+  return r.data;
 }

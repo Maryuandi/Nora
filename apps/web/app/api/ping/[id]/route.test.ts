@@ -48,4 +48,12 @@ describe("GET /api/ping/[id]", () => {
     expect(body.status).toBe("failed");
     expect(body.error).toContain("boom");
   });
+
+  it("reports the deepest cause message for a nested failure", async () => {
+    describeFn.mockResolvedValue({ status: { name: "FAILED" } });
+    const root = new Error("Invalid PingRequest: message required");
+    const mid = new Error("Activity task failed", { cause: root });
+    result.mockRejectedValue(new Error("Workflow execution failed", { cause: mid }));
+    expect((await (await get()).json()).error).toBe("Invalid PingRequest: message required");
+  });
 });

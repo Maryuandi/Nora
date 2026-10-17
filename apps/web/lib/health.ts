@@ -26,6 +26,7 @@ export const defaultCheckers: Checkers = {
       connectionTimeoutMillis: TIMEOUT_MS,
       query_timeout: TIMEOUT_MS,
     });
+    client.on("error", () => {}); // a dropped connection must not crash the server
     try {
       await client.connect();
       await client.query("SELECT 1");
