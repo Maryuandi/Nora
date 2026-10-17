@@ -2,9 +2,17 @@
   "name": "nora",
   "private": true,
   "packageManager": "pnpm@11.10.0",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "infra:up": "docker compose --env-file .env -f infra/docker-compose.yml up -d",
-    "infra:down": "docker compose --env-file .env -f infra/docker-compose.yml down"
+    "infra:down": "docker compose --env-file .env -f infra/docker-compose.yml down",
+    "dev": "concurrently -n web,worker,python \"pnpm --filter web dev\" \"pnpm --filter @nora/worker dev\" \"cd workers/python && uv run --env-file ../../.env python -m nora_worker.main\"",
+    "test": "pnpm -r test && cd workers/python && uv run pytest",
+    "contracts:export": "pnpm --filter @nora/contracts export"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.6"
   }
 }
