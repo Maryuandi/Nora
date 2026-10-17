@@ -27,8 +27,8 @@ export function PageHeader({
     <header className="border-b border-line bg-white px-8 pt-7">
       <div className="flex items-start justify-between gap-6">
         <div className="min-w-0">
-          {eyebrow && <div className="mb-1 text-[15px] text-ink-2">{eyebrow}</div>}
-          <h1 className="truncate text-[32px] leading-10 font-semibold tracking-[-0.03em] text-ink">{title}</h1>
+          {eyebrow && <div className="mb-1 text-[13px] text-ink-3">{eyebrow}</div>}
+          <h1 className="truncate text-[24px] leading-8 font-semibold tracking-[-0.02em] text-ink">{title}</h1>
         </div>
         {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
       </div>
@@ -36,8 +36,8 @@ export function PageHeader({
         <dl className="mt-4 flex gap-10">
           {stats.map((s) => (
             <div key={s.label}>
-              <dt className="text-[13px] font-medium uppercase tracking-[0.04em] text-ink-2">{s.label}</dt>
-              <dd className="mt-0.5 text-[22px] leading-7 font-normal tracking-[-0.02em] text-ink">{s.value}</dd>
+              <dt className="text-[11px] font-medium uppercase tracking-[0.05em] text-ink-3">{s.label}</dt>
+              <dd className="mt-0.5 text-[15px] leading-6 font-medium tracking-[-0.01em] text-ink">{s.value}</dd>
             </div>
           ))}
         </dl>
@@ -50,7 +50,7 @@ export function PageHeader({
               href={t.href}
               aria-current={t.active ? "page" : undefined}
               className={cx(
-                "-mb-px flex items-center gap-1.5 border-b-2 pb-2.5 text-[15px] font-medium transition-colors",
+                "-mb-px flex items-center gap-1.5 border-b-2 pb-2.5 text-[13px] font-medium transition-colors",
                 t.active ? "border-accent text-accent" : "border-transparent text-ink-2 hover:text-ink",
               )}
             >
