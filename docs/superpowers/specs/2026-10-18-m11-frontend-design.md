@@ -18,7 +18,7 @@ Analis membuka workspace dari satu temuan, mencatat bukti lapangan, berdiskusi d
 
 ## Di luar cakupan
 
-Unggah file nyata (bukti tambahan = nama berkas tiruan atau tautan, tanpa pemeriksaan isi), kolaborasi real-time, polling, email/chat, alur persetujuan bertingkat, proyeksi ke M07 (hanya diakui di teks bantuan), objek M05/M06/M08/M09 yang sebenarnya (ditiru lewat data awal), layar ponsel. Hasil Jev (M08) belum ada di branch ini, jadi `JevResult` tiruan di-seed per temuan.
+Unggah file nyata (bukti tambahan = nama berkas tiruan atau tautan, tanpa pemeriksaan isi), kolaborasi real-time, polling, email/chat, alur persetujuan bertingkat, proyeksi ke M07 (hanya diakui di teks bantuan), objek M05/M06/M08/M09 yang sebenarnya (ditiru lewat data awal), layar ponsel. Hasil Jev (M08) belum ada di branch ini; tautan `hasil_jev` menunjuk item bukti `kind: "hasil_jev"` pada temuan (mis. `jev_42`).
 
 ## Peran dan izin (`permissions.ts`)
 
@@ -76,7 +76,6 @@ interface Comment {
 }
 interface Notification { id: string; userId: string; projectId: string; text: string; href: string; read: boolean; at: string }
 
-interface JevResult { id: string; findingId: string; projectId: string; title: string; verdict: string; confidence: number; datasetVersion: string }
 interface ModelReview {
   id: string; investigationId: string; linkId: string;   // tautan hasil_jev atau interpretasi
   outcome: "dikonfirmasi" | "dikoreksi" | "disetujui" | "ditolak";
@@ -85,7 +84,7 @@ interface ModelReview {
   by: string; at: string;
 }
 
-interface EvidenceSnapshot { datasetVersion: string; contextPackage: string; analysis: string; evidencePackage: string; narrativeVersion: string | null; metricValues: Record<string, number> }
+interface EvidenceSnapshot { datasetVersion: string; contextPackage: string; analysis: string; evidencePackage: string; narrativeVersion: string | null; metricValues: Record<string, number>; ruleVersions: Record<string, string> }
 interface Decision {
   id: string; investigationId: string; projectId: string;
   targetLinkId: string;               // tautan kandidat
@@ -102,19 +101,18 @@ interface ContextProposal { id: string; investigationId: string; ruleId: string;
 interface AnalysisState { projectId: string; datasetVersion: string; contextPackage: string; analysis: string; evidencePackage: string; metricValues: Record<string, number>; ruleVersions: Record<string, string> }
 ```
 
-`MockState` bertambah: `investigations`, `links`, `notes`, `comments`, `notifications`, `jevResults`, `reviews`, `decisions`, `flags`, `proposals`, `analysisStates: AnalysisState[]`.
+`MockState` bertambah: `investigations`, `links`, `notes`, `comments`, `notifications`, `reviews`, `decisions`, `flags`, `proposals`, `analysisStates: AnalysisState[]`.
 
 Kandidat adalah item `kind: "kandidat"` pada `finding.evidence` (M10a). Tautan `kandidat` menunjuk `evidence.id`.
 
 ## Data awal (`data.ts`)
 
-Hanya `p-p2p`. `analysisStates`: `datasetVersion: "ds-2"`, `contextPackage: "ctx-4"`, `analysis: "analisis-3"`, `evidencePackage: "bukti-7"`, `metricValues: { "finding_42.p90_hari": 9.4 }`, `ruleVersions: { r-sla: "v2" }`.
+Hanya `p-p2p`. `analysisStates`: `datasetVersion: "ds-2"`, `contextPackage: "ctx-4"`, `analysis: "analisis-3"`, `evidencePackage: "bukti-7"`, `metricValues: { "finding_42.p90_days": 18.4 }`, `ruleVersions: { "r-sla": "v2" }`.
 
 | Objek | Isi |
 |---|---|
 | `Investigation` `inv-1` | "Antrean persetujuan PO" dari `finding_42`, status `terbuka`, pemilik Dimas, anggota Dimas dan Sari |
-| Tautan `inv-1` | temuan `finding_42`, aturan `r-sla`, dua kandidat (satu `validated`), hasil Jev `jev-1`, interpretasi seed `finding_42` (lolos) |
-| Hasil Jev | `jev-1` belum ditinjau |
+| Tautan `inv-1` | temuan `finding_42`, aturan `r-sla`, dua kandidat (satu `validated`), hasil Jev `jev_42`, interpretasi seed `finding_42` (lolos) |
 | Catatan | satu wawancara (Sari, tanda "informasi kualitatif"), satu hipotesis `belum_diuji`, satu pertanyaan terbuka untuk Dimas |
 | Komentar | satu utas dari Sari dengan sebutan `@Dimas` |
 | `Investigation` `inv-2` | "Rework verifikasi faktur" dari `finding_57`, `selesai`, dengan keputusan `ditolak` v1 sebagai contoh riwayat; tanpa penanda |
@@ -127,7 +125,7 @@ Hanya `p-p2p`. `analysisStates`: `datasetVersion: "ds-2"`, `contextPackage: "ctx
 - `validateDecision(state, input): string | null`: alasan tidak kosong setelah trim; `digantikan` wajib `replacedByLinkId` berbeda dari target dan bertipe kandidat; target adalah tautan kandidat pada workspace itu; `dipilih` dan `usulan_uji_coba` hanya untuk kandidat `validated`; workspace berstatus `siap_diputuskan` (keputusan lain `perlu_investigasi` boleh kapan saja).
 - `snapshotFor(state, projectId, narrativeVersion): EvidenceSnapshot`: menyalin `AnalysisState` proyek.
 - `latestDecisions(state, investigationId): Decision[]`: versi tertinggi per target; `decisionHistory(state, investigationId, targetLinkId)`: semua versi, terbaru dulu.
-- `detectRevalidation(decision, analysisState, ruleLabels): string[]`: bandingkan `snapshot` dengan `AnalysisState` kini; kembalikan ringkasan: `"Dataset ds-2 → ds-3"`, `"Paket konteks ctx-4 → ctx-5"`, `"Aturan SLA v2 → v3"`, `"P90 berubah dari 9,4 ke 11,8 hari"` (nilai metrik berubah melewati ambang 5% relatif). Daftar kosong berarti tidak ada penanda.
+- `detectRevalidation(decision, analysisState, ruleLabels): string[]`: bandingkan `snapshot` dengan `AnalysisState` kini; kembalikan ringkasan: `"Dataset ds-2 → ds-3"`, `"Paket konteks ctx-4 → ctx-5"`, `"Aturan r-sla v2 → v3"`, `"P90 berubah dari 18,4 ke 22,1 hari kerja"` (nilai metrik berubah melewati ambang 5% relatif). Daftar kosong berarti tidak ada penanda.
 - `linkFreshness(state, link): { latest: string; stale: boolean }`: bandingkan `linkedVersion` dengan versi objek kini; dipakai lencana "versi lebih baru tersedia".
 - `extractMentions(body, members): string[]`: ambil `@Nama` yang cocok nama depan anggota proyek (tidak peka huruf besar-kecil); sebutan tidak dikenal diabaikan.
 
@@ -151,8 +149,8 @@ Semua aksi mengembalikan `{ state, error? }` dan tidak pernah melempar; semua ak
 | `reviewDraft { investigationId; linkId; outcome; rejectCode?; reason?; forEvalSet }` | analis; tautan `interpretasi` berstatus `lolos_pemeriksaan` (draf `gagal_pemeriksaan` tidak bisa disetujui); `ditolak` wajib `rejectCode` dan `reason` | `draf.setujui` / `draf.tolak` |
 | `makeDecision { investigationId; targetLinkId; status; reason; replacedByLinkId?; expectedVersion }` | `canDecide(peran viewer di proyek, status)`; `validateDecision`; **cek versi optimistis**: `expectedVersion` harus sama dengan versi terbaru target (0 bila belum ada) agar yang kedua mendapat galat "Keputusan sudah berubah, muat ulang"; membuat versi baru; `snapshot` = `snapshotFor` kini + versi narasi terakhir yang disetujui; keputusan baru menghapus penanda lama target itu (`clearedBy` = viewer) | `keputusan.tetapkan` (peran dan status di label) |
 | `confirmDecision { decisionId }` | analis atau pemilik proses; hanya bila ada penanda aktif; menegaskan tanpa mengubah status: `clearedBy/At` terisi, snapshot diperbarui ke kondisi kini (versi keputusan naik, status sama, alasan "Ditegaskan setelah analisis baru") | `keputusan.tegaskan` |
-| `simulateNewAnalysis { projectId }` | analis; hanya untuk demo (tombol berlabel jelas); naikkan `datasetVersion` ds-2→ds-3, `contextPackage` ctx-4→ctx-5, `analysis`, `evidencePackage`; `ruleVersions.r-sla` v2→v3; ubah metrik `finding_42.p90_hari` 9,4→11,8; jalankan `detectRevalidation` untuk semua keputusan terbaru proyek, buat `RevalidationFlag` bila ringkasan tidak kosong dan belum ada penanda aktif; buat `Notification` untuk anggota workspace | `analisis.simulasi` |
-| `createProposal { investigationId; ruleKey; note }` | analis atau pemilik proses; aturan dari proyek yang sama; menjalankan setara `saveRule` dengan masukan aturan terbaru (tanpa perubahan) lalu menandai versi baru berstatus `ditinjau` dan menyimpan `ContextProposal`; bila aturan terakhir sudah `draf`/`ditinjau`: galat "Sudah ada usulan berjalan" | `usulan.buat` |
+| `simulateNewAnalysis { projectId }` | analis; hanya untuk demo (tombol berlabel jelas); naikkan `datasetVersion` ds-2→ds-3, `contextPackage` ctx-4→ctx-5, `analysis`, `evidencePackage`; `ruleVersions.r-sla` v2→v3; ubah metrik `finding_42.p90_days` 18,4→22,1; jalankan `detectRevalidation` untuk semua keputusan terbaru proyek, buat `RevalidationFlag` bila ringkasan tidak kosong dan belum ada penanda aktif; buat `Notification` untuk anggota workspace | `analisis.simulasi` |
+| `createProposal { investigationId; ruleKey; note }` | analis atau pemilik proses; aturan dari proyek yang sama; `note` wajib; memanggil `saveRule` dengan masukan aturan terbaru dan `description = note`, lalu `changeRuleStatus` ke `ditinjau`, dan menyimpan `ContextProposal`; bila aturan terakhir sudah `draf`/`ditinjau`: galat "Sudah ada usulan berjalan" | `usulan.buat` |
 
 Helper terekspor: `investigationsForProject(s, projectId)` (terbaru dulu), `flagsForProject(s, projectId)` (aktif saja), `notificationsFor(s, userId, projectId)`.
 
