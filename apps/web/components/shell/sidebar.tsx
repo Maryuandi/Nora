@@ -37,9 +37,9 @@ function Group({ label, icon: I, children }: { label: string; icon: Icon; childr
         type="button"
         onClick={() => setOpen(!open)}
         aria-expanded={open}
-        className="flex w-full items-center gap-2 px-2 pb-1 text-[11px] font-medium uppercase tracking-[0.05em] text-ink-2 hover:text-ink"
+        className="flex w-full items-center gap-2 px-2 pb-1 text-[11px] font-semibold uppercase tracking-[0.05em] text-ink hover:text-ink"
       >
-        <I size={16} aria-hidden />
+        <I size={16} weight="fill" aria-hidden />
         {label}
         <CaretDown size={10} weight="fill" className={cx("transition-transform", !open && "-rotate-90")} aria-hidden />
       </button>
