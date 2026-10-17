@@ -122,7 +122,7 @@ export function validateWeights(w: PriorityWeights): { ok: boolean; sum: number;
   const vals = Object.values(w);
   const sum = Math.round(vals.reduce((a, b) => a + b, 0) * 1000) / 1000;
   if (vals.some((v) => !Number.isFinite(v) || v < 0 || v > 1)) return { ok: false, sum, message: "Setiap bobot harus angka antara 0 dan 1" };
-  if (sum !== 1) return { ok: true, sum, message: `Jumlah bobot ${sum}, bukan 1,00. Rumus tetap berjalan, tetapi skala total berubah.` };
+  if (sum !== 1) return { ok: true, sum, message: `Jumlah bobot ${String(sum).replace(".", ",")}, bukan 1,00. Rumus tetap berjalan, tetapi skala total berubah.` };
   return { ok: true, sum };
 }
 
