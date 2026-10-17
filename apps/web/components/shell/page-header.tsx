@@ -33,9 +33,9 @@ export function PageHeader({
         {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
       </div>
       {stats && (
-        <dl className="-mx-8 mt-5 flex border-y border-line">
+        <dl className="-mx-8 mt-5 flex gap-12 border-y border-line px-8">
           {stats.map((s) => (
-            <div key={s.label} className="border-l border-line px-8 py-3 first:border-l-0">
+            <div key={s.label} className="py-3">
               <dt className="text-[11px] font-medium uppercase tracking-[0.05em] text-ink-3">{s.label}</dt>
               <dd className="mt-0.5 text-[15px] leading-6 font-medium tracking-[-0.01em] text-ink">{s.value}</dd>
             </div>
