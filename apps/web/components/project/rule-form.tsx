@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/base/buttons/button";
@@ -22,9 +22,12 @@ const OP_ITEMS = (["=", "!=", ">", "<"] as const).map((id) => ({ id, label: id }
 type Params = Record<string, string>; // every type-specific field as a string; limit stays a string until submit
 const toParams = (p?: RuleParams): Params => (p ? Object.fromEntries(Object.entries(p).map(([k, v]) => [k, String(v)])) : { unit: "kalender" });
 
+// Strict: plain decimal with "." or "," only, so "0x10" / "1e3" stay invalid (NaN) and validateRule reports them.
+const parseLimit = (v?: string) => { const t = v?.trim() ?? ""; return /^\d+([.,]\d+)?$/.test(t) ? Number(t.replace(",", ".")) : NaN; };
+
 function buildParams(type: RuleType, f: Params): RuleParams {
   switch (type) {
-    case "sla": return { type, from: f.from ?? "", to: f.to ?? "", limit: f.limit?.trim() ? Number(f.limit) : NaN, unit: (f.unit ?? "") as "kalender" | "kerja" };
+    case "sla": return { type, from: f.from ?? "", to: f.to ?? "", limit: parseLimit(f.limit), unit: (f.unit ?? "") as "kalender" | "kerja" };
     case "urutan": return { type, before: f.before ?? "", after: f.after ?? "" };
     case "wajib": case "terlarang": return { type, activity: f.activity ?? "" };
     case "pemisahan_tugas": return { type, activityA: f.activityA ?? "", activityB: f.activityB ?? "" };
@@ -55,6 +58,7 @@ export function RuleForm({ projectId, ruleKey, initial }: { projectId: string; r
   const [src, setSrc] = useState(initial?.source ?? { docTitle: "", section: "", quote: "" });
   const [attempted, setAttempted] = useState(false);
   const [saveError, setSaveError] = useState<string | undefined>();
+  const [saving, setSaving] = useState(false);
 
   const labels = useMemo(() => projectCanonicalLabels(state, projectId), [state, projectId]);
   const dataset = useMemo(() => previewDataset(state, projectId), [state, projectId]);
@@ -69,6 +73,7 @@ export function RuleForm({ projectId, ruleKey, initial }: { projectId: string; r
     name, description, params: buildParams(type, pf), scope: scopeOn ? scope : null,
     effectiveFrom, effectiveTo: effectiveTo || null, source: src,
   }), [name, description, type, pf, scopeOn, scope, effectiveFrom, effectiveTo, src]);
+  useEffect(() => setSaveError(undefined), [draft]); // any edit makes a stale reducer error obsolete
   const errors = useMemo(() => validateRule(draft, labels), [draft, labels]);
   const preview = useMemo(() => previewRule(draft, dataset), [draft, dataset]);
   const sourceLabel = dataset ? (state.sources.find((s) => s.id === dataset.sourceId)?.name ?? null) : null;
@@ -89,9 +94,10 @@ export function RuleForm({ projectId, ruleKey, initial }: { projectId: string; r
   function save() {
     setSaveError(undefined);
     setAttempted(true);
-    if (errors.length) return;
+    if (errors.length || saving) return;
+    setSaving(true);
     const r = run({ type: "saveRule", projectId, ...(ruleKey ? { ruleKey } : {}), input: draft });
-    if (r.error) setSaveError(r.error);
+    if (r.error) { setSaveError(r.error); setSaving(false); } // on success we navigate away; stay locked meanwhile
     else router.push(ruleKey ? `/projects/${projectId}/context/rules/${ruleKey}` : `/projects/${projectId}/context/rules`);
   }
 
@@ -165,7 +171,7 @@ export function RuleForm({ projectId, ruleKey, initial }: { projectId: string; r
         <Card className="flex flex-col gap-3 px-4 py-4">
           {attempted && errors.length > 0 && <Banner tone="warning">Masih ada {errors.length} isian yang perlu diperbaiki.</Banner>}
           {saveError && <Banner tone="warning">{saveError}</Banner>}
-          <div><Button color="primary" size="xs" onClick={save}>{ruleKey ? "Simpan perubahan" : "Simpan sebagai draf"}</Button></div>
+          <div><Button color="primary" size="xs" onClick={save} isDisabled={saving}>{ruleKey ? "Simpan perubahan" : "Simpan sebagai draf"}</Button></div>
         </Card>
       </div>
 
