@@ -15,7 +15,7 @@ export function RoleSwitcher() {
   const { state, viewer, dispatch } = useMock();
   return (
     <div className="rounded-lg border border-dashed border-[#d9d6d1] bg-white/60 p-2">
-      <p className="px-1 pb-1.5 text-[11px] font-medium uppercase tracking-[0.06em] text-ink-3">Mode pratinjau</p>
+      <p className="px-1 pb-1.5 text-[12px] font-medium uppercase tracking-[0.04em] text-ink-2">Mode pratinjau</p>
       <div className="flex flex-col gap-0.5" role="radiogroup" aria-label="Lihat sebagai">
         {PERSONAS.map(({ persona, role }) => {
           const user = state.users.find((u) => u.persona === persona)!;
