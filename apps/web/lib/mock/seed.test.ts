@@ -47,3 +47,19 @@ describe("seed rule activities", () => {
     }
   });
 });
+
+describe("seed findings", () => {
+  it("has exactly the three p-p2p findings with consistent evidence", () => {
+    expect(s.findings.map((f) => f.id)).toEqual(["finding_42", "finding_57", "finding_63"]);
+    for (const f of s.findings) {
+      expect(f.projectId).toBe("p-p2p");
+      expect(f.evidence.some((e) => e.id === f.id)).toBe(true);
+      const ids = f.evidence.map((e) => e.id);
+      expect(new Set(ids).size).toBe(ids.length);
+      for (const e of f.evidence)
+        for (const m of Object.values(e.metrics ?? {})) expect(Number.isFinite(m.value)).toBe(true);
+      expect(f.evidence.some((e) => e.kind === "kandidat" && e.validated === true)).toBe(true);
+      expect(f.limitedContext).toBe(f.id === "finding_63");
+    }
+  });
+});

@@ -150,5 +150,47 @@ export interface MockState {
   snapshots: Snapshot[];
   mappings: MappingVersion[];
   rules: RuleVersion[];
+  findings: MockFinding[];
+  interpretations: Interpretation[];
   viewerId: string;
+}
+
+export type Audience = "analis" | "pemilik_proses";
+export type ClaimType = "fakta_terukur" | "interpretasi" | "hipotesis" | "rekomendasi_tervalidasi";
+export type SectionKey = "ringkasan" | "terukur" | "dasar_bukti" | "interpretasi"
+  | "hipotesis_terbuka" | "asumsi" | "ketidakpastian" | "pertanyaan";
+export type InterpretationStatus = "lolos_pemeriksaan" | "gagal_pemeriksaan";
+export type CheckKey = "skema" | "placeholder" | "angka_literal" | "rujukan"
+  | "tipe_klaim" | "tindakan_tidak_dikenal" | "bahasa_keputusan" | "ketidakpastian";
+
+export type EvidenceKind = "temuan" | "metrik" | "aturan" | "kasus" | "hasil_jev" | "kandidat";
+export interface EvidenceItem {
+  id: string; // mis. "finding_42", "rule_sla_1"
+  kind: EvidenceKind;
+  title: string;
+  detail: string; // teks; kutipan sumber untuk aturan
+  measured: boolean; // hasil terukur (M05/M06) atau aturan/dokumen (M04)
+  validated?: boolean; // hanya kind "kandidat": status tervalidasi M09
+  metrics?: Record<string, { value: number; unit: string; version: string }>;
+}
+export interface MockFinding {
+  id: string; projectId: string; title: string; summary: string;
+  limitedContext: boolean; // paket bukti "konteks terbatas" (M07)
+  evidence: EvidenceItem[]; // paket bukti beku
+}
+
+export interface Claim { id: string; type: ClaimType; text: string; citations: string[]; candidateId?: string }
+export interface Section { key: SectionKey; claims: Claim[] }
+export interface Violation { check: CheckKey; claimId?: string; message: string }
+export interface CheckResult { check: CheckKey; ok: boolean; messages: string[] }
+export interface Attempt { n: number; sections: Section[]; violations: Violation[]; checks: CheckResult[] }
+export interface CheckOverride { check: CheckKey; claimId?: string; reason: string; by: string; at: string }
+
+export interface Interpretation {
+  id: string; projectId: string; findingId: string; audience: Audience;
+  status: InterpretationStatus;
+  attempts: Attempt[]; // 1–3; percobaan terakhir menentukan status
+  overrides: CheckOverride[];
+  templateVersion: "tiruan-1"; model: "model-tiruan";
+  createdBy: string; createdAt: string;
 }
