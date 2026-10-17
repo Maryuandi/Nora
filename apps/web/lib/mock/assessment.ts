@@ -39,6 +39,9 @@ export function deriveStatus(i: { sufficientProb: number; relevanceProbs: Record
   return top[1] < THRESHOLDS.topProb - 1e-9 || margin < THRESHOLDS.margin - 1e-9 ? "perlu_review" : "otomatis";
 }
 
+/** gagal/tertunda results carry placeholder probabilities, so they have no model verdict to show. */
+export const hasModelVerdict = (a: Pick<Assessment, "status">): boolean => a.status !== "gagal" && a.status !== "tertunda";
+
 export function effective(a: Assessment, corrections: AssessmentCorrection[]): { relevance: Relevance; source: "model" | "analis"; correction?: AssessmentCorrection } {
   let latest: AssessmentCorrection | undefined;
   for (const c of corrections) if (c.assessmentId === a.id && (!latest || c.at >= latest.at)) latest = c;

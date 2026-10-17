@@ -8,7 +8,7 @@ import { Pill } from "@/components/nora/badges";
 import { AssessmentStatusBadge } from "@/components/project/assessment-status";
 import { ProbabilityBars } from "@/components/project/probability-bars";
 import { formatDateTime, formatPercent, formatScore } from "@/lib/format";
-import { RELEVANCE_LABEL, RELEVANCE_ORDER, THRESHOLDS, effective, topTwo, totalScore } from "@/lib/mock/assessment";
+import { RELEVANCE_LABEL, RELEVANCE_ORDER, THRESHOLDS, effective, hasModelVerdict, topTwo, totalScore } from "@/lib/mock/assessment";
 import type { Assessment, AssessmentCorrection, Candidate } from "@/lib/mock/types";
 
 const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
@@ -22,7 +22,7 @@ const Disabled = ({ children, note }: { children: React.ReactNode; note: string 
   <span aria-disabled="true" title={note} className="cursor-not-allowed text-ink-3 underline decoration-dotted">{children}</span>
 );
 
-const STOPPED: Partial<Record<Assessment["status"], string>> = { gagal: "Penilaian gagal dijalankan", tertunda: "Penilaian masih tertunda" };
+const STOPPED: Partial<Record<Assessment["status"], string>> = { gagal: "Penilaian gagal; belum ada hasil model", tertunda: "Penilaian tertunda; belum ada hasil model" };
 
 /**
  * Side panel for one scored candidate. `corrections` are all corrections of the project (the latest for this result wins).
@@ -41,6 +41,7 @@ export function CandidatePanel({ assessment: a, candidate, corrections, actorNam
   const history = corrections.filter((c) => c.assessmentId === a.id);
   const canConfirm = canAct && (a.status === "otomatis" || a.status === "perlu_review") && !eff.correction;
   const cor = eff.correction;
+  const verdict = hasModelVerdict(a);
 
   return (
     <aside ref={ref} tabIndex={-1} aria-label={`Detail kandidat ${candidate.name}`}
@@ -51,7 +52,7 @@ export function CandidatePanel({ assessment: a, candidate, corrections, actorNam
           <div className="flex flex-wrap items-center gap-2">
             <AssessmentStatusBadge status={a.status} />
             <span className="text-sm text-ink-3">{candidate.kind === "hipotesis" ? "Hipotesis" : "Intervensi"}</span>
-            {eff.source === "model" && <Pill className="text-ink-2">Dinilai model</Pill>}
+            {verdict && eff.source === "model" && <Pill className="text-ink-2">Dinilai model</Pill>}
           </div>
         </div>
         <button type="button" onClick={onClose} aria-label="Tutup panel" className="shrink-0 rounded-md p-1 text-ink-3 hover:bg-canvas hover:text-ink">
@@ -60,14 +61,18 @@ export function CandidatePanel({ assessment: a, candidate, corrections, actorNam
       </header>
 
       <div className="flex flex-col gap-6 px-5 py-5">
-        <Section title="1. Bukti cukup?">
+        {!verdict && (
+          <p className="rounded-md border border-dashed border-line px-3 py-4 text-sm text-ink-2">{STOPPED[a.status]}</p>
+        )}
+
+        {verdict && <Section title="1. Bukti cukup?">
           <ProbabilityBars items={[{ key: "cukup", label: "Peluang bukti cukup", p: a.sufficient.prob }]} highlight={a.sufficient.prob >= THRESHOLDS.sufficient ? ["cukup"] : []} />
           <p className="text-sm text-ink-2">
             Ambang {formatScore(THRESHOLDS.sufficient)}: {a.sufficient.prob >= THRESHOLDS.sufficient ? "bukti cukup untuk dinilai" : "bukti belum cukup, penilaian dihentikan"}
           </p>
-        </Section>
+        </Section>}
 
-        <Section title="2. Skor per kriteria">
+        {verdict && <Section title="2. Skor per kriteria">
           {a.scores.length === 0 ? (
             <p className="rounded-md border border-dashed border-line px-3 py-4 text-sm text-ink-2">
               {STOPPED[a.status] ?? "Dihentikan: bukti belum cukup"}
@@ -103,21 +108,23 @@ export function CandidatePanel({ assessment: a, candidate, corrections, actorNam
               </div>
             </>
           )}
-        </Section>
+        </Section>}
 
-        <Section title="3. Relevansi">
+        {verdict && <Section title="3. Relevansi">
           <ProbabilityBars highlight={[top[0], second[0]]} items={RELEVANCE_ORDER.map((k) => ({ key: k, label: RELEVANCE_LABEL[k], p: a.relevance.probs[k] }))} />
           <p className="text-sm text-ink-2">
             Teratas: {RELEVANCE_LABEL[top[0]]}; kedua: {RELEVANCE_LABEL[second[0]]}. Selisih {formatPercent(margin)} (ambang {formatPercent(THRESHOLDS.margin)}), probabilitas teratas {formatPercent(top[1])} (ambang {formatPercent(THRESHOLDS.topProb)}).
           </p>
-        </Section>
+        </Section>}
 
-        <Section title="Hasil model dan koreksi">
-          <div className={cor ? "grid gap-3 sm:grid-cols-2" : undefined}>
-            <Card className="flex flex-col gap-1 p-3">
-              <p className="text-xs font-medium text-ink-3">Hasil model</p>
-              <p className="text-sm text-ink">{RELEVANCE_LABEL[top[0]]}</p>
-            </Card>
+        {(verdict || cor || canAct) && <Section title={verdict ? "Hasil model dan koreksi" : "Koreksi"}>
+          <div className={cor && verdict ? "grid gap-3 sm:grid-cols-2" : undefined}>
+            {verdict && (
+              <Card className="flex flex-col gap-1 p-3">
+                <p className="text-xs font-medium text-ink-3">Hasil model</p>
+                <p className="text-sm text-ink">{RELEVANCE_LABEL[top[0]]}</p>
+              </Card>
+            )}
             {cor && (
               <Card className="flex flex-col gap-1 p-3">
                 <p className="text-xs font-medium text-ink-3">{cor.confirmedOnly ? "Konfirmasi analis" : "Koreksi analis"}</p>
@@ -127,7 +134,7 @@ export function CandidatePanel({ assessment: a, candidate, corrections, actorNam
               </Card>
             )}
           </div>
-          <p className="text-sm font-medium text-ink">Nilai efektif: {RELEVANCE_LABEL[eff.relevance]} (oleh {eff.source})</p>
+          {(verdict || cor) && <p className="text-sm font-medium text-ink">Nilai efektif: {RELEVANCE_LABEL[eff.relevance]} (oleh {eff.source})</p>}
           {history.length > 1 && <p className="text-xs text-ink-3">{history.length - 1} koreksi sebelumnya tetap tercatat</p>}
           {canAct && (
             <div className="flex flex-wrap gap-2">
@@ -135,7 +142,7 @@ export function CandidatePanel({ assessment: a, candidate, corrections, actorNam
               {canConfirm && <Button color="secondary" size="xs" onClick={onConfirm}>Konfirmasi hasil model</Button>}
             </div>
           )}
-        </Section>
+        </Section>}
 
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2 border-t border-line pt-4 text-sm">
           {([["Model", a.modelId], ["Spesifikasi", `v${a.specVersion}`], ["Run", a.runId], ["Waktu", formatDateTime(a.createdAt)]] as const).map(([k, v]) => (

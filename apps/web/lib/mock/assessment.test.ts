@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { candidates, findings } from "./assessment-data";
-import { currentAssessments, deriveStatus, effective, reviewQueue, runFixture, summarize, topTwo, totalScore } from "./assessment";
+import { currentAssessments, deriveStatus, effective, hasModelVerdict, reviewQueue, runFixture, summarize, topTwo, totalScore } from "./assessment";
 import { initialState } from "./data";
 import type { Assessment, AssessmentCorrection, AssessmentStatus, Relevance } from "./types";
 
@@ -122,4 +122,10 @@ describe("runFixture", () => {
     const out2 = runFixture(findings[1], candidates, ctx);
     expect(byId(out2, "c8")).toMatchObject({ status: "gagal", scores: [] });
   });
+});
+
+describe("hasModelVerdict", () => {
+  it.each([["otomatis", true], ["perlu_review", true], ["informasi_tidak_cukup", true], ["gagal", false], ["tertunda", false]] as const)(
+    "%s -> %s", (status, expected) => expect(hasModelVerdict({ status })).toBe(expected),
+  );
 });

@@ -4,7 +4,7 @@ import { Table } from "@/components/application/table/table";
 import { Pill } from "@/components/nora/badges";
 import { AssessmentStatusBadge } from "@/components/project/assessment-status";
 import { formatPercent, formatScore } from "@/lib/format";
-import { RELEVANCE_LABEL, topTwo, totalScore } from "@/lib/mock/assessment";
+import { RELEVANCE_LABEL, hasModelVerdict, topTwo, totalScore } from "@/lib/mock/assessment";
 import type { Assessment, Candidate, Finding, Relevance } from "@/lib/mock/types";
 
 export type CandidateRow = {
@@ -32,6 +32,7 @@ export function CandidateTable({ finding, rows, onOpen }: { finding: Finding; ro
       <Table.Body>
         {rows.map(({ candidate: c, assessment: a, effective: e }) => {
           const open = c.applicable && a ? () => onOpen(c.id) : undefined;
+          const verdict = !!a && (hasModelVerdict(a) || e?.source === "analis");
           const score = a ? totalScore(a.scores, c.criteria) : null;
           return (
             <Table.Row key={c.id} id={c.id} onAction={open} className={c.applicable ? (open ? "cursor-pointer" : undefined) : "bg-canvas text-ink-3"}>
@@ -54,13 +55,13 @@ export function CandidateTable({ finding, rows, onOpen }: { finding: Finding; ro
                 ) : <span className="text-sm text-ink-3">–</span>}
               </Table.Cell>
               <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">
-                {e ? `${RELEVANCE_LABEL[e.relevance]} (${e.source})` : "–"}
+                {e && verdict ? `${RELEVANCE_LABEL[e.relevance]} (${e.source})` : "–"}
               </Table.Cell>
               <Table.Cell className="px-6 text-sm tabular-nums whitespace-nowrap text-ink-2">
-                {a ? `${RELEVANCE_LABEL[topTwo(a.relevance.probs).top[0]]} ${formatPercent(topTwo(a.relevance.probs).top[1])}` : "–"}
+                {a && hasModelVerdict(a) ? `${RELEVANCE_LABEL[topTwo(a.relevance.probs).top[0]]} ${formatPercent(topTwo(a.relevance.probs).top[1])}` : "–"}
               </Table.Cell>
               <Table.Cell className="px-6 whitespace-nowrap">
-                {e?.source === "model" ? <Pill className="text-ink-2">Dinilai model</Pill> : e ? <Pill>Oleh analis</Pill> : <span className="text-sm text-ink-3">–</span>}
+                {!verdict ? <span className="text-sm text-ink-3">–</span> : e?.source === "model" ? <Pill className="text-ink-2">Dinilai model</Pill> : e ? <Pill>Oleh analis</Pill> : <span className="text-sm text-ink-3">–</span>}
               </Table.Cell>
             </Table.Row>
           );
