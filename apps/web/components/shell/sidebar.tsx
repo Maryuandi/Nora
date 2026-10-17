@@ -8,7 +8,6 @@ import type { Icon } from "@phosphor-icons/react";
 import { Logo } from "@/components/nora/logo";
 import { useMock } from "@/lib/mock/store";
 import { projectsForViewer } from "@/lib/mock/reducer";
-import { RoleSwitcher } from "./role-switcher";
 import { cx } from "@/utils/cx";
 
 function NavItem({ href, label, icon: I, active, sub }: { href: string; label: string; icon?: Icon; active: boolean; sub?: boolean }) {
@@ -90,7 +89,6 @@ export function Sidebar() {
           <Link href="/health" className="flex items-center gap-2 hover:text-ink"><ListChecks size={16} aria-hidden />Status sistem</Link>
           <Link href="/login" className="flex items-center gap-2 hover:text-ink"><UsersThree size={16} aria-hidden />Keluar</Link>
         </div>
-        <RoleSwitcher />
       </div>
     </aside>
   );
