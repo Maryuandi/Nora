@@ -12,3 +12,14 @@ Process intelligence platform: ingest client process logs, map and monitor how p
 Next.js (App Router, TypeScript) · Zod · Temporal (TypeScript + Python workers) · PM4Py · SimPy · PostgreSQL · Neo4j · S3-compatible object storage · React Flow · Recharts
 
 Status: documentation only; code scaffold coming next.
+
+## Menjalankan lokal
+
+Prasyarat: Docker Desktop atau OrbStack, Node >= 22, pnpm, uv.
+
+```bash
+cp .env.example .env
+pnpm install
+pnpm infra:up
+pnpm dev
+```
