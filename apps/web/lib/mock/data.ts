@@ -1,4 +1,4 @@
-import type { AuditEvent, Client, Membership, MockState, Project, User } from "./types";
+import type { AuditEvent, Client, Membership, MockState, Project, Snapshot, Source, User } from "./types";
 
 export const MOCK_TODAY = "2026-10-17";
 
@@ -86,4 +86,54 @@ const audit: AuditEvent[] = Array.from({ length: 40 }, (_, i) => {
   return { id: `a-${40 - i}`, at, actorId: ACTORS[i % ACTORS.length], action, objectType, objectLabel, projectId, result };
 });
 
-export const initialState: MockState = { clients, projects, users, memberships, audit, viewerId: "u-dimas" };
+const sources: Source[] = [
+  { id: "s-p2p-sap", projectId: "p-p2p", name: "Ekspor SAP P2P", kind: "file", createdAt: "2026-04-05T03:00:00Z", createdBy: "u-dimas" },
+  { id: "s-p2p-tiket", projectId: "p-p2p", name: "Log Tiket Lama", kind: "file", createdAt: "2026-04-10T03:00:00Z", createdBy: "u-anton" },
+  { id: "s-o2c-erp", projectId: "p-o2c", name: "Ekspor ERP Order", kind: "file", createdAt: "2026-03-05T03:00:00Z", createdBy: "u-lia" },
+];
+
+const COLUMNS = [
+  { name: "case_id", samples: ["PO-400112", "PO-400113", "PO-400114"] },
+  { name: "activity", samples: ["Create Purchase Order Item", "Record Goods Receipt", "Clear Invoice"] },
+  { name: "timestamp", samples: ["2026-09-01 08:14:00", "2026-09-03 10:02:00", "2026-09-12 15:40:00"] },
+  { name: "resource", samples: ["user_017", "user_042", "batch_01"] },
+];
+const ACTS = ["Create Purchase Order Item", "Record Goods Receipt", "Record Invoice Receipt", "Clear Invoice"];
+const PREVIEW = Array.from({ length: 12 }, (_, i) => [
+  `PO-${400112 + Math.floor(i / 4)}`,
+  ACTS[i % 4],
+  `2026-09-${String(1 + i).padStart(2, "0")} ${String(8 + (i % 6)).padStart(2, "0")}:${String((i * 7) % 60).padStart(2, "0")}:00`,
+  ["user_017", "user_042", "user_008", "batch_01"][i % 4],
+]);
+
+const snapshots: Snapshot[] = [
+  { id: "sn-1", sourceId: "s-p2p-sap", projectId: "p-p2p", fileName: "sap_p2p_okt2026.csv", sizeBytes: 12_582_912, format: "csv", checksum: "9f3a1c7e0b42",
+    uploadedBy: "u-dimas", uploadedAt: "2026-10-15T07:30:00Z", status: "siap_dipetakan",
+    stats: { rows: 57_195, rejected: 312, encoding: "UTF-8", delimiter: ",", timeFrom: "2026-01-02", timeTo: "2026-10-14", latestEventAt: "2026-10-14",
+      newEvents: 34_317, duplicateEvents: 22_878, conflictEvents: 114 },
+    columns: COLUMNS, preview: PREVIEW },
+  { id: "sn-2", sourceId: "s-p2p-sap", projectId: "p-p2p", fileName: "sap_p2p_rusak_sep.csv", sizeBytes: 5_242_880, format: "csv", checksum: "c04b88d2a9e1",
+    uploadedBy: "u-anton", uploadedAt: "2026-10-16T09:10:00Z", status: "perlu_tinjauan",
+    stats: { rows: 23_831, rejected: 1_906, encoding: "UTF-8", delimiter: ";", timeFrom: "2026-09-01", timeTo: "2026-09-30", latestEventAt: "2026-09-30",
+      newEvents: 12_700, duplicateEvents: 9_532, conflictEvents: 48 },
+    columns: COLUMNS, preview: PREVIEW,
+    errors: [
+      { kind: "Format waktu tidak valid", count: 1_402, examples: [{ row: 310, text: "31/09/2026 08:14" }, { row: 1_877, text: "kemarin sore" }] },
+      { kind: "Kolom wajib kosong (case_id)", count: 504, examples: [{ row: 912, text: ";Create Purchase Order Item;2026-09-04 09:00:00;user_017" }] },
+    ] },
+  { id: "sn-3", sourceId: "s-p2p-tiket", projectId: "p-p2p", fileName: "log_tiket_2026_q1.csv", sizeBytes: 3_145_728, format: "csv", checksum: "5e71d0aa3c96",
+    uploadedBy: "u-anton", uploadedAt: "2026-08-22T04:00:00Z", status: "siap_dipetakan",
+    stats: { rows: 14_300, rejected: 71, encoding: "UTF-8", delimiter: ",", timeFrom: "2026-01-05", timeTo: "2026-08-20", latestEventAt: "2026-08-20",
+      newEvents: 14_300, duplicateEvents: 0, conflictEvents: 0 },
+    columns: COLUMNS, preview: PREVIEW },
+  { id: "sn-4", sourceId: "s-p2p-tiket", projectId: "p-p2p", fileName: "log_tiket_gagal.csv", sizeBytes: 819_200, format: "csv", checksum: "b2d6f41e87c5",
+    uploadedBy: "u-dimas", uploadedAt: "2026-09-02T02:20:00Z", status: "gagal", failureReason: "Isi file bukan CSV yang valid",
+    errors: [{ kind: "Struktur file tidak dikenali", count: 1, examples: [{ row: 1, text: "(berkas biner, bukan teks)" }] }] },
+  { id: "sn-5", sourceId: "s-o2c-erp", projectId: "p-o2c", fileName: "order_cash_okt.xes", sizeBytes: 8_388_608, format: "xes", checksum: "7a09e3b5d148",
+    uploadedBy: "u-lia", uploadedAt: "2026-10-05T06:45:00Z", status: "dibatalkan",
+    stats: { rows: 38_130, rejected: 190, encoding: "UTF-8", delimiter: "-", timeFrom: "2026-03-01", timeTo: "2026-09-30", latestEventAt: "2026-09-30",
+      newEvents: 38_130, duplicateEvents: 0, conflictEvents: 0 },
+    columns: COLUMNS, preview: PREVIEW },
+];
+
+export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, viewerId: "u-dimas" };

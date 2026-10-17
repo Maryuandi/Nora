@@ -57,11 +57,53 @@ export interface AuditEvent {
   result: AuditResult;
 }
 
+export type SnapshotStatus = "menunggu_unggah" | "memvalidasi" | "siap_dipetakan" | "perlu_tinjauan" | "gagal" | "dibatalkan";
+
+export interface Source {
+  id: string;
+  projectId: string;
+  name: string;
+  kind: "file";
+  createdAt: string;
+  createdBy: string;
+}
+
+export interface Snapshot {
+  id: string;
+  sourceId: string;
+  projectId: string;
+  fileName: string;
+  sizeBytes: number;
+  format: "csv" | "xes" | "xes.gz" | "zip";
+  checksum: string; // 12 hex tiruan dari nama+ukuran
+  uploadedBy: string;
+  uploadedAt: string;
+  status: SnapshotStatus;
+  failureReason?: string;
+  stats?: {
+    rows: number;
+    rejected: number;
+    encoding: string;
+    delimiter: string;
+    timeFrom: string;
+    timeTo: string;
+    latestEventAt: string;
+    newEvents: number;
+    duplicateEvents: number;
+    conflictEvents: number;
+  };
+  columns?: { name: string; samples: string[] }[];
+  preview?: string[][]; // maks 100 baris
+  errors?: { kind: string; count: number; examples: { row: number; text: string }[] }[];
+}
+
 export interface MockState {
   clients: Client[];
   projects: Project[];
   users: User[];
   memberships: Membership[];
   audit: AuditEvent[];
+  sources: Source[];
+  snapshots: Snapshot[];
   viewerId: string;
 }

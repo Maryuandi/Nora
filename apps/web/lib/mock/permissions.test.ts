@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { can, type UiAction } from "./permissions";
+import { acceptsData, can, type UiAction } from "./permissions";
 import type { Role } from "./types";
 
 const ROLES: Role[] = ["administrator", "analis", "pemilik_proses"];
@@ -10,6 +10,11 @@ const EXPECTED: Record<UiAction, Role[]> = {
   "member.manage": ["administrator"],
   "member.view": ["administrator", "analis", "pemilik_proses"],
   "audit.view": ["administrator", "analis", "pemilik_proses"],
+  "source.view": ["administrator", "analis", "pemilik_proses"],
+  "source.create": ["administrator", "analis"],
+  "snapshot.upload": ["administrator", "analis"],
+  "snapshot.confirm": ["administrator", "analis"],
+  "snapshot.cancel": ["administrator", "analis"],
 };
 
 describe("can", () => {
@@ -20,4 +25,11 @@ describe("can", () => {
       });
     }
   }
+});
+
+describe("acceptsData", () => {
+  it("is true only for aktif", () => {
+    expect(acceptsData("aktif")).toBe(true);
+    for (const s of ["draft", "ditangguhkan", "berakhir", "diarsipkan"] as const) expect(acceptsData(s)).toBe(false);
+  });
 });
