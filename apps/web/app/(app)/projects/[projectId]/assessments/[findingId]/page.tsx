@@ -11,6 +11,7 @@ import { Card } from "@/components/nora/card";
 import { NoraModal } from "@/components/nora/modal";
 import { NotFoundPanel } from "@/components/not-found-panel";
 import { AssessmentTabs } from "@/components/project/assessment-tabs";
+import { CorrectionModal } from "@/components/project/correction-modal";
 import { CandidatePanel } from "@/components/project/candidate-panel";
 import { CandidateTable, type CandidateRow } from "@/components/project/candidate-table";
 import { useProject } from "@/components/project/use-project";
@@ -53,6 +54,8 @@ function Finding({ findingId }: { findingId: string }) {
     return [{ candidate, assessment, effective: assessment ? effective(assessment, state.corrections) : undefined }];
   });
   const sel = rows.find((r) => r.candidate.id === selected && r.assessment && r.candidate.applicable);
+  const correcting = current.find((a) => a.id === correctingId);
+  const correctingCandidate = correcting && state.candidates.find((c) => c.id === correcting.candidateId);
   const unscored = summarize(state, finding.id).unscored;
   const model = current[0];
 
@@ -88,6 +91,10 @@ function Finding({ findingId }: { findingId: string }) {
         <CandidatePanel assessment={sel.assessment} candidate={sel.candidate} corrections={state.corrections} actorName={actor} canAct={mayCorrect}
           onClose={() => setSelected(null)} onCorrect={() => setCorrectingId(sel.assessment!.id)}
           onConfirm={() => setError(dispatch({ type: "confirmAssessment", assessmentId: sel.assessment!.id }))} />
+      )}
+
+      {correcting && correctingCandidate && mayCorrect && (
+        <CorrectionModal open onClose={() => setCorrectingId(null)} assessment={correcting} candidate={correctingCandidate} />
       )}
 
       <NoraModal open={confirmAll} onClose={() => setConfirmAll(false)} title="Ulangi semua penilaian?"

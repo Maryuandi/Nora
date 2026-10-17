@@ -3,13 +3,14 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ClipboardText, Hourglass } from "@phosphor-icons/react";
+import { ClipboardText } from "@phosphor-icons/react";
 import { Button } from "@/components/base/buttons/button";
 import { Banner } from "@/components/nora/banner";
 import { Card } from "@/components/nora/card";
 import { Pill } from "@/components/nora/badges";
 import { AssessmentStatusBadge } from "@/components/project/assessment-status";
 import { AssessmentTabs } from "@/components/project/assessment-tabs";
+import { ReviewQueue } from "@/components/project/review-queue";
 import { useProject } from "@/components/project/use-project";
 import { summarize } from "@/lib/mock/assessment";
 import type { AssessmentStatus } from "@/lib/mock/types";
@@ -29,11 +30,7 @@ function AssessmentsContent() {
       <Banner>Data contoh; penilaian oleh model, belum dikonfirmasi analis</Banner>
       <AssessmentTabs active={tab} />
       {tab === "antrean" ? (
-        // Task 6 replaces this placeholder with the review queue.
-        <Card className="flex flex-col items-center gap-2 px-4 py-10 text-center">
-          <Hourglass size={28} className="text-ink-3" aria-hidden />
-          <p className="text-sm font-medium">Antrean review segera hadir</p>
-        </Card>
+        <ReviewQueue projectId={project.id} />
       ) : findings.length ? (
         <div className="flex flex-col gap-3">
           {findings.map((f) => {
