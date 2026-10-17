@@ -86,6 +86,7 @@ export default function SnapshotDetailPage() {
         </div>
       ) : (
         <>
+          {!st && (snap.status === "memvalidasi" || snap.status === "menunggu_unggah") && <p className="text-sm text-ink-3">Sedang memvalidasi…</p>}
           {st && (
             <Section title="Statistik">
               <dl className="grid grid-cols-2 gap-x-6 gap-y-3 px-4 py-4 sm:grid-cols-3">
@@ -106,13 +107,13 @@ export default function SnapshotDetailPage() {
           )}
           {snap.columns && (
             <Section title="Kolom">
-              <table className="w-full text-left text-sm">
+              <table aria-label="Kolom terdeteksi" className="w-full text-left text-sm">
                 <thead>
                   <tr className="border-b border-line text-xs text-ink-3"><th className="px-4 py-2 font-medium">KOLOM</th><th className="px-4 py-2 font-medium">CONTOH NILAI</th></tr>
                 </thead>
                 <tbody>
-                  {snap.columns.map((c) => (
-                    <tr key={c.name} className="border-b border-line last:border-0">
+                  {snap.columns.map((c, i) => (
+                    <tr key={`${i}-${c.name}`} className="border-b border-line last:border-0">
                       <td className="px-4 py-2 font-medium text-ink">{c.name}</td>
                       <td className="px-4 py-2 text-ink-2">{c.samples.slice(0, 3).join(", ")}</td>
                     </tr>
@@ -124,8 +125,8 @@ export default function SnapshotDetailPage() {
           {snap.preview && (
             <Section title="Pratinjau">
               {/* Cells render as React text nodes only: file content is never interpreted as HTML. */}
-              <div className="max-h-[360px] overflow-auto">
-                <table className="w-full text-left font-mono text-xs">
+              <div className="max-h-[360px] overflow-auto" tabIndex={0} role="region" aria-label="Pratinjau 100 baris pertama">
+                <table aria-label="Pratinjau data" className="w-full text-left font-mono text-xs">
                   <tbody>
                     {snap.preview.slice(0, 100).map((row, i) => (
                       <tr key={i} className="border-b border-line last:border-0">

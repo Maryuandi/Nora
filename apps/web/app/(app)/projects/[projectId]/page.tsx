@@ -1,12 +1,16 @@
 "use client";
 
+import Link from "next/link";
 import { ChartLineUp, Database } from "@phosphor-icons/react";
 import { Button } from "@/components/base/buttons/button";
 import { UserAvatar } from "@/components/nora/avatar";
 import { RoleBadge } from "@/components/nora/badges";
 import { Card } from "@/components/nora/card";
 import { AuditFeed } from "@/components/project/audit-list";
+import { FreshnessBadge } from "@/components/project/freshness-badge";
 import { useProject } from "@/components/project/use-project";
+import { acceptsData } from "@/lib/mock/permissions";
+import { snapshotsForSource, sourceFreshness } from "@/lib/mock/reducer";
 
 function CardTitle({ children, action }: { children: React.ReactNode; action?: React.ReactNode }) {
   return (
@@ -30,7 +34,14 @@ function Empty({ icon: I, title, body }: { icon: typeof Database; title: string;
 export default function ProjectOverview() {
   const ctx = useProject();
   if (!ctx) return null;
-  const { project, state } = ctx;
+  const { project, state, can } = ctx;
+  const base = `/projects/${project.id}`;
+  const sources = state.sources.filter((s) => s.projectId === project.id);
+  const ready = state.snapshots.filter((x) => x.projectId === project.id && x.status === "siap_dipetakan").length;
+  const recent = sources
+    .map((s) => ({ s, f: sourceFreshness(state, s.id) }))
+    .sort((a, b) => (b.f.lastImportAt ?? "").localeCompare(a.f.lastImportAt ?? ""))
+    .slice(0, 3);
   const members = state.memberships
     .filter((m) => m.projectId === project.id)
     .map((m) => ({ ...m, user: state.users.find((u) => u.id === m.userId)! }));
@@ -41,8 +52,27 @@ export default function ProjectOverview() {
       <div className="flex flex-col gap-4">
         <div className="grid gap-4 md:grid-cols-2">
           <Card>
-            <CardTitle>Sumber data</CardTitle>
-            <Empty icon={Database} title="Belum ada sumber data" body="Koneksi dan unggah log tersedia di M02." />
+            <CardTitle action={sources.length ? <Button color="link-color" size="xs" href={`${base}/sources`}>Lihat semua</Button> : undefined}>Sumber data</CardTitle>
+            {sources.length ? (
+              <div className="px-4 py-3">
+                <p className="text-sm text-ink-2">{sources.length} sumber · {ready} snapshot siap</p>
+                <ul className="mt-2 divide-y divide-line">
+                  {recent.map(({ s, f }) => (
+                    <li key={s.id} className="flex items-center justify-between gap-3 py-2">
+                      <Link href={`${base}/sources/${s.id}`} title={s.name} className="min-w-0 flex-1 truncate text-sm font-medium hover:underline">{s.name}</Link>
+                      {f.latestEventAt && <FreshnessBadge stale={f.stale} />}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <>
+                <Empty icon={Database} title="Belum ada sumber data" body="Tambahkan sumber lalu unggah file event log." />
+                {can("source.create", project.id) && acceptsData(project.status) && (
+                  <div className="flex justify-center pb-6"><Button color="link-color" size="xs" href={`${base}/sources`}>Tambah sumber</Button></div>
+                )}
+              </>
+            )}
           </Card>
           <Card>
             <CardTitle>Analisis terakhir</CardTitle>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, FileArrowUp } from "@phosphor-icons/react";
 import { Table } from "@/components/application/table/table";
@@ -19,7 +19,6 @@ import { snapshotsForSource, sourceFreshness } from "@/lib/mock/reducer";
 
 export default function SourceDetailPage() {
   const { sourceId } = useParams<{ sourceId: string }>();
-  const router = useRouter();
   const ctx = useProject();
   const [uploading, setUploading] = useState(false);
   const source = ctx?.state.sources.find((s) => s.id === sourceId);
@@ -51,7 +50,7 @@ export default function SourceDetailPage() {
           {mayUpload && !open && <p className="text-sm text-ink-3">Proyek berstatus {STATUS_META[project.status].label}; unggah file dinonaktifkan</p>}
         </div>
         {snaps.length ? (
-          <Table aria-label="Riwayat snapshot" size="sm" onRowAction={(key) => router.push(`${base}/snapshots/${key}`)}>
+          <Table aria-label="Riwayat snapshot" size="sm">
             <Table.Header>
               <Table.Head id="file" isRowHeader label="NAMA FILE" className="w-full" />
               <Table.Head id="by" label="PENGUNGGAH" />
