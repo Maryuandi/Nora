@@ -3,7 +3,7 @@ import { Pill } from "@/components/nora/badges";
 import { CHECKS } from "@/lib/mock/interpretation";
 import type { CheckKey, CheckOverride, CheckResult } from "@/lib/mock/types";
 
-const CHECK_LABEL: Record<CheckKey, string> = {
+export const CHECK_LABEL: Record<CheckKey, string> = {
   skema: "Skema",
   placeholder: "Placeholder",
   angka_literal: "Angka literal",
