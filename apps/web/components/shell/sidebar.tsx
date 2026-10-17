@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { CaretDown, FolderSimple, ListChecks, Buildings, ShieldCheck, SquaresFour, UsersThree, SidebarSimple } from "@phosphor-icons/react";
+import { CaretDown, FolderSimple, ListChecks, Buildings, ShieldCheck, UsersThree, SidebarSimple } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
 import { Logo } from "@/components/nora/logo";
 import { useMock } from "@/lib/mock/store";
@@ -65,7 +65,6 @@ export function Sidebar() {
 
       <nav className="flex flex-col gap-0.5" aria-label="Navigasi utama">
         <NavItem href="/" label="Proyek" icon={FolderSimple} active={path === "/"} />
-        <NavItem href="/modules" label="Modul" icon={SquaresFour} active={path.startsWith("/modules") || /^\/m\d{2}$/.test(path)} />
 
         <Group label="Akses" icon={ShieldCheck}>
           {first ? (
