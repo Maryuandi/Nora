@@ -173,8 +173,9 @@ export interface EvidenceItem {
   validated?: boolean; // hanya kind "kandidat": status tervalidasi M09
   metrics?: Record<string, { value: number; unit: string; version: string }>;
 }
+export type TargetKind = "temuan" | "penilaian_kandidat" | "perbandingan" | "skenario" | "uji_coba";
 export interface MockFinding {
-  id: string; projectId: string; title: string; summary: string;
+  id: string; projectId: string; kind: TargetKind; title: string; summary: string;
   limitedContext: boolean; // paket bukti "konteks terbatas" (M07)
   evidence: EvidenceItem[]; // paket bukti beku
 }

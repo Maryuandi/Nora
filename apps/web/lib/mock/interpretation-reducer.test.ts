@@ -86,8 +86,8 @@ describe("overrideCheck", () => {
 describe("selectors", () => {
   it("lists newest first and scopes by project", () => {
     const s = s0();
-    expect(interpretationsForProject(s, "p-p2p").map((i) => i.findingId)).toEqual(["finding_63", "finding_57", "finding_42"]);
+    expect(interpretationsForProject(s, "p-p2p").map((i) => i.findingId)).toEqual(["pilot_95", "scenario_91", "compare_81", "assess_71", "finding_63", "finding_57", "finding_42"]);
     expect(interpretationsForProject(s, "p-lain")).toEqual([]);
-    expect(findingsForProject(s, "p-p2p")).toHaveLength(3);
+    expect(findingsForProject(s, "p-p2p")).toHaveLength(7);
   });
 });
