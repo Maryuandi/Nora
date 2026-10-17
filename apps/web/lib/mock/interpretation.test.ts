@@ -64,6 +64,18 @@ describe("pemeriksa", () => {
     expect(failing(bad)).toContain("skema");
     expect(() => runChecks(null as unknown as Section[], f42)).not.toThrow();
     expect(failing(null as unknown as Section[])).toContain("skema");
+    for (const entry of [null, "teks", 7]) {
+      const junk = put(base(), "terukur", entry as unknown as Claim);
+      expect(failing(junk)).toContain("skema");
+    }
+  });
+
+  it("placeholder menolak kunci prototipe", () => {
+    for (const key of ["constructor", "__proto__"]) {
+      expect(resolvePlaceholders(`{{metric:finding_42.${key}}}`, f42)).toEqual([{ kind: "missing", ref: `finding_42.${key}` }]);
+      const bad = put(base(), "terukur", claim(`Nilai {{metric:finding_42.${key}}}.`, "fakta_terukur", ["finding_42"]));
+      expect(failing(bad)).toContain("placeholder");
+    }
   });
 
   it("placeholder", () => {
@@ -75,6 +87,7 @@ describe("pemeriksa", () => {
     for (const t of ["Sekitar 18 persen kasus.", "Terjadi 3 kali.", "Lihat SOP2."]) {
       expect(failing(put(base(), "terukur", claim(t, "fakta_terukur", ["finding_42"])))).toContain("angka_literal");
     }
+    expect(failing(put(base(), "terukur", claim("Sebagian 40 kasus.", "fakta_terukur", ["finding_42"])))).toContain("angka_literal");
     const ok = put(base(), "terukur", claim("Bagian 4.2 menyebut batas.", "fakta_terukur", ["finding_42"]));
     expect(failing(ok)).not.toContain("angka_literal");
     const dated = put(base(), "terukur", claim("Sejak 2026-09-10 berlaku.", "fakta_terukur", ["finding_42"]));

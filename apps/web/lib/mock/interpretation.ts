@@ -47,7 +47,7 @@ export function resolvePlaceholders(text: string, finding: MockFinding): Segment
     if (m.index > last) out.push({ kind: "text", text: text.slice(last, m.index) });
     const [, itemId, key] = m;
     const item = finding.evidence.find((e) => e.id === itemId);
-    const metric = item?.metrics?.[key];
+    const metric = item?.metrics && Object.hasOwn(item.metrics, key) ? item.metrics[key] : undefined;
     out.push(
       item && metric
         ? { kind: "number", ref: `${itemId}.${key}`, formatted: formatMetric(metric), origin: `${item.title} · ${key} · ${metric.version}` }
@@ -84,6 +84,9 @@ const checkSchema: Checker = (sections) => {
   const keys = sections.map((s) => s?.key);
   for (const k of SECTION_ORDER) if (!keys.includes(k)) out.push(viol("skema", `Bagian ${SECTION_LABEL[k]} tidak ada`));
   for (const s of sections) if (!Array.isArray(s?.claims)) out.push(viol("skema", `Bagian ${s?.key ?? "?"} tanpa daftar klaim`));
+  for (const s of sections)
+    if (Array.isArray(s?.claims) && s.claims.some((c) => !c || typeof c !== "object"))
+      out.push(viol("skema", `Bagian ${s.key} berisi klaim yang bukan objek`));
   for (const { claim: c } of claimsOf(sections)) {
     if (typeof c.id !== "string" || !c.id) out.push(viol("skema", "Klaim tanpa id", c));
     else if (!CLAIM_TYPES.includes(c.type)) out.push(viol("skema", "Tipe klaim tidak dikenal", c));
@@ -105,7 +108,7 @@ const checkLiteralNumbers: Checker = (sections, finding) => {
   return claimsOf(sections).flatMap(({ claim: c }) => {
     const rest = textOf(c)
       .replace(PLACEHOLDER, " ")
-      .replace(/(bagian|halaman|pasal)\s+\d+(\.\d+)*/gi, " ")
+      .replace(/\b(bagian|halaman|pasal)\s+\d+(\.\d+)*/gi, " ")
       .replace(/\d{4}-\d{2}-\d{2}/g, (d) => (details.includes(d) ? " " : d));
     return /\d/.test(rest) ? [viol("angka_literal", "Angka literal di luar placeholder", c)] : [];
   });
