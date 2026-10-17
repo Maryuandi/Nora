@@ -23,6 +23,18 @@ const EXPECTED: Record<UiAction, Role[]> = {
   "interpretation.view": ["administrator", "analis", "pemilik_proses"],
   "interpretation.request": ["analis"],
   "interpretation.override": ["analis"],
+  "investigation.view": ["administrator", "analis", "pemilik_proses"],
+  "investigation.create": ["analis"],
+  "investigation.link": ["analis"],
+  "investigation.status": ["analis"],
+  "note.add": ["analis"],
+  "note.add.field": ["analis", "pemilik_proses"],
+  "comment.add": ["analis", "pemilik_proses"],
+  "review.jev": ["analis"],
+  "review.draft": ["analis"],
+  "decision.analytic": ["analis"],
+  "decision.select": ["pemilik_proses"],
+  "proposal.create": ["analis", "pemilik_proses"],
 };
 
 describe("can", () => {
@@ -32,6 +44,12 @@ describe("can", () => {
         expect(can(role, action)).toBe(allowed.includes(role));
       });
     }
+  }
+});
+
+describe("can with null role", () => {
+  for (const action of Object.keys(EXPECTED) as UiAction[]) {
+    it(`denies ${action}`, () => expect(can(null, action)).toBe(false));
   }
 });
 

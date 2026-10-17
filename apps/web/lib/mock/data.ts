@@ -186,4 +186,4 @@ const interpretations: Interpretation[] = [
   seedDraft("63", "finding_63", "analis", "2026-10-17T08:00:00Z"),
 ];
 
-export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, rules, findings: FINDINGS, interpretations, viewerId: "u-dimas" };
+export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, rules, findings: FINDINGS, interpretations, investigations: [], links: [], notes: [], comments: [], notifications: [], reviews: [], decisions: [], flags: [], proposals: [], analysisStates: [], viewerId: "u-dimas" };
