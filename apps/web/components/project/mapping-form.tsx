@@ -66,7 +66,7 @@ export function MappingForm({ snapshot, initial, readOnly = false, onSave }: {
   ], [snapLabels, labels]);
   const preview = useMemo(() => previewEvents({ snapshot, roles, timeFormat, timezone, labels }), [snapshot, roles, timeFormat, timezone, labels]);
 
-  const errors = useMemo(() => validateMapping({ columns: names, roles, confirmed, timezoneConfirmed, timeFormat, labels }), [names, roles, confirmed, timezoneConfirmed, timeFormat, labels]);
+  const errors = useMemo(() => validateMapping({ columns: names, roles, confirmed, timezoneConfirmed, timezone, timeFormat, labels }), [names, roles, confirmed, timezoneConfirmed, timezone, timeFormat, labels]);
   const shown = attempted ? errors : [];
   const msg = (field: string) => shown.filter((e) => e.field === field).map((e) => e.message).join(". ") || undefined;
 
@@ -100,8 +100,8 @@ export function MappingForm({ snapshot, initial, readOnly = false, onSave }: {
       {(fresh.length > 0 || missing.length > 0) && (
         <Banner tone="warning">
           Kolom snapshot ini berbeda dari pemetaan v{initial!.version}.
-          {fresh.length > 0 && <> Baru: {fresh.join(", ")}.</>}
-          {missing.length > 0 && <> Hilang: {missing.join(", ")}.</>} Tinjau peran kolom sebelum menyimpan.
+          {fresh.length > 0 && <> Baru: <span className="break-all">{fresh.join(", ")}</span>.</>}
+          {missing.length > 0 && <> Hilang: <span className="break-all">{missing.join(", ")}</span>.</>} Tinjau peran kolom sebelum menyimpan.
         </Banner>
       )}
 
