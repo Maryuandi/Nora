@@ -1,6 +1,8 @@
 // Aturan murni M10a: placeholder dan pemeriksa draf. Tanpa React, tanpa I/O.
+import { scriptFor } from "./interpretation-scripts";
 import type {
-  Audience, CheckKey, CheckResult, Claim, ClaimType, EvidenceItem, MockFinding, Section, SectionKey, Violation,
+  Attempt, Audience, CheckKey, CheckOverride, CheckResult, Claim, ClaimType, EvidenceItem, InterpretationStatus,
+  MockFinding, Section, SectionKey, Violation,
 } from "./types";
 
 // ---------- Konstanta ----------
@@ -185,4 +187,38 @@ export function runChecks(sections: Section[], finding: MockFinding): CheckResul
 export function unreferencedEvidence(sections: Section[], finding: MockFinding): EvidenceItem[] {
   const cited = new Set(claimsOf(sections).flatMap(({ claim }) => citesOf(claim)));
   return finding.evidence.filter((e) => !cited.has(e.id));
+}
+
+// ---------- Generator tiruan, perbaikan otomatis, status ----------
+export function generateAttempt(finding: MockFinding, audience: Audience, n: number): Section[] {
+  const script = scriptFor(finding.id).filter((x) => !x.when || x.when(n));
+  if (script.length === 0) return [];
+  return SECTION_ORDER.map((key) => ({
+    key,
+    claims: script.filter((x) => x.section === key).map((x, i): Claim => ({
+      id: `${key}-${i + 1}`, type: x.type, text: x.text[audience === "analis" ? 0 : 1], citations: [...x.citations],
+      ...(x.candidateId ? { candidateId: x.candidateId } : {}),
+    })),
+  }));
+}
+
+export function runCheckedGeneration(finding: MockFinding, audience: Audience): Attempt[] {
+  const attempts: Attempt[] = [];
+  for (let n = 1; n <= 3; n++) {
+    const sections = generateAttempt(finding, audience, n);
+    const violations = CHECKS.flatMap(({ run }) => run(sections, finding));
+    attempts.push({ n, sections, violations, checks: runChecks(sections, finding) });
+    if (violations.length === 0) break;
+  }
+  return attempts;
+}
+
+export const violationKey = (v: { check: CheckKey; claimId?: string }): string => `${v.check}:${v.claimId ?? ""}`;
+export const isOverridable = (check: CheckKey): boolean => CHECKS.some((c) => c.key === check && c.heuristic);
+
+export function statusOf(attempts: Attempt[], overrides: CheckOverride[]): InterpretationStatus {
+  const last = attempts[attempts.length - 1];
+  const keys = new Set(overrides.map(violationKey));
+  return last && last.violations.every((v) => isOverridable(v.check) && keys.has(violationKey(v)))
+    ? "lolos_pemeriksaan" : "gagal_pemeriksaan";
 }
