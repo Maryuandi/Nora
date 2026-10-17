@@ -98,7 +98,7 @@ export function reduceRec(state: MockState, action: RecAction): RecResult {
       const trial: TrialProposal = {
         id: id("t"), projectId: project.id, findingId: action.findingId, candidateId: item.c.id, status: "draf",
         action: item.c.name, scope: "", durationWeeks: null, successMetric: item.c.successMetric, baseline: buildBaseline(item.c, ev.finding),
-        target: "", guardrails: [], owner: item.c.ownerRole ?? "", risks: [], stopConditions: [],
+        target: "", guardrails: [], owner: "", risks: [], stopConditions: [],
         createdBy: state.viewerId, createdAt: now(), updatedAt: now(),
       };
       return { state: withAudit({ ...state, trials: [...state.trials, trial] }, { action: "ujicoba.buat", objectType: "Usulan uji coba", objectLabel: trial.action, projectId: project.id }), trialId: trial.id };
