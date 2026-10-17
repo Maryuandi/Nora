@@ -1,0 +1,89 @@
+import type { AuditEvent, Client, Membership, MockState, Project, User } from "./types";
+
+export const MOCK_TODAY = "2026-10-17";
+
+const clients: Client[] = [
+  { id: "c-manufaktur", name: "PT Contoh Manufaktur", sector: "Manufaktur", contact: "sari@contohmanufaktur.co.id" },
+  { id: "c-retail", name: "PT Sejahtera Retail", sector: "Ritel", contact: "ops@sejahteraretail.co.id" },
+  { id: "c-logistik", name: "PT Nusantara Logistik", sector: "Logistik", contact: "it@nusantaralogistik.co.id" },
+];
+
+const p = (o: Omit<Project, "statusHistory" | "description" | "retention"> & Partial<Project>): Project => ({
+  description: "",
+  retention: "Hapus 2 tahun setelah kontrak berakhir",
+  statusHistory: [],
+  ...o,
+});
+
+const projects: Project[] = [
+  p({ id: "p-p2p", clientId: "c-manufaktur", name: "Purchase-to-Pay 2018", description: "Analisis proses pembelian berbasis data BPI Challenge 2019.",
+    process: { name: "Purchase-to-Pay", startActivity: "Create Purchase Order Item", endActivity: "Clear Invoice" },
+    contractStart: "2026-04-01", contractEnd: "2026-10-31", status: "aktif", lastActivityAt: "2026-10-17T08:12:00Z",
+    statusHistory: [{ from: "draft", to: "aktif", reason: "Kontrak ditandatangani", at: "2026-04-01T02:00:00Z", by: "u-rina" }] }),
+  p({ id: "p-o2c", clientId: "c-retail", name: "Order-to-Cash", process: { name: "Order-to-Cash", startActivity: "Create Order", endActivity: "Receive Payment" },
+    contractStart: "2026-03-01", contractEnd: "2026-11-30", status: "ditangguhkan", lastActivityAt: "2026-10-10T04:30:00Z",
+    statusHistory: [
+      { from: "draft", to: "aktif", reason: "Kick-off proyek", at: "2026-03-01T02:00:00Z", by: "u-rina" },
+      { from: "aktif", to: "ditangguhkan", reason: "Menunggu perpanjangan izin akses data", at: "2026-10-01T03:00:00Z", by: "u-rina" },
+    ] }),
+  p({ id: "p-procure", clientId: "c-manufaktur", name: "Procure-to-Pay Q3", process: { name: "Procure-to-Pay", startActivity: "", endActivity: "" },
+    contractStart: "2026-11-01", contractEnd: "2027-04-30", status: "draft", lastActivityAt: "2026-10-16T09:00:00Z" }),
+  p({ id: "p-incident", clientId: "c-logistik", name: "Incident-to-Resolution", process: { name: "Incident-to-Resolution", startActivity: "Ticket Opened", endActivity: "Ticket Closed" },
+    contractStart: "2026-01-01", contractEnd: "2026-06-30", status: "berakhir", lastActivityAt: "2026-07-01T00:00:00Z",
+    statusHistory: [
+      { from: "draft", to: "aktif", reason: "Kick-off proyek", at: "2026-01-01T02:00:00Z", by: "u-rina" },
+      { from: "aktif", to: "berakhir", reason: "Kontrak berakhir (pemeriksaan harian)", at: "2026-07-01T00:00:00Z", by: "system" },
+    ] }),
+  p({ id: "p-hr", clientId: "c-logistik", name: "Hire-to-Retire 2025", process: { name: "Hire-to-Retire", startActivity: "Requisition", endActivity: "Offboarding" },
+    contractStart: "2025-01-01", contractEnd: "2025-12-31", status: "diarsipkan", lastActivityAt: "2026-02-01T00:00:00Z",
+    statusHistory: [
+      { from: "draft", to: "aktif", reason: "Kick-off proyek", at: "2025-01-01T02:00:00Z", by: "u-rina" },
+      { from: "aktif", to: "berakhir", reason: "Kontrak berakhir", at: "2026-01-01T00:00:00Z", by: "system" },
+      { from: "berakhir", to: "diarsipkan", reason: "Laporan akhir diserahkan", at: "2026-02-01T00:00:00Z", by: "u-rina" },
+    ] }),
+];
+
+const users: User[] = [
+  { id: "u-rina", name: "Rina Wulandari", email: "rina@javan.co.id", persona: "rina", pending: false },
+  { id: "u-dimas", name: "Dimas Pratama", email: "dimas@javan.co.id", persona: "dimas", pending: false },
+  { id: "u-sari", name: "Sari Hartono", email: "sari@contohmanufaktur.co.id", persona: "sari", pending: false },
+  { id: "u-anton", name: "Anton Saputra", email: "anton@javan.co.id", persona: null, pending: false },
+  { id: "u-lia", name: "Lia Kurniawan", email: "lia@javan.co.id", persona: null, pending: false },
+  { id: "u-budi", name: "Budi Santoso", email: "budi@sejahteraretail.co.id", persona: null, pending: false },
+  { id: "u-maya", name: "Maya Lestari", email: "maya@nusantaralogistik.co.id", persona: null, pending: false },
+  { id: "u-yoga", name: "Yoga Firmansyah", email: "yoga@contohmanufaktur.co.id", persona: null, pending: true },
+];
+
+const m = (userId: string, projectId: string, role: Membership["role"], addedAt = "2026-04-01T02:00:00Z"): Membership => ({ userId, projectId, role, addedAt });
+
+const memberships: Membership[] = [
+  ...projects.map((pr) => m("u-rina", pr.id, "administrator", pr.contractStart + "T02:00:00Z")),
+  m("u-dimas", "p-p2p", "analis"), m("u-dimas", "p-o2c", "analis"), m("u-dimas", "p-incident", "analis"),
+  m("u-anton", "p-p2p", "analis"), m("u-lia", "p-o2c", "analis"), m("u-lia", "p-hr", "analis"),
+  m("u-sari", "p-p2p", "pemilik_proses"), m("u-sari", "p-procure", "pemilik_proses"),
+  m("u-yoga", "p-p2p", "pemilik_proses", "2026-10-15T03:00:00Z"),
+  m("u-budi", "p-o2c", "pemilik_proses"), m("u-maya", "p-incident", "pemilik_proses"),
+];
+
+const ACTIONS: [string, string, string, AuditEvent["result"], string | null][] = [
+  ["login", "Sesi", "Rina Wulandari", "sukses", null],
+  ["analisis.jalankan", "Analisis", "Peta proses Q3", "sukses", "p-p2p"],
+  ["data.baca", "Dataset", "BPI 2019 v3", "sukses", "p-p2p"],
+  ["anggota.tambah", "Anggota", "Yoga Firmansyah", "sukses", "p-p2p"],
+  ["data.baca", "Dataset", "Order lines v1", "ditolak", "p-o2c"],
+  ["login", "Sesi", "dimas@javan.co.id", "gagal", null],
+  ["sumber.konfigurasi", "Sumber data", "SAP export", "sukses", "p-p2p"],
+  ["keputusan.catat", "Keputusan", "Uji coba approval ganda", "sukses", "p-p2p"],
+  ["ekspor", "Laporan", "Ringkasan temuan Okt", "sukses", "p-p2p"],
+  ["proyek.ubah", "Proyek", "Procure-to-Pay Q3", "sukses", "p-procure"],
+];
+const ACTORS = ["u-rina", "u-dimas", "u-anton", "u-sari", "u-lia"];
+
+// ~40 events, newest first, spread back from MOCK_TODAY.
+const audit: AuditEvent[] = Array.from({ length: 40 }, (_, i) => {
+  const [action, objectType, objectLabel, result, projectId] = ACTIONS[i % ACTIONS.length];
+  const at = new Date(Date.parse(`${MOCK_TODAY}T09:00:00Z`) - i * 5.5 * 3600_000).toISOString();
+  return { id: `a-${40 - i}`, at, actorId: ACTORS[i % ACTORS.length], action, objectType, objectLabel, projectId, result };
+});
+
+export const initialState: MockState = { clients, projects, users, memberships, audit, viewerId: "u-rina" };
