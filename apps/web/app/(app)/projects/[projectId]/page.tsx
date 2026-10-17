@@ -10,7 +10,7 @@ import { AuditFeed } from "@/components/project/audit-list";
 import { FreshnessBadge } from "@/components/project/freshness-badge";
 import { useProject } from "@/components/project/use-project";
 import { acceptsData } from "@/lib/mock/permissions";
-import { snapshotsForSource, sourceFreshness } from "@/lib/mock/reducer";
+import { sourceFreshness } from "@/lib/mock/reducer";
 
 function CardTitle({ children, action }: { children: React.ReactNode; action?: React.ReactNode }) {
   return (

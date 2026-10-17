@@ -12,6 +12,7 @@ import { NotFoundPanel } from "@/components/not-found-panel";
 import { SnapshotStatusBadge } from "@/components/project/snapshot-status";
 import { useProject } from "@/components/project/use-project";
 import { formatDate } from "@/lib/format";
+import { STATUS_META } from "@/components/nora/badges";
 import { acceptsData } from "@/lib/mock/permissions";
 
 const CANCELLABLE = ["memvalidasi", "perlu_tinjauan", "siap_dipetakan"];
@@ -38,6 +39,7 @@ export default function SnapshotDetailPage() {
   const open = acceptsData(project.status);
   const mayConfirm = can("snapshot.confirm", project.id) && open && snap.status === "perlu_tinjauan";
   const mayCancel = can("snapshot.cancel", project.id) && open && CANCELLABLE.includes(snap.status);
+  const blocked = !open && CANCELLABLE.includes(snap.status) && (can("snapshot.confirm", project.id) || can("snapshot.cancel", project.id));
   const st = snap.stats;
   const num = (n: number) => n.toLocaleString("id-ID");
   const pct = st && st.rows ? ((st.rejected / st.rows) * 100).toLocaleString("id-ID", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "0,0";
@@ -58,8 +60,8 @@ export default function SnapshotDetailPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <Link href={`${base}/sources/${source.id}`} className="inline-flex w-fit items-center gap-1 text-sm text-ink-2 hover:text-ink">
-        <ArrowLeft size={14} aria-hidden /> {source.name}
+      <Link href={`${base}/sources/${source.id}`} className="inline-flex max-w-full min-w-0 items-center gap-1 self-start text-sm text-ink-2 hover:text-ink">
+        <ArrowLeft size={14} aria-hidden className="shrink-0" /> <span className="max-w-full truncate" title={source.name}>{source.name}</span>
       </Link>
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
@@ -70,6 +72,7 @@ export default function SnapshotDetailPage() {
       </div>
 
       {error && <Banner tone="warning">{error}</Banner>}
+      {blocked && <p className="text-sm text-ink-3">Proyek berstatus {STATUS_META[project.status].label}; konfirmasi dan pembatalan snapshot dinonaktifkan</p>}
       {snap.status === "perlu_tinjauan" && st && (
         <Banner tone="warning" action={mayConfirm ? <Button color="primary" size="xs" onClick={() => act("confirmSnapshot")}>Konfirmasi dan teruskan</Button> : undefined}>
           {pct}% baris ditolak (lebih dari 5%). Tinjau sebelum diteruskan.

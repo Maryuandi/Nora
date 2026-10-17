@@ -203,3 +203,14 @@ describe("no throws on unknown ids", () => {
     expect(r.state).toBe(before);
   });
 });
+
+describe("seed snapshot stats", () => {
+  it("new + duplicate + conflict === rows and rejected <= rows", () => {
+    for (const sn of initialState.snapshots) {
+      if (!sn.stats) continue;
+      const { rows, rejected, newEvents, duplicateEvents, conflictEvents } = sn.stats;
+      expect(newEvents + duplicateEvents + conflictEvents, sn.id).toBe(rows);
+      expect(rejected, sn.id).toBeLessThanOrEqual(rows);
+    }
+  });
+});

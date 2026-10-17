@@ -70,7 +70,7 @@ export default function AuditPage() {
                   <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{formatDateTime(a.at)}</Table.Cell>
                   <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink">{actorName(state.users, a.actorId)}</Table.Cell>
                   <Table.Cell className="px-6 font-mono text-xs whitespace-nowrap text-ink-2">{a.action}</Table.Cell>
-                  <Table.Cell className="px-6 text-sm text-ink"><span className="text-ink-3">{a.objectType} · </span>{a.objectLabel}</Table.Cell>
+                  <Table.Cell className="px-6 text-sm text-ink"><span className="text-ink-3">{a.objectType} · </span><span className="block max-w-[420px] truncate" title={a.objectLabel}>{a.objectLabel}</span></Table.Cell>
                   <Table.Cell className="px-6"><ResultBadge result={a.result} /></Table.Cell>
                 </Table.Row>
               ))}
