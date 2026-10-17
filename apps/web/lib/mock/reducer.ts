@@ -5,7 +5,7 @@ import { validateMapping } from "./mapping";
 import { acceptsData } from "./permissions";
 import { nextStatuses, previewDataset, previewRule, projectCanonicalLabels, validateRule, type RuleInput } from "./rules";
 import { projectSchema, type ProjectInput } from "./schemas";
-import type { AuditEvent, ColumnRole, LabelRule, MappingVersion, MockState, Project, ProjectStatus, Role, RuleStatus, RuleVersion, Snapshot, SnapshotStatus } from "./types";
+import type { AuditEvent, ColumnRole, EvidenceBundle, Finding, LabelRule, MappingVersion, MockState, Project, ProjectStatus, Role, RuleStatus, RuleVersion, Snapshot, SnapshotStatus } from "./types";
 
 export { MOCK_TODAY, initialState };
 
@@ -25,6 +25,8 @@ export type MockAction =
   | { type: "saveRule"; projectId: string; ruleKey?: string; input: RuleInput }
   | { type: "changeRuleStatus"; ruleId: string; to: RuleStatus }
   | { type: "confirmRuleClient"; ruleId: string }
+  | { type: "rebuildGraph"; projectId: string }
+  | { type: "finishGraphRebuild"; projectId: string }
   | { type: "setViewer"; userId: string };
 
 export type ReduceResult = { state: MockState; error?: string; snapshotId?: string; duplicateOf?: string; mappingId?: string; ruleId?: string };
@@ -296,6 +298,25 @@ export function reduce(state: MockState, action: MockAction): ReduceResult {
       return { state: withAudit({ ...state, rules }, { action: "aturan.konfirmasi_klien", objectType: "Aturan", objectLabel: `${rule.name} v${rule.version}`, projectId: project.id }), ruleId: rule.id };
     }
 
+    case "rebuildGraph": {
+      const project = state.projects.find((x) => x.id === action.projectId);
+      const g = state.graphStatus[action.projectId];
+      if (!project || !g) return fail("Graph tidak ditemukan");
+      if (!acceptsData(project.status)) return fail("Proyek ini tidak menerima data baru");
+      if (g.rebuilding) return fail("Pembangunan ulang sedang berjalan");
+      const next = { ...state, graphStatus: { ...state.graphStatus, [project.id]: { ...g, rebuilding: true } } };
+      return { state: withAudit(next, { action: "graf.bangun_ulang", objectType: "Graph", objectLabel: project.name, projectId: project.id }) };
+    }
+
+    // Deliberately no acceptsData check: a rebuild that already started must be able to finish.
+    case "finishGraphRebuild": {
+      const g = state.graphStatus[action.projectId];
+      if (!g) return fail("Graph tidak ditemukan");
+      if (!g.rebuilding) return fail("Tidak ada pembangunan ulang berjalan");
+      const done = { ...g, version: g.version + 1, projectedAt: g.authoritativeAt, failed: [], rebuilding: false };
+      return { state: { ...state, graphStatus: { ...state.graphStatus, [action.projectId]: done } } };
+    }
+
     case "confirmSnapshot":
     case "cancelSnapshot": {
       const snap = state.snapshots.find((x) => x.id === action.snapshotId);
@@ -357,6 +378,11 @@ export function sourceFreshness(s: MockState, sourceId: string): { lastImportAt:
   const latestEventAt = max(live.map((x) => x.stats?.latestEventAt));
   return { lastImportAt: max(live.map((x) => x.uploadedAt)), latestEventAt, stale: latestEventAt ? isStale(latestEventAt) : false };
 }
+
+export const findingsForProject = (s: MockState, projectId: string): Finding[] => s.findings.filter((f) => f.projectId === projectId);
+
+export const bundleById = (s: MockState, projectId: string, bundleId: string): EvidenceBundle | null =>
+  s.bundles.find((b) => b.projectId === projectId && b.id === bundleId) ?? null;
 
 export const viewerRole = (s: MockState, projectId: string): Role | null =>
   s.memberships.find((m) => m.projectId === projectId && m.userId === s.viewerId)?.role ?? null;
