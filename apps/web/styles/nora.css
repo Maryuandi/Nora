@@ -1,0 +1,23 @@
+/* Nora tokens on top of Untitled UI (direction: Oneleet). */
+@theme {
+    --color-canvas: #fbfaf9;
+    --color-sidebar: #f6f5f3;
+    --color-line: #e6e4e1;
+    --color-ink: #1c1b1a;
+    --color-ink-2: #5e5b57;
+    --color-ink-3: #7a7773;
+    --color-accent: #2f399f;
+    --color-accent-soft: #ecedf8;
+    --color-status-active: #2a9d78;
+    --color-status-suspended: #e5a100;
+    --color-status-neutral: #c8c5c0;
+    --color-status-ended: #d8402b;
+    --shadow-card: 0 1px 2px rgb(20 18 15 / 0.04);
+}
+
+html,
+body {
+    letter-spacing: -0.01em;
+    color: var(--color-ink);
+    background: var(--color-canvas);
+}

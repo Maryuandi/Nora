@@ -12,3 +12,4 @@ graphify-out/
 *.tsbuildinfo
 apps/web/next-env.d.ts
 apps/web/AGENTS.md
+.claude/
