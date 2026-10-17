@@ -9,14 +9,14 @@ import { useProject } from "@/components/project/use-project";
 import { StaleBadge } from "@/components/trace/stale-badge";
 import { TraceTabs } from "@/components/trace/trace-tabs";
 import { buildGraph, lineage } from "@/lib/mock/graph";
-import { findingsForProject } from "@/lib/mock/reducer";
+import { traceFindingsForProject } from "@/lib/mock/reducer";
 
 export default function FindingsPage() {
   const ctx = useProject();
   const graph = useMemo(() => (ctx ? buildGraph(ctx.state, ctx.project.id) : null), [ctx?.state, ctx?.project.id]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!ctx || !graph) return null;
   const { project, state } = ctx;
-  const rows = findingsForProject(state, project.id);
+  const rows = traceFindingsForProject(state, project.id);
 
   return (
     <div className="flex flex-col gap-4">
@@ -33,9 +33,9 @@ export default function FindingsPage() {
             </Table.Header>
             <Table.Body>
               {rows.map((f) => (
-                <Table.Row key={f.id} id={f.id} href={`/projects/${project.id}/trace/findings/${f.id}`}>
-                  <Table.Cell className="max-w-[360px] px-6 text-sm font-medium text-ink">
-                    <Link href={`/projects/${project.id}/trace/findings/${f.id}`} title={f.title} className="block truncate hover:underline">{f.title}</Link>
+                <Table.Row key={f.id} id={f.id}>
+                  <Table.Cell className="static max-w-[360px] px-6 text-sm font-medium text-ink">
+                    <Link href={`/projects/${project.id}/trace/findings/${f.id}`} title={f.title} className="block truncate hover:underline after:absolute after:inset-0 after:z-10">{f.title}</Link>
                   </Table.Cell>
                   <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{f.metric}: {f.value}</Table.Cell>
                   <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{graph.nodes.find((n) => n.id === f.analysisId)?.label ?? f.analysisId}</Table.Cell>

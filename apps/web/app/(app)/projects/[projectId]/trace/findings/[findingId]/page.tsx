@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
 import { NotFoundPanel } from "@/components/not-found-panel";
@@ -31,9 +32,11 @@ export default function FindingTracePage() {
   useEffect(() => setSelectedId(null), [findingId]);
   if (!ctx || !graph) return null;
   const { project, state } = ctx;
-  const finding = state.findings.find((f) => f.id === findingId && f.projectId === project.id);
+  const finding = state.traceFindings.find((f) => f.id === findingId && f.projectId === project.id);
   if (!finding || !result) return <NotFoundPanel />;
   // Look up within this finding's lineage so an id left over from another finding can never show.
+  const bundles = state.bundles.filter((b) => b.projectId === project.id && b.target === finding.id);
+  const present = (Object.keys(RELATION_META) as RelationCategory[]).filter((c) => result.edges.some((e) => e.category === c));
   const selected = result.nodes.find((n) => n.id === selectedId) ?? null;
 
   return (
@@ -43,6 +46,11 @@ export default function FindingTracePage() {
         <div>
           <h2 className="text-base font-semibold text-ink">{finding.title}</h2>
           <p className="text-sm text-ink-3">{finding.metric}: {finding.value}</p>
+          {bundles.length > 0 && (
+            <p className="mt-1 flex flex-wrap gap-x-3 text-sm">
+              {bundles.map((b, i) => <Link key={b.id} href={`/projects/${project.id}/trace/bundles/${b.id}`} className="font-medium text-accent hover:underline">Paket bukti{bundles.length > 1 ? ` ${i + 1}` : ""}</Link>)}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <StaleBadge status={state.graphStatus[project.id]} />
@@ -57,7 +65,7 @@ export default function FindingTracePage() {
         </div>
       </div>
       <TraceNotice />
-      {view === "graf" && <CategoryFilter value={filter} onChange={setFilter} />}
+      {view === "graf" && <CategoryFilter value={filter} onChange={setFilter} categories={present} />}
       <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
         {view === "daftar"
           ? <LineageList result={result} graph={graph} onSelect={(n) => setSelectedId(n.id)} />
