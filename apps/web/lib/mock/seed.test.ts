@@ -15,3 +15,23 @@ describe("seed mappings", () => {
     }
   });
 });
+
+describe("seed rules", () => {
+  it("satisfy basic invariants", () => {
+    expect(s.rules.length).toBeGreaterThan(0);
+    const keys = new Set<string>();
+    const approved = new Set<string>();
+    for (const r of s.rules) {
+      expect(s.projects.some((p) => p.id === r.projectId)).toBe(true);
+      expect(r.version).toBeGreaterThanOrEqual(1);
+      const k = `${r.ruleKey}@${r.version}`;
+      expect(keys.has(k)).toBe(false);
+      keys.add(k);
+      if (r.status === "disetujui") {
+        expect(approved.has(r.ruleKey)).toBe(false);
+        approved.add(r.ruleKey);
+        expect(r.approvedBy).toBeTruthy();
+      }
+    }
+  });
+});

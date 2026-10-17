@@ -1,4 +1,4 @@
-import type { AuditEvent, Client, Membership, MappingVersion, MockState, Project, Snapshot, Source, User } from "./types";
+import type { AuditEvent, Client, Membership, MappingVersion, MockState, Project, RuleSourceRef, RuleVersion, Snapshot, Source, User } from "./types";
 
 export const MOCK_TODAY = "2026-10-17";
 
@@ -145,4 +145,30 @@ const mappings: MappingVersion[] = [
     createdBy: "u-rina", createdAt: "2026-10-15T08:00:00Z" },
 ];
 
-export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, viewerId: "u-dimas" };
+const sop = (section: string, quote: string): RuleSourceRef => ({ docTitle: "SOP Procure-to-Pay (contoh ilustratif)", section, quote });
+const rule = (o: Partial<RuleVersion> & Pick<RuleVersion, "id" | "ruleKey" | "version" | "name" | "params" | "status" | "source">): RuleVersion => ({
+  projectId: "p-p2p", description: "", scope: null, effectiveFrom: "2026-05-01", effectiveTo: null, clientConfirmed: false,
+  createdBy: "u-dimas", createdAt: "2026-09-20T03:00:00Z", ...o,
+});
+
+const rules: RuleVersion[] = [
+  rule({ id: "r-sla-1", ruleKey: "r-sla", version: 1, name: "Create Purchase Order Item ke Record Goods Receipt ≤ 14 hari kerja", status: "usang",
+    description: "Batas awal sebelum direvisi.", createdAt: "2026-09-01T03:00:00Z",
+    params: { type: "sla", from: "Create Purchase Order Item", to: "Record Goods Receipt", limit: 14, unit: "kalender" },
+    source: sop("Bagian 4.2", "Barang harus diterima paling lambat 14 hari sejak PO dibuat.") }),
+  rule({ id: "r-sla-2", ruleKey: "r-sla", version: 2, name: "Create Purchase Order Item ke Record Goods Receipt ≤ 14 hari kerja", status: "disetujui",
+    description: "Satuan diperjelas menjadi hari kerja.", createdAt: "2026-09-10T03:00:00Z", approvedBy: "u-dimas", approvedAt: "2026-09-12T03:00:00Z", clientConfirmed: true,
+    params: { type: "sla", from: "Create Purchase Order Item", to: "Record Goods Receipt", limit: 14, unit: "kerja" },
+    source: sop("Bagian 4.2", "Barang harus diterima paling lambat 14 hari kerja sejak PO dibuat.") }),
+  rule({ id: "r-urutan", ruleKey: "r-urutan", version: 1, name: "Record Goods Receipt sebelum Clear Invoice", status: "ditinjau",
+    params: { type: "urutan", before: "Record Goods Receipt", after: "Clear Invoice" },
+    source: sop("Bagian 5.1", "Faktur hanya boleh dilunasi setelah penerimaan barang dicatat.") }),
+  rule({ id: "r-sod", ruleKey: "r-sod", version: 1, name: "Pembuat PO bukan penyetuju", status: "draf", createdBy: "u-anton", createdAt: "2026-10-12T03:00:00Z",
+    params: { type: "pemisahan_tugas", activityA: "Create Purchase Order Item", activityB: "Record Goods Receipt" },
+    source: sop("Bagian 6.3", "Orang yang membuat PO tidak boleh menyetujui penerimaan barang yang sama.") }),
+  rule({ id: "r-terlarang", ruleKey: "r-terlarang", version: 1, name: "Tidak ada Record Invoice Receipt setelah Clear Invoice", status: "draf", createdAt: "2026-10-14T03:00:00Z",
+    params: { type: "terlarang", activity: "Record Invoice Receipt" },
+    source: sop("Bagian 5.4", "Faktur tidak boleh dicatat lagi setelah pelunasan.") }),
+];
+
+export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, rules, viewerId: "u-dimas" };

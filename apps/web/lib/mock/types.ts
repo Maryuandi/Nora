@@ -114,6 +114,32 @@ export interface MappingVersion {
   createdBy: string; createdAt: string;
 }
 
+export type RuleType = "sla" | "urutan" | "wajib" | "terlarang" | "pemisahan_tugas";
+export type RuleStatus = "draf" | "ditinjau" | "disetujui" | "usang";
+
+export type RuleParams =
+  | { type: "sla"; from: string; to: string; limit: number; unit: "kalender" | "kerja" }
+  | { type: "urutan"; before: string; after: string }
+  | { type: "wajib"; activity: string }
+  | { type: "terlarang"; activity: string }
+  | { type: "pemisahan_tugas"; activityA: string; activityB: string };
+
+export interface RuleScope { attribute: string; op: "=" | "!=" | ">" | "<"; value: string }
+export interface RuleSourceRef { docTitle: string; section: string; quote: string }
+
+export interface RuleVersion {
+  id: string; ruleKey: string; projectId: string; version: number; // 1, 2, ... per ruleKey
+  name: string; description: string;
+  params: RuleParams;
+  scope: RuleScope | null;
+  effectiveFrom: string; effectiveTo: string | null; // YYYY-MM-DD
+  source: RuleSourceRef;
+  status: RuleStatus;
+  clientConfirmed: boolean;
+  createdBy: string; createdAt: string;
+  approvedBy?: string; approvedAt?: string;
+}
+
 export interface MockState {
   clients: Client[];
   projects: Project[];
@@ -123,5 +149,6 @@ export interface MockState {
   sources: Source[];
   snapshots: Snapshot[];
   mappings: MappingVersion[];
+  rules: RuleVersion[];
   viewerId: string;
 }
