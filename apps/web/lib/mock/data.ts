@@ -153,11 +153,11 @@ const rule = (o: Partial<RuleVersion> & Pick<RuleVersion, "id" | "ruleKey" | "ve
 
 const rules: RuleVersion[] = [
   rule({ id: "r-sla-1", ruleKey: "r-sla", version: 1, name: "Create Purchase Order Item ke Record Goods Receipt ≤ 14 hari kalender", status: "usang", effectiveTo: "2026-09-10",
-    description: "Batas awal sebelum direvisi.", createdAt: "2026-09-01T03:00:00Z",
+    description: "Batas awal sebelum direvisi.", createdAt: "2026-09-01T03:00:00Z", approvedBy: "u-dimas", approvedAt: "2026-09-02T03:00:00Z",
     params: { type: "sla", from: "Create Purchase Order Item", to: "Record Goods Receipt", limit: 14, unit: "kalender" },
     source: sop("Bagian 4.2", "Barang harus diterima paling lambat 14 hari sejak PO dibuat.") }),
   rule({ id: "r-sla-2", ruleKey: "r-sla", version: 2, name: "Create Purchase Order Item ke Record Goods Receipt ≤ 14 hari kerja", status: "disetujui",
-    description: "Satuan diperjelas menjadi hari kerja.", createdAt: "2026-09-10T03:00:00Z", approvedBy: "u-dimas", approvedAt: "2026-09-12T03:00:00Z", clientConfirmed: true,
+    description: "Satuan diperjelas menjadi hari kerja.", createdAt: "2026-09-10T03:00:00Z", effectiveFrom: "2026-09-11", approvedBy: "u-dimas", approvedAt: "2026-09-12T03:00:00Z", clientConfirmed: true,
     params: { type: "sla", from: "Create Purchase Order Item", to: "Record Goods Receipt", limit: 14, unit: "kerja" },
     source: sop("Bagian 4.2", "Barang harus diterima paling lambat 14 hari kerja sejak PO dibuat.") }),
   rule({ id: "r-urutan", ruleKey: "r-urutan", version: 1, name: "Record Goods Receipt sebelum Clear Invoice", status: "ditinjau",
@@ -171,4 +171,4 @@ const rules: RuleVersion[] = [
     source: sop("Bagian 5.4", "Faktur tidak boleh dicatat lagi setelah pelunasan.") }),
 ];
 
-export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, rules, viewerId: "u-dimas" };
+export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, rules, runs: [], viewerId: "u-dimas" };

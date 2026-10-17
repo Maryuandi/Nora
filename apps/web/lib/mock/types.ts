@@ -140,6 +140,20 @@ export interface RuleVersion {
   approvedBy?: string; approvedAt?: string;
 }
 
+export type CaseStatus = "patuh" | "tidak_patuh" | "tidak_dapat_dievaluasi";
+
+export interface MonitoringRun {
+  id: string; projectId: string;
+  sourceId: string; snapshotId: string; mappingId: string;
+  periodFrom: string; periodTo: string; // YYYY-MM-DD, inklusif
+  ruleVersionIds: string[]; // dibekukan saat run
+  calendar: "bawaan_tiruan"; // Senin–Jumat, tanpa libur
+  createdBy: string; createdAt: string;
+}
+
+export interface MockCase { id: string; start: string; end: string | null } // end null = masih terbuka
+export interface CaseResult { caseId: string; start: string; status: CaseStatus; reason?: string; ruleVersionId: string | null }
+
 export interface MockState {
   clients: Client[];
   projects: Project[];
@@ -150,5 +164,6 @@ export interface MockState {
   snapshots: Snapshot[];
   mappings: MappingVersion[];
   rules: RuleVersion[];
+  runs: MonitoringRun[];
   viewerId: string;
 }
