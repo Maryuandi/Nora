@@ -63,3 +63,19 @@ describe("seed findings", () => {
     }
   });
 });
+
+describe("seed interpretations", () => {
+  it("has three p-p2p drafts with the expected statuses", () => {
+    expect(s.interpretations.map((i) => i.findingId)).toEqual(["finding_42", "finding_57", "finding_63"]);
+    expect(s.interpretations.map((i) => i.status)).toEqual(["lolos_pemeriksaan", "lolos_pemeriksaan", "gagal_pemeriksaan"]);
+    for (const i of s.interpretations) expect(i).toMatchObject({ projectId: "p-p2p", createdBy: "u-dimas", overrides: [], templateVersion: "tiruan-1", model: "model-tiruan" });
+    expect(new Set(s.interpretations.map((i) => i.createdAt)).size).toBe(3);
+  });
+  it("cites only evidence that exists in the last attempt", () => {
+    for (const i of s.interpretations) {
+      const ids = new Set(s.findings.find((f) => f.id === i.findingId)!.evidence.map((e) => e.id));
+      const last = i.attempts[i.attempts.length - 1];
+      for (const c of last.sections.flatMap((x) => x.claims).flatMap((c) => c.citations)) expect(ids.has(c)).toBe(true);
+    }
+  });
+});

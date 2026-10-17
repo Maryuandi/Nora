@@ -1,11 +1,12 @@
 import { MOCK_TODAY, initialState } from "./data";
 import { isStale } from "../format";
 import { fabricate } from "./fabricate";
+import { AUDIENCE_LABEL, isOverridable, runCheckedGeneration, statusOf, violationKey } from "./interpretation";
 import { validateMapping } from "./mapping";
 import { acceptsData } from "./permissions";
 import { nextStatuses, previewDataset, previewRule, projectCanonicalLabels, validateRule, type RuleInput } from "./rules";
 import { projectSchema, type ProjectInput } from "./schemas";
-import type { AuditEvent, ColumnRole, LabelRule, MappingVersion, MockState, Project, ProjectStatus, Role, RuleStatus, RuleVersion, Snapshot, SnapshotStatus } from "./types";
+import type { Audience, AuditEvent, CheckKey, ColumnRole, Interpretation, MockFinding, LabelRule, MappingVersion, MockState, Project, ProjectStatus, Role, RuleStatus, RuleVersion, Snapshot, SnapshotStatus } from "./types";
 
 export { MOCK_TODAY, initialState };
 
@@ -25,9 +26,11 @@ export type MockAction =
   | { type: "saveRule"; projectId: string; ruleKey?: string; input: RuleInput }
   | { type: "changeRuleStatus"; ruleId: string; to: RuleStatus }
   | { type: "confirmRuleClient"; ruleId: string }
+  | { type: "requestInterpretation"; projectId: string; findingId: string; audience: Audience }
+  | { type: "overrideCheck"; interpretationId: string; check: CheckKey; claimId?: string; reason: string }
   | { type: "setViewer"; userId: string };
 
-export type ReduceResult = { state: MockState; error?: string; snapshotId?: string; duplicateOf?: string; mappingId?: string; ruleId?: string };
+export type ReduceResult = { state: MockState; error?: string; snapshotId?: string; duplicateOf?: string; mappingId?: string; ruleId?: string; interpretationId?: string };
 
 const MAX_BYTES = 500 * 1024 * 1024;
 // ".xes.gz" must come before ".xes".
@@ -296,6 +299,41 @@ export function reduce(state: MockState, action: MockAction): ReduceResult {
       return { state: withAudit({ ...state, rules }, { action: "aturan.konfirmasi_klien", objectType: "Aturan", objectLabel: `${rule.name} v${rule.version}`, projectId: project.id }), ruleId: rule.id };
     }
 
+    case "requestInterpretation": {
+      const project = state.projects.find((x) => x.id === action.projectId);
+      if (!project) return fail("Proyek tidak ditemukan");
+      if (!acceptsData(project.status)) return fail("Proyek ini tidak menerima data baru");
+      const finding = state.findings.find((f) => f.id === action.findingId && f.projectId === project.id);
+      if (!finding) return fail("Temuan tidak ditemukan");
+      if (!Object.hasOwn(AUDIENCE_LABEL, action.audience)) return fail("Audiens tidak dikenal");
+      const attempts = runCheckedGeneration(finding, action.audience);
+      const draft: Interpretation = {
+        id: id("i"), projectId: project.id, findingId: finding.id, audience: action.audience, status: statusOf(attempts, []), attempts, overrides: [],
+        templateVersion: "tiruan-1", model: "model-tiruan", createdBy: state.viewerId, createdAt: now(),
+      };
+      return { state: withAudit({ ...state, interpretations: [...state.interpretations, draft] }, { action: "interpretation.minta", objectType: "Interpretation", objectLabel: `${finding.title} · ${AUDIENCE_LABEL[action.audience]}`, projectId: project.id }), interpretationId: draft.id };
+    }
+
+    case "overrideCheck": {
+      const interp = state.interpretations.find((x) => x.id === action.interpretationId);
+      if (!interp) return fail("Interpretasi tidak ditemukan");
+      const project = state.projects.find((x) => x.id === interp.projectId);
+      if (!project || !acceptsData(project.status)) return fail("Proyek ini tidak menerima data baru");
+      const reason = typeof action.reason === "string" ? action.reason.trim() : "";
+      if (!reason) return fail("Alasan wajib diisi");
+      if (interp.status !== "gagal_pemeriksaan") return fail("Draf ini sudah lolos pemeriksaan");
+      if (!isOverridable(action.check)) return fail("Pemeriksaan ini tidak dapat dikesampingkan");
+      const key = violationKey(action);
+      const last = interp.attempts[interp.attempts.length - 1];
+      const open = last?.violations.some((v) => violationKey(v) === key) && !interp.overrides.some((o) => violationKey(o) === key);
+      if (!open) return fail("Pelanggaran tidak ditemukan");
+      const overrides = [...interp.overrides, { check: action.check, ...(action.claimId ? { claimId: action.claimId } : {}), reason, by: state.viewerId, at: now() }];
+      const updated: Interpretation = { ...interp, overrides, status: statusOf(interp.attempts, overrides) };
+      const finding = state.findings.find((f) => f.id === interp.findingId);
+      const next = { ...state, interpretations: state.interpretations.map((x) => (x === interp ? updated : x)) };
+      return { state: withAudit(next, { action: "interpretation.kesampingkan", objectType: "Interpretation", objectLabel: `${finding?.title ?? interp.findingId} · ${AUDIENCE_LABEL[interp.audience]}`, projectId: project.id }), interpretationId: interp.id };
+    }
+
     case "confirmSnapshot":
     case "cancelSnapshot": {
       const snap = state.snapshots.find((x) => x.id === action.snapshotId);
@@ -349,6 +387,16 @@ const sameRuleInput = (a: RuleInput, b: RuleInput) => {
   const pick = (r: RuleInput) => JSON.stringify(stable([r.name.trim(), r.description, r.params, r.scope, r.effectiveFrom, r.effectiveTo, r.source]));
   return pick(a) === pick(b);
 };
+
+// Newest first; equal timestamps fall back to insertion order (later first).
+export const interpretationsForProject = (s: MockState, projectId: string): Interpretation[] =>
+  s.interpretations
+    .map((x, i) => ({ x, i }))
+    .filter(({ x }) => x.projectId === projectId)
+    .sort((a, b) => b.x.createdAt.localeCompare(a.x.createdAt) || b.i - a.i)
+    .map(({ x }) => x);
+
+export const findingsForProject = (s: MockState, projectId: string): MockFinding[] => s.findings.filter((f) => f.projectId === projectId);
 
 // Cancelled snapshots never count: their data was not imported.
 export function sourceFreshness(s: MockState, sourceId: string): { lastImportAt: string | null; latestEventAt: string | null; stale: boolean } {

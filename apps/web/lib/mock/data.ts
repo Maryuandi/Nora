@@ -1,5 +1,6 @@
 import { FINDINGS } from "./findings";
-import type { AuditEvent, Client, Membership, MappingVersion, MockState, Project, RuleSourceRef, RuleVersion, Snapshot, Source, User } from "./types";
+import { runCheckedGeneration, statusOf } from "./interpretation";
+import type { Audience, AuditEvent, Client, Interpretation, Membership, MappingVersion, MockState, Project, RuleSourceRef, RuleVersion, Snapshot, Source, User } from "./types";
 
 export const MOCK_TODAY = "2026-10-17";
 
@@ -172,4 +173,17 @@ const rules: RuleVersion[] = [
     source: sop("Bagian 5.4", "Faktur tidak boleh dicatat lagi setelah pelunasan.") }),
 ];
 
-export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, rules, findings: FINDINGS, interpretations: [], viewerId: "u-dimas" };
+const seedDraft = (n: string, findingId: string, audience: Audience, createdAt: string): Interpretation => {
+  const attempts = runCheckedGeneration(FINDINGS.find((f) => f.id === findingId)!, audience);
+  return {
+    id: `i-seed-${n}`, projectId: "p-p2p", findingId, audience, status: statusOf(attempts, []), attempts, overrides: [],
+    templateVersion: "tiruan-1", model: "model-tiruan", createdBy: "u-dimas", createdAt,
+  };
+};
+const interpretations: Interpretation[] = [
+  seedDraft("42", "finding_42", "pemilik_proses", "2026-10-15T08:00:00Z"),
+  seedDraft("57", "finding_57", "pemilik_proses", "2026-10-16T08:00:00Z"),
+  seedDraft("63", "finding_63", "analis", "2026-10-17T08:00:00Z"),
+];
+
+export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, rules, findings: FINDINGS, interpretations, viewerId: "u-dimas" };
