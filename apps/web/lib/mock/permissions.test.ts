@@ -20,6 +20,8 @@ const EXPECTED: Record<UiAction, Role[]> = {
   "rule.view": ["administrator", "analis", "pemilik_proses"],
   "rule.edit": ["analis"],
   "rule.confirm": ["pemilik_proses"],
+  "trace.view": ["administrator", "analis", "pemilik_proses"],
+  "graph.rebuild": ["administrator"],
 };
 
 describe("can", () => {
@@ -30,6 +32,16 @@ describe("can", () => {
       });
     }
   }
+
+  it("trace.view for every role, graph.rebuild only administrator", () => {
+    expect(can("administrator", "trace.view")).toBe(true);
+    expect(can("analis", "trace.view")).toBe(true);
+    expect(can("pemilik_proses", "trace.view")).toBe(true);
+    expect(can("administrator", "graph.rebuild")).toBe(true);
+    expect(can("analis", "graph.rebuild")).toBe(false);
+    expect(can("pemilik_proses", "graph.rebuild")).toBe(false);
+    expect(can(null, "trace.view")).toBe(false);
+  });
 });
 
 describe("acceptsData", () => {

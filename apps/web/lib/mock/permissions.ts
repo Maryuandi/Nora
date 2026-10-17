@@ -3,7 +3,8 @@ import type { ProjectStatus, Role } from "./types";
 export type UiAction = "client.create" | "project.create" | "project.status" | "member.manage" | "member.view" | "audit.view"
   | "source.view" | "source.create" | "snapshot.upload" | "snapshot.confirm" | "snapshot.cancel"
   | "mapping.view" | "mapping.edit"
-  | "rule.view" | "rule.edit" | "rule.confirm";
+  | "rule.view" | "rule.edit" | "rule.confirm"
+  | "trace.view" | "graph.rebuild";
 
 // Button matrix from PRD M01 "Matriks Kewenangan" (UI subset).
 const ALLOWED: Record<UiAction, readonly Role[]> = {
@@ -24,6 +25,9 @@ const ALLOWED: Record<UiAction, readonly Role[]> = {
   "rule.view": ["administrator", "analis", "pemilik_proses"],
   "rule.edit": ["analis"],
   "rule.confirm": ["pemilik_proses"],
+  // PRD M07: every role can read traces; only Administrator rebuilds the graph.
+  "trace.view": ["administrator", "analis", "pemilik_proses"],
+  "graph.rebuild": ["administrator"],
 };
 
 export const can = (role: Role | null, action: UiAction): boolean => role !== null && ALLOWED[action].includes(role);
