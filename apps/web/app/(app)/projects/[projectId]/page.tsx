@@ -10,7 +10,7 @@ import { AuditFeed } from "@/components/project/audit-list";
 import { FreshnessBadge } from "@/components/project/freshness-badge";
 import { useProject } from "@/components/project/use-project";
 import { acceptsData } from "@/lib/mock/permissions";
-import { sourceFreshness } from "@/lib/mock/reducer";
+import { latestMapping, sourceFreshness } from "@/lib/mock/reducer";
 
 function CardTitle({ children, action }: { children: React.ReactNode; action?: React.ReactNode }) {
   return (
@@ -39,7 +39,7 @@ export default function ProjectOverview() {
   const sources = state.sources.filter((s) => s.projectId === project.id);
   const ready = state.snapshots.filter((x) => x.projectId === project.id && x.status === "siap_dipetakan").length;
   const recent = sources
-    .map((s) => ({ s, f: sourceFreshness(state, s.id) }))
+    .map((s) => ({ s, f: sourceFreshness(state, s.id), map: latestMapping(state, s.id) }))
     .sort((a, b) => (b.f.lastImportAt ?? "").localeCompare(a.f.lastImportAt ?? ""))
     .slice(0, 3);
   const members = state.memberships
@@ -57,9 +57,10 @@ export default function ProjectOverview() {
               <div className="px-4 py-3">
                 <p className="text-sm text-ink-2">{sources.length} sumber · {ready} snapshot siap</p>
                 <ul className="mt-2 divide-y divide-line">
-                  {recent.map(({ s, f }) => (
+                  {recent.map(({ s, f, map }) => (
                     <li key={s.id} className="flex items-center justify-between gap-3 py-2">
                       <Link href={`${base}/sources/${s.id}`} title={s.name} className="min-w-0 flex-1 truncate text-sm font-medium hover:underline">{s.name}</Link>
+                      <span className="shrink-0 text-xs text-ink-3">{map ? `Pemetaan v${map.version}` : "Belum dipetakan"}</span>
                       {f.latestEventAt && <FreshnessBadge stale={f.stale} />}
                     </li>
                   ))}

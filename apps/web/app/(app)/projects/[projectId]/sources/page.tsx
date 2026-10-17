@@ -13,7 +13,7 @@ import { FreshnessBadge } from "@/components/project/freshness-badge";
 import { useProject } from "@/components/project/use-project";
 import { formatDate } from "@/lib/format";
 import { acceptsData } from "@/lib/mock/permissions";
-import { snapshotsForSource, sourceFreshness } from "@/lib/mock/reducer";
+import { latestMapping, snapshotsForSource, sourceFreshness } from "@/lib/mock/reducer";
 
 function AddSourceModal({ open, onClose, projectId }: { open: boolean; onClose: () => void; projectId: string }) {
   const ctx = useProject()!;
@@ -67,11 +67,13 @@ export default function SourcesPage() {
               <Table.Head id="snaps" label="SNAPSHOT" />
               <Table.Head id="last" label="IMPOR TERAKHIR" />
               <Table.Head id="event" label="EVENT TERBARU" />
+              <Table.Head id="map" label="PEMETAAN" />
               <Table.Head id="fresh" label="KESEGARAN" />
             </Table.Header>
             <Table.Body>
               {sources.map((s) => {
                 const f = sourceFreshness(state, s.id);
+                const mapping = latestMapping(state, s.id);
                 const count = snapshotsForSource(state, s.id).filter((x) => x.status !== "dibatalkan").length;
                 return (
                   <Table.Row key={s.id} id={s.id}>
@@ -82,6 +84,7 @@ export default function SourcesPage() {
                     <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{count}</Table.Cell>
                     <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{f.lastImportAt ? formatDate(f.lastImportAt) : "-"}</Table.Cell>
                     <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{f.latestEventAt ? formatDate(f.latestEventAt) : "-"}</Table.Cell>
+                    <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{mapping ? `v${mapping.version}` : "Belum dipetakan"}</Table.Cell>
                     <Table.Cell className="px-6">{f.latestEventAt ? <FreshnessBadge stale={f.stale} /> : <span className="text-sm text-ink-3">-</span>}</Table.Cell>
                   </Table.Row>
                 );
