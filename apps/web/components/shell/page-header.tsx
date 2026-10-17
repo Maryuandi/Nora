@@ -24,7 +24,7 @@ export function PageHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <header className="border-b border-line bg-white px-8 pt-7">
+    <header className="border-b border-line bg-white px-8 pt-4">
       <div className="flex items-start justify-between gap-6">
         <div className="min-w-0">
           {eyebrow && <div className="mb-1 text-[13px] text-ink-3">{eyebrow}</div>}
@@ -33,7 +33,7 @@ export function PageHeader({
         {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
       </div>
       {stats && (
-        <dl className="-mx-8 mt-5 flex border-y border-line">
+        <dl className="-mx-8 mt-3 flex border-y border-line">
           {stats.map((s) => (
             <div key={s.label} className="border-l border-line px-10 py-4 first:border-l-0 first:pl-8">
               <dt className="text-[11px] font-medium uppercase tracking-[0.05em] text-ink-3">{s.label}</dt>
