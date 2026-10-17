@@ -45,7 +45,7 @@ Pola dari referensi:
 ## Teknologi
 
 - Tailwind CSS v4 dengan token di atas sebagai variabel tema (`@theme`) di `app/globals.css`.
-- Komponen dasar ditulis sendiri di `components/ui/` mengikuti pola shadcn/ui (Radix bila butuh perilaku aksesibel: dialog, menu, select, tabs, tooltip). Ikon Lucide tidak dipakai.
+- Komponen dasar dari **Untitled UI React** versi gratis (React Aria + Tailwind v4), dipasang dengan CLI `npx untitledui@latest add <komponen>` ke `components/` sesuai struktur bawaan Untitled UI (mis. `@/components/base/buttons/button`). Dipakai untuk button, badge, input, textarea, select, dropdown, modal/dialog, tabel, tabs, dan avatar. Warna brand Untitled UI diset ke aksen `#2F399F`; gaya kanvas, sidebar, dan kartu tetap mengikuti arah Oneleet. Komponen yang tidak tersedia gratis ditulis sendiri di atas React Aria dengan token yang sama. Ikon Phosphor dipasang ke prop `iconLeading`/`iconTrailing`.
 - Validasi form: skema Zod (paket `zod` yang sudah ada), pesan per kolom.
 - Copy UI berbahasa Indonesia, sentence case.
 
