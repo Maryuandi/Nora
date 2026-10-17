@@ -56,7 +56,7 @@ export default function ProcessMapPage() {
   const edge = selection?.kind === "edge" ? visible.edges.find((e) => e.id === selection.id) : undefined;
   const panel = node
     ? { key: `n:${node.id}`, title: isTerminal(node.id) ? "Semua kasus" : `Kasus yang melewati ${node.label}`, cases: casesForNode(log, node.id),
-        note: !isTerminal(node.id) && mode === "performa" ? `${node.eventCount.toLocaleString("id-ID")} event` : undefined }
+        note: !isTerminal(node.id) && node.eventCount !== node.caseCount ? `${node.eventCount.toLocaleString("id-ID")} event` : undefined }
     : edge
       ? { key: `e:${edge.id}`, title: edgeTitle(edge), cases: casesForEdge(log, edge.from, edge.to),
           note: edge.count !== edge.caseCount ? `${edge.count.toLocaleString("id-ID")} transisi` : undefined }
@@ -64,10 +64,10 @@ export default function ProcessMapPage() {
 
   const inner = visible.edges.filter((e) => !isTerminal(e.from) && !isTerminal(e.to));
   const slowest = inner.reduce<DfgEdge | null>((m, e) => (!m || e.medianMs > m.medianMs ? e : m), null);
-  const commonest = inner.reduce<DfgEdge | null>((m, e) => (!m || e.count > m.count ? e : m), null);
+  const commonest = inner.reduce<DfgEdge | null>((m, e) => (!m || e.caseCount > m.caseCount ? e : m), null);
   const summary: { title: string; edge: DfgEdge | null; value: string }[] = [
     { title: "Transisi paling lambat", edge: slowest, value: slowest ? `median ${formatDuration(slowest.medianMs)}` : "" },
-    { title: "Jalur paling sering", edge: commonest, value: commonest ? `${commonest.count.toLocaleString("id-ID")} transisi` : "" },
+    { title: "Jalur paling sering", edge: commonest, value: commonest ? `${commonest.caseCount.toLocaleString("id-ID")} kasus` : "" },
   ];
 
   const header: [string, string][] = [

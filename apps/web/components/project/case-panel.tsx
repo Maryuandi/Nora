@@ -48,7 +48,7 @@ export function CasePanel({ title, cases, note, onClose }: { title: string; case
               <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{formatDateTime(new Date(c.startMs).toISOString())}</Table.Cell>
               <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{formatDuration(c.durationMs)}</Table.Cell>
               <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{c.events.length}</Table.Cell>
-              <Table.Cell className="px-6 text-sm whitespace-nowrap"><span role="link" aria-disabled="true" className="cursor-not-allowed text-ink-3">Buka timeline (M05c)</span></Table.Cell>
+              <Table.Cell className="px-6 text-sm whitespace-nowrap"><span aria-disabled="true" className="cursor-not-allowed text-ink-3">Buka timeline (M05c)</span></Table.Cell>
             </Table.Row>
           ))}
         </Table.Body>

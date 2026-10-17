@@ -13,13 +13,13 @@ export function MapLegend({ mode, hasStartTime }: { mode: "frekuensi" | "perform
       <span className="flex items-center gap-2">
         Tebal garis
         <svg width="56" height="10" aria-hidden><polygon points="0,4 56,0 56,10 0,6" className="fill-ink-3" /></svg>
-        sebanding dengan {freq ? "jumlah transisi" : "median jeda"}
+        sebanding dengan {freq ? "jumlah kasus" : "median jeda"}
       </span>
       {freq ? (
-        <span>Angka pada aktivitas: jumlah kasus. Angka pada garis: jumlah transisi.</span>
+        <span>Angka pada aktivitas dan garis: jumlah kasus.</span>
       ) : (
         <span>
-          Angka pada aktivitas: jumlah event. Angka pada garis: median jeda antar-event.
+          Angka pada aktivitas: jumlah kasus. Angka pada garis: median jeda antar-event.
           {!hasStartTime && " Jeda antar-event selesai, bukan durasi aktivitas."}
         </span>
       )}

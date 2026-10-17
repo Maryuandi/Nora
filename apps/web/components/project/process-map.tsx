@@ -31,7 +31,7 @@ function ActivityNode({ data, selected }: NodeProps<MapNode>) {
         selected ? "border-accent ring-2 ring-accent" : "border-line shadow-card")}>
       <Handle type="target" position={Position.Left} isConnectable={false} className="!pointer-events-none !opacity-0" />
       <span className={cx("max-w-full truncate text-ink", data.terminal ? "text-[11px] font-medium" : "text-xs font-medium")}>{data.label}</span>
-      {data.value !== null && <span className="text-xs text-ink-3">{data.value.toLocaleString("id-ID")}</span>}
+      {data.value !== null && <span className="text-xs text-ink-3">{data.value.toLocaleString("id-ID")} kasus</span>}
       <Handle type="source" position={Position.Right} isConnectable={false} className="!pointer-events-none !opacity-0" />
     </div>
   );
@@ -62,7 +62,7 @@ const edgeTypes = { flow: FlowEdge };
 function FitOnChange({ fitKey }: { fitKey: string }) {
   const { fitView } = useReactFlow();
   useEffect(() => {
-    const raf = requestAnimationFrame(() => void fitView({ padding: 0.1, duration: 0 }));
+    const raf = requestAnimationFrame(() => void fitView({ padding: 0.2, duration: 0 }));
     return () => cancelAnimationFrame(raf);
   }, [fitKey, fitView]);
   return null;
@@ -114,13 +114,13 @@ export function ProcessMap({ dfg, positions, visible, mode, selection, onSelect,
       return {
         id: `n${nodeIdx.get(n.id)}`, type: "activity", position: { x: c.x - w / 2, y: c.y - h / 2 }, width: w, height: h,
         selected: selection?.kind === "node" && selection.id === n.id, draggable: false, connectable: false,
-        ariaLabel: terminal ? n.label : `${n.label}, ${mode === "frekuensi" ? `${n.caseCount} kasus` : `${n.eventCount} event`}`,
-        data: { label: n.label, terminal, value: terminal ? null : mode === "frekuensi" ? n.caseCount : n.eventCount },
+        ariaLabel: terminal ? n.label : `${n.label}, ${n.caseCount} kasus, ${n.eventCount} event`,
+        data: { label: n.label, terminal, value: terminal ? null : n.caseCount },
       };
     });
     const pairs = new Set(visible.edges.map((e) => `${nodeIdx.get(e.from)},${nodeIdx.get(e.to)}`));
     const inner = visible.edges.filter((e) => !isTerminal(e.from) && !isTerminal(e.to));
-    const value = (e: DfgEdge) => (mode === "frekuensi" ? e.count : e.medianMs);
+    const value = (e: DfgEdge) => (mode === "frekuensi" ? e.caseCount : e.medianMs);
     const pool = mode === "frekuensi" ? visible.edges : inner; // performance: start/end gaps are 0 and would skew the scale
     const lo = Math.min(...pool.map(value)), hi = Math.max(...pool.map(value));
     const edges: MapEdge[] = visible.edges.map((e) => {
@@ -134,9 +134,9 @@ export function ProcessMap({ dfg, positions, visible, mode, selection, onSelect,
       const selected = selection?.kind === "edge" && selection.id === e.id;
       return {
         id: `e${edgeIdx.get(e.id)}`, type: "flow", source: `n${nodeIdx.get(e.from)}`, target: `n${nodeIdx.get(e.to)}`, selected, zIndex: selected ? 10 : 0,
-        ariaLabel: `Transisi ${dfg.nodes[nodeIdx.get(e.from)!].label} ke ${dfg.nodes[nodeIdx.get(e.to)!].label}`,
+        ariaLabel: `Transisi ${dfg.nodes[nodeIdx.get(e.from)!].label} ke ${dfg.nodes[nodeIdx.get(e.to)!].label}, ${e.caseCount} kasus, ${e.count} transisi`,
         markerEnd: { type: MarkerType.ArrowClosed, color, width: 14, height: 14, markerUnits: "userSpaceOnUse" },
-        data: { ...geo, color, width, label: terminalEdge ? null : mode === "frekuensi" ? e.count.toLocaleString("id-ID") : formatDuration(e.medianMs) },
+        data: { ...geo, color, width, label: terminalEdge ? null : mode === "frekuensi" ? e.caseCount.toLocaleString("id-ID") : formatDuration(e.medianMs) },
       };
     });
     return { nodes, edges };
@@ -152,7 +152,7 @@ export function ProcessMap({ dfg, positions, visible, mode, selection, onSelect,
         <ReactFlowProvider>
           <ReactFlow<MapNode, MapEdge>
             nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
-            nodesDraggable={false} nodesConnectable={false} elementsSelectable minZoom={0.1}
+            nodesDraggable={false} nodesFocusable={false} edgesFocusable={false} nodesConnectable={false} elementsSelectable minZoom={0.1}
             onNodeClick={(_, n) => { const id = dfgNodeOf.get(n.id); if (id !== undefined) onSelect({ kind: "node", id }); }}
             onEdgeClick={(_, e) => { const id = dfgEdgeOf.get(e.id); if (id !== undefined) onSelect({ kind: "edge", id }); }}
             onPaneClick={() => onSelect(null)}
