@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { initialState as s } from "./data";
+import { activityLabels } from "./mapping";
 import {
   buildDfg, buildEventLog, casesForEdge, casesForNode, defaultSimplify, END_ID, eventLogFor, pageOf, processActivities, simplify, sortCases,
   START_ID, type EventLog, type LogCase,
@@ -54,7 +55,17 @@ describe("processActivities", () => {
   it("merges case/space/punctuation variants and keeps the most frequent spelling", () => {
     const sn = snap(["Pay Bill", "Pay Bill", "pay bill", "Pay  Bill.", "Ship Goods"]);
     const r = processActivities(sn, mapping());
-    expect(r.filter((x) => x.toLowerCase().startsWith("pay")).length).toBe(1);
+    const pay = r.filter((x) => x.toLowerCase().startsWith("pay"));
+    expect(pay).toHaveLength(1);
+    // Expected winner computed from the same counts: sum by trimmed spelling within the "pay bill" family.
+    const totals = new Map<string, number>();
+    for (const { raw, count } of activityLabels(sn)) {
+      const name = raw.trim();
+      if (name.toLowerCase().replace(/\s+/g, " ").replace(/[.,;]+$/, "") === "pay bill") totals.set(name, (totals.get(name) ?? 0) + count);
+    }
+    const expected = [...totals].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))[0][0];
+    expect(totals.size).toBeGreaterThan(1);
+    expect(pay[0]).toBe(expected);
     expect(r).toContain("Ship Goods");
   });
   it("caps at 8 for a 10-activity fixture", () => {
@@ -115,6 +126,28 @@ describe("buildEventLog", () => {
     expect(buildEventLog(snap([]), mapping())).toBeNull();
     expect(buildEventLog({ ...snap(SEED), stats: undefined }, mapping())).toBeNull();
   });
+  it("extras never mutate the stages (regression)", () => {
+    const stages = ["Alpha", "Beta", "Gamma"];
+    const sn = snap(stages, { stats: { ...snap(stages).stats!, rows: 2400 } }); // 3 real activities -> padding/noise labels become extras
+    const l = buildEventLog(sn, mapping())!;
+    expect(l.cases).toHaveLength(400);
+    expect(l.activities.slice(0, 3)).toEqual(stages);
+    expect(l.activities.length).toBeGreaterThan(3);
+    expect(l.activities.length).toBeLessThanOrEqual(8);
+    expect(new Set(l.activities).size).toBe(l.activities.length);
+    const extra = l.activities[3];
+    let withExtra = 0;
+    for (const c of l.cases) {
+      const acts = c.events.map((e) => e.activity);
+      const n = acts.filter((a) => a === extra).length;
+      expect(n).toBeLessThanOrEqual(1);
+      if (n === 1) { withExtra++; expect(acts[acts.length - 1]).toBe(extra); }
+      expect(acts.filter((a) => a !== extra).every((a) => stages.includes(a))).toBe(true);
+      expect(acts.some((a, i) => i > 0 && a === acts[i - 1] && a === extra)).toBe(false);
+    }
+    expect(withExtra).toBeGreaterThan(0);
+    expect(withExtra / l.cases.length).toBeLessThanOrEqual(0.1);
+  });
   it("hostile activity strings pass through unchanged", () => {
     const l = buildEventLog(snap(["<script>x</script>", "Normal"]), mapping())!;
     expect(l.activities).toContain("<script>x</script>");
@@ -165,6 +198,11 @@ describe("buildDfg on a hand-built log", () => {
     const d = buildDfg(mk([[["A", 0], ["B", HOUR]], [["B", 0], ["A", 2 * HOUR]]]));
     expect(d.edges.find((e) => e.id === "A→B")).toMatchObject({ count: 1, medianMs: HOUR });
     expect(d.edges.find((e) => e.id === "B→A")).toMatchObject({ count: 1, medianMs: 2 * HOUR });
+  });
+  it("A->A twice inside one case: count 2, caseCount 1", () => {
+    const l = mk([[["A", 0], ["A", HOUR], ["A", 2 * HOUR], ["B", 3 * HOUR]]]);
+    expect(buildDfg(l).edges.find((e) => e.id === "A→A")).toMatchObject({ count: 2, caseCount: 1 });
+    expect(casesForEdge(l, "A", "A")).toHaveLength(1);
   });
   it("single-event case yields only start->a and a->end", () => {
     const d = buildDfg(mk([[["A", 0]]]));
@@ -239,6 +277,8 @@ describe("simplify", () => {
     const r = simplify(d, { activityPct: 100, transitionPct: 34 });
     expect(r.edges).toHaveLength(Math.ceil(0.34 * d.edges.length));
     expect(r.edges[0].count).toBe(3);
+    // ties on count are broken by id: "A→B" (2) beats "B→__end" (2)
+    expect(r.edges.map((e) => e.id).sort()).toEqual([`${START_ID}→A`, "A→B"].sort());
   });
   it("defaultSimplify keeps about 30 of 45 activities and everything when small", () => {
     expect(defaultSimplify(dfg)).toEqual({ activityPct: 100, transitionPct: 100 });

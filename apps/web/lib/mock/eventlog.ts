@@ -9,6 +9,7 @@ export interface DfgNode { id: string; label: string; caseCount: number; eventCo
 export interface DfgEdge { id: string; from: string; to: string; count: number; caseCount: number; medianMs: number; p90Ms: number }
 export interface Dfg { nodes: DfgNode[]; edges: DfgEdge[]; totalCases: number }
 
+// shortcut: activity labels literally named "__start"/"__end" or containing "→" would collide with node/edge ids; unsupported in the mock.
 export const START_ID = "__start";
 export const END_ID = "__end";
 
@@ -79,7 +80,7 @@ function pathFor(stages: string[], pattern: number, pick: number): string[] {
   if (pattern >= 80 && k >= 3) { const skip = 1 + (pick % middle); return stages.filter((_, i) => i !== skip); }
   if (pattern >= 70 && middle >= 2) { const j = 1 + (pick % (middle - 1)); const p = [...stages]; [p[j], p[j + 1]] = [p[j + 1], p[j]]; return p; }
   if (pattern >= 55 && pattern < 70 && middle >= 1) { const j = 1 + (pick % middle); return [...stages.slice(0, j + 1), stages[j], ...stages.slice(j + 1)]; }
-  return stages;
+  return [...stages]; // always a copy: callers push onto the result
 }
 
 export function buildEventLog(snapshot: Snapshot, mapping: MappingVersion): EventLog | null {
