@@ -1,9 +1,10 @@
 import { MOCK_TODAY, initialState } from "./data";
 import { isStale } from "../format";
 import { fabricate } from "./fabricate";
+import { validateMapping } from "./mapping";
 import { acceptsData } from "./permissions";
 import { projectSchema, type ProjectInput } from "./schemas";
-import type { AuditEvent, MockState, Project, ProjectStatus, Role, Snapshot, SnapshotStatus } from "./types";
+import type { AuditEvent, ColumnRole, LabelRule, MappingVersion, MockState, Project, ProjectStatus, Role, Snapshot, SnapshotStatus } from "./types";
 
 export { MOCK_TODAY, initialState };
 
@@ -18,9 +19,11 @@ export type MockAction =
   | { type: "uploadSnapshot"; sourceId: string; fileName: string; sizeBytes: number }
   | { type: "confirmSnapshot"; snapshotId: string }
   | { type: "cancelSnapshot"; snapshotId: string }
+  | { type: "saveMapping"; sourceId: string; snapshotId: string; roles: Record<string, ColumnRole>; timeFormat: string; timezone: string;
+      labels: LabelRule[]; confirmed: ColumnRole[]; timezoneConfirmed: boolean; note?: string }
   | { type: "setViewer"; userId: string };
 
-export type ReduceResult = { state: MockState; error?: string; snapshotId?: string; duplicateOf?: string };
+export type ReduceResult = { state: MockState; error?: string; snapshotId?: string; duplicateOf?: string; mappingId?: string };
 
 const MAX_BYTES = 500 * 1024 * 1024;
 // ".xes.gz" must come before ".xes".
@@ -199,6 +202,29 @@ export function reduce(state: MockState, action: MockAction): ReduceResult {
       return { state: withAudit(next, { action: "snapshot.unggah", objectType: "Snapshot", objectLabel: snap.fileName, projectId: project.id }), snapshotId: snap.id };
     }
 
+    case "saveMapping": {
+      const source = state.sources.find((x) => x.id === action.sourceId);
+      const project = source && state.projects.find((x) => x.id === source.projectId);
+      if (!source || !project) return fail("Sumber data tidak ditemukan");
+      const snap = state.snapshots.find((x) => x.id === action.snapshotId);
+      if (!snap) return fail("Snapshot tidak ditemukan");
+      if (snap.sourceId !== source.id) return fail("Snapshot bukan milik sumber ini");
+      if (snap.status !== "siap_dipetakan") return fail("Snapshot belum siap dipetakan");
+      if (!acceptsData(project.status)) return fail("Proyek ini tidak menerima data baru");
+      const invalid = validateMapping({ ...action, columns: (snap.columns ?? []).map((c) => c.name) })[0];
+      if (invalid) return fail(invalid.message);
+      const latest = latestMapping(state, source.id);
+      if (latest && sameConfig(latest, action)) return fail(`Tidak ada perubahan dari v${latest.version}`);
+      const version = Math.max(0, ...state.mappings.filter((m) => m.sourceId === source.id).map((m) => m.version)) + 1;
+      const mapping: MappingVersion = {
+        id: id("m"), sourceId: source.id, snapshotId: snap.id, projectId: project.id, version,
+        roles: action.roles, timeFormat: action.timeFormat, timezone: action.timezone, labels: action.labels,
+        ...(action.note?.trim() ? { note: action.note.trim() } : {}), createdBy: state.viewerId, createdAt: now(),
+      };
+      const next = { ...state, mappings: [...state.mappings, mapping] };
+      return { state: withAudit(next, { action: "pemetaan.simpan", objectType: "Pemetaan", objectLabel: `${source.name} v${version}`, projectId: project.id }), mappingId: mapping.id };
+    }
+
     case "confirmSnapshot":
     case "cancelSnapshot": {
       const snap = state.snapshots.find((x) => x.id === action.snapshotId);
@@ -220,6 +246,20 @@ export const snapshotsForSource = (s: MockState, sourceId: string): Snapshot[] =
     // The mock clock is fixed, so ties on uploadedAt fall back to insertion order (later first).
     .sort((a, b) => b.x.uploadedAt.localeCompare(a.x.uploadedAt) || b.i - a.i)
     .map(({ x }) => x);
+
+export const mappingsForSource = (s: MockState, sourceId: string): MappingVersion[] =>
+  s.mappings
+    .map((x, i) => ({ x, i }))
+    .filter(({ x }) => x.sourceId === sourceId)
+    .sort((a, b) => b.x.createdAt.localeCompare(a.x.createdAt) || b.i - a.i)
+    .map(({ x }) => x);
+
+export const latestMapping = (s: MockState, sourceId: string): MappingVersion | null => mappingsForSource(s, sourceId)[0] ?? null;
+
+// Structural comparison; roles and labels are order-insensitive, note is ignored.
+const canon = (m: Pick<MappingVersion, "roles" | "timeFormat" | "timezone" | "labels">) =>
+  JSON.stringify([Object.entries(m.roles).sort(), m.timeFormat, m.timezone, m.labels.map((l) => [l.raw, l.canonical]).sort()]);
+const sameConfig = (a: MappingVersion, b: Pick<MappingVersion, "roles" | "timeFormat" | "timezone" | "labels">) => canon(a) === canon(b);
 
 // Cancelled snapshots never count: their data was not imported.
 export function sourceFreshness(s: MockState, sourceId: string): { lastImportAt: string | null; latestEventAt: string | null; stale: boolean } {
