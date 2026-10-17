@@ -75,8 +75,8 @@ export default function SourcesPage() {
                 const count = snapshotsForSource(state, s.id).filter((x) => x.status !== "dibatalkan").length;
                 return (
                   <Table.Row key={s.id} id={s.id}>
-                    <Table.Cell className="px-6 text-sm font-medium text-ink">
-                      <Link href={`${base}/sources/${s.id}`} className="hover:underline">{s.name}</Link>
+                    <Table.Cell className="max-w-[320px] px-6 text-sm font-medium text-ink">
+                      <Link href={`${base}/sources/${s.id}`} title={s.name} className="block truncate hover:underline">{s.name}</Link>
                     </Table.Cell>
                     <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">File</Table.Cell>
                     <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{count}</Table.Cell>

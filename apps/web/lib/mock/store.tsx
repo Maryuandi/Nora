@@ -2,13 +2,15 @@
 
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import { can as canRole, type UiAction } from "./permissions";
-import { initialState, reduce, viewerRole, type MockAction } from "./reducer";
+import { initialState, reduce, viewerRole, type MockAction, type ReduceResult } from "./reducer";
 import type { MockState, Role, User } from "./types";
 
 interface MockContext {
   state: MockState;
   /** Applies an action; returns an error message when the mock rules reject it. */
   dispatch: (action: MockAction) => string | undefined;
+  /** Like dispatch but returns the full result (new snapshotId, duplicateOf). */
+  run: (action: MockAction) => Omit<ReduceResult, "state">;
   viewer: User;
   /** Role of the viewer in a project, or their preview role when no project is given. */
   roleIn: (projectId?: string) => Role | null;
@@ -25,19 +27,20 @@ export function MockStoreProvider({ children }: { children: React.ReactNode }) {
   const ref = useRef(state);
   ref.current = state;
 
-  const dispatch = useCallback((action: MockAction) => {
-    const { state: next, error } = reduce(ref.current, action);
+  const run = useCallback((action: MockAction) => {
+    const { state: next, ...rest } = reduce(ref.current, action);
     ref.current = next;
     setState(next);
-    return error;
+    return rest;
   }, []);
+  const dispatch = useCallback((action: MockAction) => run(action).error, [run]);
 
   const value = useMemo<MockContext>(() => {
     const viewer = state.users.find((u) => u.id === state.viewerId)!;
     const roleIn = (projectId?: string) =>
       projectId ? viewerRole(state, projectId) : viewer.persona ? PERSONA_ROLE[viewer.persona] : null;
-    return { state, dispatch, viewer, roleIn, can: (action, projectId) => canRole(roleIn(projectId), action) };
-  }, [state, dispatch]);
+    return { state, dispatch, run, viewer, roleIn, can: (action, projectId) => canRole(roleIn(projectId), action) };
+  }, [state, dispatch, run]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
