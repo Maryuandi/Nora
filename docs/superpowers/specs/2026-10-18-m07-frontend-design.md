@@ -47,7 +47,7 @@ interface GraphNode {
   id: string; projectId: string; kind: GraphNodeKind;
   label: string; sublabel?: string;
   href: string | null;     // halaman asal; null = placeholder modul belum ada
-  module: "M02" | "M03" | "M04" | "M05" | "M06" | "M08" | "M11";
+  module: "M02" | "M03" | "M04" | "M05" | "M06" | "M07" | "M08" | "M11";
   supersededBy?: string;   // id simpul versi lebih baru
 }
 interface GraphEdge {
@@ -59,7 +59,7 @@ interface GraphEdge {
 
 interface Finding { id: string; projectId: string; title: string; metric: string; value: string; analysisId: string; at: string }
 
-interface BundleItem { nodeId: string; version: number | null; kind: GraphNodeKind; summary: string }
+interface BundleItem { nodeId: string; version: number | null; kind: GraphNodeKind; summary: string; tokens: number }
 interface EvidenceBundle {
   id: string; projectId: string; hash: string;
   target: string;          // id simpul
@@ -96,9 +96,9 @@ Satu rantai penuh agar demo MVP jalan:
 
 - `RELATION_META: Record<RelationCategory, { label; icon; color; unproven: boolean }>`. `dukungan_hipotesis.unproven = true` → label "belum terbukti".
 - `buildGraph(state, projectId): { nodes; edges }`: gabung simpul seed dengan simpul turunan; selalu menyaring `projectId` (simpul/relasi proyek lain tidak pernah muncul). Menandai `supersededBy`.
-- `lineage(graph, findingId): LineageResult`: telusuri relasi `asal_usul` dan `observasi` dari temuan; hasil berupa tingkat berurutan (temuan → analisis → metrik+filter → dataset/pemetaan+aturan perbaikan → snapshot; cabang aturan → dokumen+bagian) plus daftar tepi untuk graf. Tidak mengikuti `dukungan_hipotesis`/`keputusan`.
+- `lineage(graph, findingId): LineageResult`: telusuri relasi `asal_usul` dan `observasi` dari temuan; hasil berupa tingkat berurutan (temuan → analisis → metrik+filter → dataset/pemetaan+aturan perbaikan → snapshot → sumber; cabang aturan → dokumen+bagian) plus daftar tepi untuk graf. Tidak mengikuti `dukungan_hipotesis`/`keputusan`.
 - `neighborhood(graph, nodeId, opts: { perGroup = 50; expanded: Set<RelationCategory> }): { groups: { category; nodes; total; hidden }[] }`: kelompokkan per kategori; kelompok yang lebih dari `perGroup` terpotong dengan `hidden` > 0 sampai di-expand.
-- `freshness(status: GraphStatus, now: string, thresholdMin = 5): { lagSeconds; stale: boolean }`.
+- `freshness(status: GraphStatus, thresholdMin = 5): { lagSeconds; stale: boolean }`.
 - `bundleBudgetUsage(bundle)`: item dan token terpakai vs anggaran.
 
 ## Reducer (`lib/mock/reducer.ts`)

@@ -54,6 +54,9 @@ describe("seed graph", () => {
     const nodeIds = new Set(s.graphNodes.map((n) => n.id));
     const derived = new Set([...s.sources, ...s.snapshots, ...s.mappings, ...s.rules].map((x) => x.id));
     const known = (id: string) => nodeIds.has(id) || derived.has(id);
+    // Raw entries: buildGraph filters by project, so asserting on its output alone could never fail.
+    for (const n of s.graphNodes) expect(s.projects.some((p) => p.id === n.projectId), n.id).toBe(true);
+    for (const e of s.graphEdges) expect(s.projects.some((p) => p.id === e.projectId), e.id).toBe(true);
     for (const f of s.findings) {
       expect(s.projects.some((p) => p.id === f.projectId)).toBe(true);
       expect(nodeIds.has(f.analysisId)).toBe(true);

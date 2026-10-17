@@ -8,7 +8,7 @@ export function StaleBadge({ status }: { status: GraphStatus | undefined }) {
   return (
     <Pill>
       <Clock size={14} weight="fill" className="text-status-suspended" aria-hidden />
-      Konteks mungkin belum terbaru
+      <span className="text-ink-2">Konteks mungkin belum terbaru</span>
     </Pill>
   );
 }

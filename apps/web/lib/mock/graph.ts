@@ -1,7 +1,9 @@
 import { Compass, GitBranch, Lightbulb, Scales, type Icon } from "@phosphor-icons/react";
 import type { EvidenceBundle, GraphEdge, GraphNode, GraphStatus, MockState, RelationCategory, RuleVersion } from "./types";
 
-export const RELATION_META: Record<RelationCategory, { label: string; icon: Icon; tone: string; unproven: boolean }> = {
+export type RelationTone = "accent" | "ink" | "warning" | "neutral";
+export const STALE_THRESHOLD_MIN = 5;
+export const RELATION_META: Record<RelationCategory, { label: string; icon: Icon; tone: RelationTone; unproven: boolean }> = {
   asal_usul: { label: "Asal-usul", icon: GitBranch, tone: "accent", unproven: false },
   observasi: { label: "Observasi", icon: Compass, tone: "ink", unproven: false },
   dukungan_hipotesis: { label: "Dukungan hipotesis", icon: Lightbulb, tone: "warning", unproven: true },
@@ -101,7 +103,7 @@ export function neighborhood(graph: BuiltGraph, nodeId: string, opts: { perGroup
   });
 }
 
-export function freshness(status: GraphStatus, thresholdMin = 5): { lagSeconds: number; stale: boolean } {
+export function freshness(status: GraphStatus, thresholdMin = STALE_THRESHOLD_MIN): { lagSeconds: number; stale: boolean } {
   const lagSeconds = Math.max(0, Math.round((Date.parse(status.authoritativeAt) - Date.parse(status.projectedAt)) / 1000));
   return { lagSeconds, stale: lagSeconds > thresholdMin * 60 };
 }
