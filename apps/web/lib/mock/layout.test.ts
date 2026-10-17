@@ -35,16 +35,32 @@ describe("layoutDfg", () => {
   });
   it("survives a single activity with a loop", () => {
     const dfg: Dfg = { nodes: [node(START_ID), node("A"), node(END_ID)], edges: [edge(START_ID, "A"), edge("A", "A"), edge("A", END_ID)], totalCases: 1 };
-    expect(Object.keys(layoutDfg(dfg)).sort()).toEqual([END_ID, START_ID, "A"].sort());
+    const pos = layoutDfg(dfg);
+    expect(Object.keys(pos).sort()).toEqual([END_ID, START_ID, "A"].sort());
+    for (const p of Object.values(pos)) expect(Number.isFinite(p.x) && Number.isFinite(p.y)).toBe(true);
   });
   it("survives no edges", () => {
     const dfg: Dfg = { nodes: [node("A"), node("B")], edges: [], totalCases: 0 };
-    expect(Object.keys(layoutDfg(dfg))).toHaveLength(2);
+    const pos = layoutDfg(dfg);
+    expect(Object.keys(pos)).toHaveLength(2);
+    for (const p of Object.values(pos)) expect(Number.isFinite(p.x) && Number.isFinite(p.y)).toBe(true);
   });
   it("handles a bidirectional pair", () => {
     const dfg: Dfg = { nodes: [node("A"), node("B")], edges: [edge("A", "B"), edge("B", "A")], totalCases: 1 };
     const pos = layoutDfg(dfg);
     expect(Object.keys(pos)).toHaveLength(2);
     expect(overlaps(dfg, pos)).toBe(false);
+  });
+  it("survives hostile node ids without polluting prototypes", () => {
+    const ids = [START_ID, "constructor", "__proto__", "toString", END_ID];
+    const dfg: Dfg = { nodes: ids.map(node), edges: ids.slice(1).map((id, i) => edge(ids[i], id)), totalCases: 1 };
+    const before = Object.keys(Object.prototype);
+    const pos = layoutDfg(dfg);
+    for (const id of ids) {
+      expect(Object.hasOwn(pos, id)).toBe(true);
+      expect(Number.isFinite(pos[id].x) && Number.isFinite(pos[id].y)).toBe(true);
+    }
+    expect(Object.keys(Object.prototype)).toEqual(before);
+    expect(layoutDfg(dfg)).toEqual(pos);
   });
 });
