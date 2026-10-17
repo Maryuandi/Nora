@@ -28,13 +28,9 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
     <>
       <PageHeader
         eyebrow={client.name}
-        title={
-          <span className="flex items-center gap-3">
-            <span className="truncate">{project.name}</span>
-            <StatusBadge status={project.status} />
-          </span>
-        }
+        title={project.name}
         stats={[
+          { label: "Status", value: <StatusBadge status={project.status} /> },
           { label: "Proses", value: project.process.name },
           { label: "Periode kontrak", value: formatPeriod(project) },
           { label: "Peranmu", value: ({ administrator: "Administrator", analis: "Analis", pemilik_proses: "Pemilik proses" } as const)[ctx.role] },
