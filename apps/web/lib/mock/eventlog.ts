@@ -116,7 +116,7 @@ export function buildEventLog(snapshot: Snapshot, mapping: MappingVersion): Even
 }
 
 // ---- DFG ----
-function percentile(sorted: number[], p: number): number {
+export function percentile(sorted: number[], p: number): number {
   if (sorted.length === 0) return 0;
   const pos = p * (sorted.length - 1);
   const lo = Math.floor(pos);

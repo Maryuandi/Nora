@@ -48,7 +48,7 @@ describe("compliance", () => {
   });
   it("summarize counts add up", () => {
     const run = { id: "x", projectId: "p-p2p", sourceId: "s-p2p-sap", snapshotId: "sn-1", mappingId: "m-1", periodFrom: "2026-03-01", periodTo: "2026-10-14",
-      ruleVersionIds: ["r-sla-1", "r-sla-2", "r-urutan"], ruleVersions: ["r-sla-1", "r-sla-2", "r-urutan"].map(rule), calendar: "bawaan_tiruan" as const, createdBy: "u-dimas", createdAt: "2026-10-17T09:30:00Z" };
+      ruleVersionIds: ["r-sla-1", "r-sla-2", "r-urutan"], ruleVersions: ["r-sla-1", "r-sla-2", "r-urutan"].map(rule), calendar: "bawaan_tiruan" as const, config: initialState.runs[0].config, createdBy: "u-dimas", createdAt: "2026-10-17T09:30:00Z" };
     const res = evaluateRun(initialState, run, "r-sla");
     const s = summarize(res);
     expect(s.total).toBe(res.length);

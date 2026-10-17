@@ -142,6 +142,25 @@ export interface RuleVersion {
 
 export type CaseStatus = "patuh" | "tidak_patuh" | "tidak_dapat_dievaluasi";
 
+export interface BpmnModel { name: string; activities: string[] } // model sekuensial tiruan
+export interface MonitoringConfig {
+  projectId: string; version: number;
+  bottleneckTopN: number;
+  bottleneckP90Days: number;
+  reworkActivities: string[] | null; // null = definisi rework belum ditetapkan
+  reworkHighPct: number;
+  complianceHighPct: number;
+  fitnessMin: number; // 0–1
+  backlogAgeDays: number;
+  ageBuckets: number[]; // naik ketat
+  changePct: number;
+  minCasesChange: number;
+  minGroupCases: number;
+  smallSampleCases: number;
+  bpmnModel: BpmnModel | null;
+  updatedBy: string | null; updatedAt: string | null;
+}
+
 export interface MonitoringRun {
   id: string; projectId: string;
   sourceId: string; snapshotId: string; mappingId: string;
@@ -149,6 +168,7 @@ export interface MonitoringRun {
   ruleVersionIds: string[]; // dibekukan saat run
   ruleVersions: RuleVersion[]; // salinan beku versi aturan saat run (hasil tidak berubah bila aturan diedit)
   calendar: "bawaan_tiruan"; // Senin–Jumat, tanpa libur
+  config: MonitoringConfig; // salinan beku pengaturan saat run
   createdBy: string; createdAt: string;
 }
 
@@ -166,5 +186,6 @@ export interface MockState {
   mappings: MappingVersion[];
   rules: RuleVersion[];
   runs: MonitoringRun[];
+  monitoringConfigs: MonitoringConfig[];
   viewerId: string;
 }

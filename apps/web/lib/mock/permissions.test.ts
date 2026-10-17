@@ -22,6 +22,7 @@ const EXPECTED: Record<UiAction, Role[]> = {
   "rule.confirm": ["pemilik_proses"],
   "monitoring.view": ["administrator", "analis", "pemilik_proses"],
   "monitoring.run": ["analis"],
+  "monitoring.configure": ["analis"],
   "analysis.view": ["administrator", "analis", "pemilik_proses"],
 };
 

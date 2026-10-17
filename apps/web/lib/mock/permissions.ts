@@ -4,7 +4,7 @@ export type UiAction = "client.create" | "project.create" | "project.status" | "
   | "source.view" | "source.create" | "snapshot.upload" | "snapshot.confirm" | "snapshot.cancel"
   | "mapping.view" | "mapping.edit"
   | "rule.view" | "rule.edit" | "rule.confirm"
-  | "monitoring.view" | "monitoring.run"
+  | "monitoring.view" | "monitoring.run" | "monitoring.configure"
   | "analysis.view";
 
 // Button matrix from PRD M01 "Matriks Kewenangan" (UI subset).
@@ -28,6 +28,7 @@ const ALLOWED: Record<UiAction, readonly Role[]> = {
   "rule.confirm": ["pemilik_proses"],
   "monitoring.view": ["administrator", "analis", "pemilik_proses"],
   "monitoring.run": ["analis"],
+  "monitoring.configure": ["analis"],
   "analysis.view": ["administrator", "analis", "pemilik_proses"],
 };
 

@@ -2,11 +2,12 @@ import { MOCK_TODAY, initialState } from "./data";
 import { isStale } from "../format";
 import { participatingVersions } from "./compliance";
 import { fabricate } from "./fabricate";
+import { configFor, copyConfig } from "./metrics";
 import { validateMapping } from "./mapping";
 import { acceptsData } from "./permissions";
 import { nextStatuses, previewDataset, previewRule, projectCanonicalLabels, validateRule, type RuleInput } from "./rules";
 import { projectSchema, type ProjectInput } from "./schemas";
-import type { AuditEvent, ColumnRole, LabelRule, MappingVersion, MockState, MonitoringRun, Project, ProjectStatus, Role, RuleStatus, RuleVersion, Snapshot, SnapshotStatus, Source } from "./types";
+import type { AuditEvent, ColumnRole, LabelRule, MappingVersion, MockState, MonitoringConfig, MonitoringRun, Project, ProjectStatus, Role, RuleStatus, RuleVersion, Snapshot, SnapshotStatus, Source } from "./types";
 
 export { MOCK_TODAY, initialState };
 
@@ -27,6 +28,7 @@ export type MockAction =
   | { type: "changeRuleStatus"; ruleId: string; to: RuleStatus }
   | { type: "confirmRuleClient"; ruleId: string }
   | { type: "runMonitoring"; projectId: string; sourceId: string; periodFrom: string; periodTo: string }
+  | { type: "updateMonitoringConfig"; projectId: string; patch: Partial<Omit<MonitoringConfig, "projectId" | "version" | "updatedBy" | "updatedAt">> }
   | { type: "setViewer"; userId: string };
 
 export type ReduceResult = { state: MockState; error?: string; snapshotId?: string; duplicateOf?: string; mappingId?: string; ruleId?: string; runId?: string };
@@ -302,9 +304,30 @@ export function reduce(state: MockState, action: MockAction): ReduceResult {
       if (versions.length === 0) return fail("Belum ada aturan disetujui atau ditinjau");
       const run: MonitoringRun = {
         id: id("run"), projectId: project.id, sourceId: source.id, snapshotId: runnable.snapshot.id, mappingId: runnable.mapping.id,
-        periodFrom, periodTo, ruleVersionIds: versions.map((v) => v.id), ruleVersions: versions.map((v) => ({ ...v })), calendar: "bawaan_tiruan", createdBy: state.viewerId, createdAt: now(),
+        periodFrom, periodTo, ruleVersionIds: versions.map((v) => v.id), ruleVersions: versions.map((v) => ({ ...v })), calendar: "bawaan_tiruan", config: copyConfig(configFor(state, project.id)), createdBy: state.viewerId, createdAt: now(),
       };
       return { state: withAudit({ ...state, runs: [...state.runs, run] }, { action: "monitoring.jalankan", objectType: "Monitoring", objectLabel: `${source.name} ${periodFrom}–${periodTo}`, projectId: project.id }), runId: run.id };
+    }
+
+    case "updateMonitoringConfig": {
+      const project = state.projects.find((x) => x.id === action.projectId);
+      if (!project) return fail("Proyek tidak ditemukan");
+      if (viewerRole(state, project.id) !== "analis") return fail("Hanya analis yang dapat mengubah ambang");
+      const patch = action.patch;
+      const isInt = (v: unknown) => Number.isInteger(v) && (v as number) >= 1;
+      const num = (v: unknown, ok: (n: number) => boolean) => typeof v === "number" && Number.isFinite(v) && ok(v);
+      const present = <K extends keyof typeof patch>(...keys: K[]) => keys.filter((k) => patch[k] !== undefined);
+      if (present("bottleneckTopN", "backlogAgeDays", "minCasesChange", "minGroupCases", "smallSampleCases").some((k) => !isInt(patch[k]))
+        || (patch.bottleneckP90Days !== undefined && !num(patch.bottleneckP90Days, (n) => n > 0))) return fail("Nilai ambang harus bilangan positif");
+      if (present("reworkHighPct", "complianceHighPct", "changePct").some((k) => !num(patch[k], (n) => n >= 0 && n <= 100))) return fail("Persentase harus 0–100");
+      if (patch.fitnessMin !== undefined && !num(patch.fitnessMin, (n) => n >= 0 && n <= 1)) return fail("Fitness minimum harus 0–1");
+      const b = patch.ageBuckets;
+      if (b !== undefined && (b.length < 1 || b.length > 5 || !b.every(isInt) || b.some((v, i) => i > 0 && v <= b[i - 1]))) return fail("Kelompok umur harus naik dan positif");
+      if (patch.reworkActivities !== undefined && patch.reworkActivities !== null && patch.reworkActivities.length === 0) return fail("Pilih minimal satu aktivitas rework");
+      const config = copyConfig({ ...configFor(state, project.id), ...patch, version: configFor(state, project.id).version + 1, updatedBy: state.viewerId, updatedAt: now() });
+      const monitoringConfigs = state.monitoringConfigs.some((c) => c.projectId === project.id)
+        ? state.monitoringConfigs.map((c) => (c.projectId === project.id ? config : c)) : [...state.monitoringConfigs, config];
+      return { state: withAudit({ ...state, monitoringConfigs }, { action: "monitoring.ambang.ubah", objectType: "Monitoring", objectLabel: `Ambang monitoring v${config.version}`, projectId: project.id }) };
     }
 
     case "confirmRuleClient": {

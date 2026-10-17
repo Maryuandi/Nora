@@ -1,4 +1,5 @@
-import type { AuditEvent, Client, Membership, MappingVersion, MockState, MonitoringRun, Project, RuleSourceRef, RuleVersion, Snapshot, Source, User } from "./types";
+import { copyConfig } from "./metrics";
+import type { AuditEvent, Client, Membership, MappingVersion, MockState, MonitoringConfig, MonitoringRun, Project, RuleSourceRef, RuleVersion, Snapshot, Source, User } from "./types";
 
 export const MOCK_TODAY = "2026-10-17";
 
@@ -171,15 +172,24 @@ const rules: RuleVersion[] = [
     source: sop("Bagian 5.4", "Faktur tidak boleh dicatat lagi setelah pelunasan.") }),
 ];
 
+const p2pConfig: MonitoringConfig = {
+  projectId: "p-p2p", version: 1, bottleneckTopN: 3, bottleneckP90Days: 5,
+  reworkActivities: ["Record Goods Receipt", "Record Invoice Receipt", "Clear Invoice"],
+  reworkHighPct: 15, complianceHighPct: 10, fitnessMin: 0.9, backlogAgeDays: 30, ageBuckets: [7, 30, 90],
+  changePct: 20, minCasesChange: 30, minGroupCases: 100, smallSampleCases: 30,
+  bpmnModel: { name: "P2P standar", activities: ["Create Purchase Order Item", "Record Goods Receipt", "Record Invoice Receipt", "Clear Invoice"] },
+  updatedBy: "u-dimas", updatedAt: "2026-07-20T08:00:00Z",
+};
 const RUN_RULES = ["r-sla-1", "r-sla-2", "r-urutan"];
 const frozen = (ids: string[]) => rules.filter((r) => ids.includes(r.id)).map((r) => ({ ...r }));
 const runs: MonitoringRun[] = [
   { id: "run-1", projectId: "p-p2p", sourceId: "s-p2p-sap", snapshotId: "sn-1", mappingId: "m-1", periodFrom: "2026-05-01", periodTo: "2026-07-31",
-    ruleVersionIds: RUN_RULES, ruleVersions: frozen(RUN_RULES), calendar: "bawaan_tiruan", createdBy: "u-dimas", createdAt: "2026-08-01T03:00:00Z" },
+    ruleVersionIds: RUN_RULES, ruleVersions: frozen(RUN_RULES), calendar: "bawaan_tiruan", config: copyConfig(p2pConfig), createdBy: "u-dimas", createdAt: "2026-08-01T03:00:00Z" },
   { id: "run-2", projectId: "p-p2p", sourceId: "s-p2p-sap", snapshotId: "sn-1", mappingId: "m-1", periodFrom: "2026-08-01", periodTo: "2026-10-14",
-    ruleVersionIds: RUN_RULES, ruleVersions: frozen(RUN_RULES), calendar: "bawaan_tiruan", createdBy: "u-anton", createdAt: "2026-10-15T09:00:00Z" },
+    ruleVersionIds: RUN_RULES, ruleVersions: frozen(RUN_RULES), calendar: "bawaan_tiruan", config: copyConfig(p2pConfig), createdBy: "u-anton", createdAt: "2026-10-15T09:00:00Z" },
 ];
 
 export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, rules,
   runs,
+  monitoringConfigs: [p2pConfig],
   viewerId: "u-dimas" };
