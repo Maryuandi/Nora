@@ -3,8 +3,9 @@ import { isStale } from "../format";
 import { fabricate } from "./fabricate";
 import { validateMapping } from "./mapping";
 import { acceptsData } from "./permissions";
+import { nextStatuses, previewDataset, previewRule, projectCanonicalLabels, validateRule, type RuleInput } from "./rules";
 import { projectSchema, type ProjectInput } from "./schemas";
-import type { AuditEvent, ColumnRole, LabelRule, MappingVersion, MockState, Project, ProjectStatus, Role, Snapshot, SnapshotStatus } from "./types";
+import type { AuditEvent, ColumnRole, LabelRule, MappingVersion, MockState, Project, ProjectStatus, Role, RuleStatus, RuleVersion, Snapshot, SnapshotStatus } from "./types";
 
 export { MOCK_TODAY, initialState };
 
@@ -21,9 +22,12 @@ export type MockAction =
   | { type: "cancelSnapshot"; snapshotId: string }
   | { type: "saveMapping"; sourceId: string; snapshotId: string; roles: Record<string, ColumnRole>; timeFormat: string; timezone: string;
       labels: LabelRule[]; confirmed: ColumnRole[]; timezoneConfirmed: boolean; note?: string }
+  | { type: "saveRule"; projectId: string; ruleKey?: string; input: RuleInput }
+  | { type: "changeRuleStatus"; ruleId: string; to: RuleStatus }
+  | { type: "confirmRuleClient"; ruleId: string }
   | { type: "setViewer"; userId: string };
 
-export type ReduceResult = { state: MockState; error?: string; snapshotId?: string; duplicateOf?: string; mappingId?: string };
+export type ReduceResult = { state: MockState; error?: string; snapshotId?: string; duplicateOf?: string; mappingId?: string; ruleId?: string };
 
 const MAX_BYTES = 500 * 1024 * 1024;
 // ".xes.gz" must come before ".xes".
@@ -225,6 +229,73 @@ export function reduce(state: MockState, action: MockAction): ReduceResult {
       return { state: withAudit(next, { action: "pemetaan.simpan", objectType: "Pemetaan", objectLabel: `${source.name} v${version}`, projectId: project.id }), mappingId: mapping.id };
     }
 
+    case "saveRule": {
+      const project = state.projects.find((x) => x.id === action.projectId);
+      if (!project) return fail("Proyek tidak ditemukan");
+      if (!acceptsData(project.status)) return fail("Proyek ini tidak menerima data baru");
+      const latest = action.ruleKey ? ruleVersions(state, action.ruleKey)[0] : undefined;
+      if (action.ruleKey) {
+        if (!latest) return fail("Aturan tidak ditemukan");
+        if (latest.projectId !== project.id) return fail("Aturan bukan milik proyek ini");
+        if (latest.status === "usang") return fail("Aturan usang tidak dapat diubah");
+      }
+      const invalid = validateRule(action.input, projectCanonicalLabels(state, project.id))[0];
+      if (invalid) return fail(invalid.message);
+      if (latest && sameRuleInput(latest, action.input)) return fail("Tidak ada perubahan");
+      const { name, description, params, scope, effectiveFrom, effectiveTo, source } = action.input;
+      const fields = { name: name.trim(), description, params, scope, effectiveFrom, effectiveTo, source };
+      let written: RuleVersion;
+      let rules: RuleVersion[];
+      if (latest?.status === "draf") {
+        written = { ...latest, ...fields };
+        rules = state.rules.map((x) => (x === latest ? written : x));
+      } else {
+        written = {
+          ...fields, id: id("r"), ruleKey: latest ? latest.ruleKey : id("rk"), projectId: project.id, version: (latest?.version ?? 0) + 1,
+          status: "draf", clientConfirmed: false, createdBy: state.viewerId, createdAt: now(),
+        };
+        rules = [...state.rules, written];
+      }
+      return { state: withAudit({ ...state, rules }, { action: "aturan.simpan", objectType: "Aturan", objectLabel: `${written.name} v${written.version}`, projectId: project.id }), ruleId: written.id };
+    }
+
+    case "changeRuleStatus": {
+      const rule = state.rules.find((x) => x.id === action.ruleId);
+      if (!rule) return fail("Aturan tidak ditemukan");
+      const project = state.projects.find((x) => x.id === rule.projectId);
+      if (!project || !acceptsData(project.status)) return fail("Proyek ini tidak menerima data baru");
+      if (!nextStatuses(rule.status).includes(action.to)) return fail("Transisi status tidak diizinkan");
+      if (action.to === "ditinjau" || action.to === "disetujui") {
+        const invalid = validateRule(rule, projectCanonicalLabels(state, project.id))[0];
+        if (invalid) return fail(invalid.message);
+      }
+      let updated: RuleVersion = { ...rule, status: action.to };
+      if (action.to === "disetujui") {
+        if (![rule.source.docTitle, rule.source.section, rule.source.quote].every((v) => typeof v === "string" && v.trim())) return fail("Aturan tanpa rujukan sumber tidak dapat disetujui");
+        const preview = previewRule(rule, previewDataset(state, project.id));
+        if (preview.status === "tidak_dapat_dievaluasi") return fail(`Aturan tidak dapat dievaluasi: ${preview.reason}`);
+        updated = { ...updated, approvedBy: state.viewerId, approvedAt: now() };
+      }
+      const rules = state.rules.map((x) => {
+        if (x === rule) return updated;
+        // Only one disetujui version per ruleKey: approving a newer one retires the others.
+        return action.to === "disetujui" && x.ruleKey === rule.ruleKey && x.status === "disetujui" ? { ...x, status: "usang" as const } : x;
+      });
+      const audit = action.to === "ditinjau" ? "aturan.ajukan" : action.to === "draf" ? "aturan.kembalikan" : action.to === "disetujui" ? "aturan.setujui" : "aturan.usangkan";
+      return { state: withAudit({ ...state, rules }, { action: audit, objectType: "Aturan", objectLabel: `${rule.name} v${rule.version}`, projectId: project.id }), ruleId: rule.id };
+    }
+
+    case "confirmRuleClient": {
+      const rule = state.rules.find((x) => x.id === action.ruleId);
+      if (!rule) return fail("Aturan tidak ditemukan");
+      const project = state.projects.find((x) => x.id === rule.projectId);
+      if (!project || !acceptsData(project.status)) return fail("Proyek ini tidak menerima data baru");
+      if (rule.status !== "ditinjau" && rule.status !== "disetujui") return fail("Hanya aturan yang ditinjau atau disetujui yang bisa dikonfirmasi klien");
+      if (rule.clientConfirmed) return fail("Aturan ini sudah dikonfirmasi klien");
+      const rules = state.rules.map((x) => (x === rule ? { ...x, clientConfirmed: true } : x));
+      return { state: withAudit({ ...state, rules }, { action: "aturan.konfirmasi_klien", objectType: "Aturan", objectLabel: `${rule.name} v${rule.version}`, projectId: project.id }), ruleId: rule.id };
+    }
+
     case "confirmSnapshot":
     case "cancelSnapshot": {
       const snap = state.snapshots.find((x) => x.id === action.snapshotId);
@@ -260,6 +331,24 @@ export const latestMapping = (s: MockState, sourceId: string): MappingVersion | 
 const canon = (m: Pick<MappingVersion, "roles" | "timeFormat" | "timezone" | "labels">) =>
   JSON.stringify([Object.entries(m.roles).sort(), m.timeFormat, m.timezone, m.labels.map((l) => [l.raw, l.canonical]).sort()]);
 const sameConfig = (a: MappingVersion, b: Pick<MappingVersion, "roles" | "timeFormat" | "timezone" | "labels">) => canon(a) === canon(b);
+
+export const rulesForProject = (s: MockState, projectId: string): RuleVersion[] => s.rules.filter((r) => r.projectId === projectId);
+
+// Newest version first; equal versions fall back to insertion order (later first).
+export const ruleVersions = (s: MockState, ruleKey: string): RuleVersion[] =>
+  s.rules
+    .map((x, i) => ({ x, i }))
+    .filter(({ x }) => x.ruleKey === ruleKey)
+    .sort((a, b) => b.x.version - a.x.version || b.i - a.i)
+    .map(({ x }) => x);
+
+// Deep canonical JSON with sorted keys, so key order never matters.
+const stable = (v: unknown): unknown =>
+  Array.isArray(v) ? v.map(stable) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b)).map(([k, x]) => [k, stable(x)])) : v;
+const sameRuleInput = (a: RuleInput, b: RuleInput) => {
+  const pick = (r: RuleInput) => JSON.stringify(stable([r.name.trim(), r.description, r.params, r.scope, r.effectiveFrom, r.effectiveTo, r.source]));
+  return pick(a) === pick(b);
+};
 
 // Cancelled snapshots never count: their data was not imported.
 export function sourceFreshness(s: MockState, sourceId: string): { lastImportAt: string | null; latestEventAt: string | null; stale: boolean } {
