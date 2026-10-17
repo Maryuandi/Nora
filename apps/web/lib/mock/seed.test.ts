@@ -47,3 +47,29 @@ describe("seed rule activities", () => {
     }
   });
 });
+
+describe("seed graph", () => {
+  it("findings, bundles and status point at real projects and nodes", () => {
+    const nodeIds = new Set(s.graphNodes.map((n) => n.id));
+    const derived = new Set([...s.sources, ...s.snapshots, ...s.mappings, ...s.rules].map((x) => x.id));
+    const known = (id: string) => nodeIds.has(id) || derived.has(id);
+    for (const f of s.findings) {
+      expect(s.projects.some((p) => p.id === f.projectId)).toBe(true);
+      expect(nodeIds.has(f.analysisId)).toBe(true);
+    }
+    for (const b of s.bundles) {
+      expect(nodeIds.has(b.target)).toBe(true);
+      for (const i of b.items) expect(known(i.nodeId)).toBe(true);
+      for (const e of b.excluded) expect(known(e.nodeId)).toBe(true);
+    }
+    expect(s.graphStatus["p-p2p"]).toBeDefined();
+    expect(s.graphStatus["p-o2c"]).toBeDefined();
+  });
+
+  it("limited-context bundle exists and full bundle has 7 items, 3 excluded", () => {
+    const b1 = s.bundles.find((b) => b.id === "b-1")!;
+    expect(b1.items.length).toBe(7);
+    expect(b1.excluded.length).toBe(3);
+    expect(s.bundles.find((b) => b.id === "b-2")?.limitedContext).toBe(true);
+  });
+});
