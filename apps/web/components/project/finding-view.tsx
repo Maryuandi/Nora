@@ -46,7 +46,7 @@ export function FindingView({ findingId, kandidat: param }: { findingId: string;
   const sel = rows.find((r) => r.candidate.id === selected && r.assessment && r.candidate.applicable);
   const correcting = current.find((a) => a.id === correctingId);
   const correctingCandidate = correcting && state.candidates.find((c) => c.id === correcting.candidateId);
-  const unscored = summarize(state, finding.id).unscored;
+  const { unscored, corrected } = summarize(state, finding.id);
   const model = current[0];
 
   const run = (scope: "belum_dinilai" | "semua") => { setError(dispatch({ type: "runAssessment", projectId: project.id, findingId: finding.id, scope })); setConfirmAll(false); };
@@ -88,11 +88,13 @@ export function FindingView({ findingId, kandidat: param }: { findingId: string;
       )}
 
       <NoraModal open={confirmAll} onClose={() => setConfirmAll(false)} title="Ulangi semua penilaian?"
-        description="Semua kandidat dinilai ulang. Hasil lama diganti; koreksi analis tetap tercatat."
+        description="Semua kandidat dinilai ulang. Hasil lama dan koreksinya disimpan sebagai riwayat tetapi tidak berlaku untuk hasil baru; kandidat yang sudah dikoreksi perlu ditinjau lagi."
         footer={<>
           <Button color="secondary" size="xs" onClick={() => setConfirmAll(false)}>Batal</Button>
           <Button color="primary" size="xs" onClick={() => run("semua")}>Ulangi semua</Button>
-        </>} />
+        </>}>
+        {corrected > 0 && <p className="text-sm font-medium text-ink">{corrected} kandidat sudah dikoreksi analis dan akan kembali ke antrean review.</p>}
+      </NoraModal>
     </div>
   );
 }

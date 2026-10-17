@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { initialState as s } from "./data";
 import { projectCanonicalLabels } from "./rules";
+import { FIXTURE } from "./assessment-data";
 
 describe("seed mappings", () => {
   it("refer to consistent source/snapshot/project and real columns", () => {
@@ -76,5 +77,11 @@ describe("seed assessments", () => {
     expect(s.assessments.some((a) => a.candidateId === "c6")).toBe(false);
     expect(s.assessments.some((a) => a.candidateId === "c9")).toBe(false);
     expect(s.candidates.find((c) => c.id === "c6")?.applicable).toBe(false);
+  });
+});
+
+describe("assessment fixture", () => {
+  it("has no more levels than the candidate has criteria", () => {
+    for (const c of s.candidates) if (FIXTURE[c.id]) expect(FIXTURE[c.id].levels.length).toBeLessThanOrEqual(c.criteria.length);
   });
 });

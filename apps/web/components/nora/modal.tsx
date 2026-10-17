@@ -26,7 +26,7 @@ export function NoraModal({
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-base font-semibold text-ink">{title}</h2>
-                {description && <p className="mt-1 text-sm text-ink-2">{description}</p>}
+                {description && <p className="mt-1 text-sm break-words text-ink-2">{description}</p>}
               </div>
               <button type="button" onClick={onClose} aria-label="Tutup" className="rounded-md p-1 text-ink-3 hover:bg-canvas hover:text-ink">
                 <X size={18} aria-hidden />

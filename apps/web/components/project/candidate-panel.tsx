@@ -8,7 +8,7 @@ import { Pill } from "@/components/nora/badges";
 import { AssessmentStatusBadge } from "@/components/project/assessment-status";
 import { ProbabilityBars } from "@/components/project/probability-bars";
 import { formatDateTime, formatPercent, formatScore } from "@/lib/format";
-import { RELEVANCE_LABEL, RELEVANCE_ORDER, THRESHOLDS, effective, hasModelVerdict, topTwo, totalScore } from "@/lib/mock/assessment";
+import { RELEVANCE_LABEL, RELEVANCE_ORDER, THRESHOLDS, effective, hasModelVerdict, hasRelevanceResult, topTwo, totalScore } from "@/lib/mock/assessment";
 import type { Assessment, AssessmentCorrection, Candidate } from "@/lib/mock/types";
 
 const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
@@ -19,7 +19,7 @@ const Section = ({ title, children }: { title: string; children: React.ReactNode
 );
 
 const Disabled = ({ children, note }: { children: React.ReactNode; note: string }) => (
-  <span aria-disabled="true" title={note} className="cursor-not-allowed text-ink-3 underline decoration-dotted">{children}</span>
+  <span aria-disabled="true" title={note} className="cursor-not-allowed text-ink-3">{children} <span className="text-xs">(tersedia setelah M07)</span></span>
 );
 
 const STOPPED: Partial<Record<Assessment["status"], string>> = { gagal: "Penilaian gagal; belum ada hasil model", tertunda: "Penilaian tertunda; belum ada hasil model" };
@@ -75,7 +75,7 @@ export function CandidatePanel({ assessment: a, candidate, corrections, actorNam
         {verdict && <Section title="2. Skor per kriteria">
           {a.scores.length === 0 ? (
             <p className="rounded-md border border-dashed border-line px-3 py-4 text-sm text-ink-2">
-              {STOPPED[a.status] ?? "Dihentikan: bukti belum cukup"}
+              Dihentikan: bukti belum cukup
             </p>
           ) : (
             <>
@@ -110,7 +110,11 @@ export function CandidatePanel({ assessment: a, candidate, corrections, actorNam
           )}
         </Section>}
 
-        {verdict && <Section title="3. Relevansi">
+        {verdict && !hasRelevanceResult(a) && (
+          <Section title="3. Relevansi"><p className="rounded-md border border-dashed border-line px-3 py-4 text-sm text-ink-2">Tidak dijalankan: bukti belum cukup</p></Section>
+        )}
+
+        {hasRelevanceResult(a) && <Section title="3. Relevansi">
           <ProbabilityBars highlight={[top[0], second[0]]} items={RELEVANCE_ORDER.map((k) => ({ key: k, label: RELEVANCE_LABEL[k], p: a.relevance.probs[k] }))} />
           <p className="text-sm text-ink-2">
             Teratas: {RELEVANCE_LABEL[top[0]]}; kedua: {RELEVANCE_LABEL[second[0]]}. Selisih {formatPercent(margin)} (ambang {formatPercent(THRESHOLDS.margin)}), probabilitas teratas {formatPercent(top[1])} (ambang {formatPercent(THRESHOLDS.topProb)}).
@@ -145,11 +149,11 @@ export function CandidatePanel({ assessment: a, candidate, corrections, actorNam
         </Section>}
 
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2 border-t border-line pt-4 text-sm">
-          {([["Model", a.modelId], ["Spesifikasi", `v${a.specVersion}`], ["Run", a.runId], ["Waktu", formatDateTime(a.createdAt)]] as const).map(([k, v]) => (
+          {([["Model", a.modelId], ["Spesifikasi", `v${a.specVersion}`], ["Run", a.runId], ["Paket bukti", a.evidenceBundleId], ["Waktu", formatDateTime(a.createdAt)]] as const).map(([k, v]) => (
             <div key={k} className="min-w-0"><dt className="text-xs text-ink-3">{k}</dt><dd title={v} className="truncate text-ink">{v}</dd></div>
           ))}
           <div className="col-span-2 flex gap-4">
-            <Disabled note="Tersedia setelah M07">Paket bukti (M07)</Disabled>
+            <Disabled note="Tersedia setelah M07">Paket bukti</Disabled>
             <Disabled note="Tautan tiruan pada data contoh">Keluaran mentah</Disabled>
           </div>
         </dl>

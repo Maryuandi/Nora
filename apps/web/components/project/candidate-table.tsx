@@ -4,7 +4,7 @@ import { Table } from "@/components/application/table/table";
 import { Pill } from "@/components/nora/badges";
 import { AssessmentStatusBadge } from "@/components/project/assessment-status";
 import { formatPercent, formatScore } from "@/lib/format";
-import { RELEVANCE_LABEL, hasModelVerdict, topTwo, totalScore } from "@/lib/mock/assessment";
+import { RELEVANCE_LABEL, hasModelVerdict, hasRelevanceResult, topTwo, totalScore } from "@/lib/mock/assessment";
 import type { Assessment, Candidate, Finding, Relevance } from "@/lib/mock/types";
 
 export type CandidateRow = {
@@ -58,7 +58,7 @@ export function CandidateTable({ finding, rows, onOpen }: { finding: Finding; ro
                 {e && verdict ? `${RELEVANCE_LABEL[e.relevance]} (${e.source})` : "–"}
               </Table.Cell>
               <Table.Cell className="px-6 text-sm tabular-nums whitespace-nowrap text-ink-2">
-                {a && hasModelVerdict(a) ? `${RELEVANCE_LABEL[topTwo(a.relevance.probs).top[0]]} ${formatPercent(topTwo(a.relevance.probs).top[1])}` : "–"}
+                {a && hasRelevanceResult(a) ? `${RELEVANCE_LABEL[topTwo(a.relevance.probs).top[0]]} ${formatPercent(topTwo(a.relevance.probs).top[1])}` : "–"}
               </Table.Cell>
               <Table.Cell className="px-6 whitespace-nowrap">
                 {!verdict ? <span className="text-sm text-ink-3">–</span> : e?.source === "model" ? <Pill className="text-ink-2">Dinilai model</Pill> : e ? <Pill>Oleh analis</Pill> : <span className="text-sm text-ink-3">–</span>}

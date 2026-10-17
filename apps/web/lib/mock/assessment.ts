@@ -42,6 +42,9 @@ export function deriveStatus(i: { sufficientProb: number; relevanceProbs: Record
 /** gagal/tertunda results carry placeholder probabilities, so they have no model verdict to show. */
 export const hasModelVerdict = (a: Pick<Assessment, "status">): boolean => a.status !== "gagal" && a.status !== "tertunda";
 
+/** informasi_tidak_cukup stops before the relevance step, so its Choice distribution is a placeholder too. */
+export const hasRelevanceResult = (a: Pick<Assessment, "status" | "sufficient">): boolean => hasModelVerdict(a) && a.sufficient.prob >= THRESHOLDS.sufficient;
+
 export function effective(a: Assessment, corrections: AssessmentCorrection[]): { relevance: Relevance; source: "model" | "analis"; correction?: AssessmentCorrection } {
   let latest: AssessmentCorrection | undefined;
   for (const c of corrections) if (c.assessmentId === a.id && (!latest || c.at >= latest.at)) latest = c;
@@ -90,7 +93,7 @@ export function runFixture(finding: Finding, candidates: Candidate[], ctx: { run
       const failed = !fx || !!fx.failed;
       const sufficient = failed ? 0 : fx.sufficient;
       const relevanceProbs = failed ? { relevan: 0.25, sebagian_relevan: 0.25, tidak_relevan: 0.25, informasi_tidak_cukup: 0.25 } : fx.relevance;
-      const scores = failed ? [] : fx.levels.map((level, i) => ({ key: c.criteria[i].key, level, probs: levelProbs(level) }));
+      const scores = failed ? [] : fx.levels.flatMap((level, i) => (c.criteria[i] ? [{ key: c.criteria[i].key, level, probs: levelProbs(level) }] : []));
       return {
         id: `${ctx.runId}-${c.id}`, projectId: finding.projectId, findingId: finding.id, candidateId: c.id,
         status: deriveStatus({ sufficientProb: sufficient, relevanceProbs, failed }),

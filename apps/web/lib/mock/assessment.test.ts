@@ -124,6 +124,12 @@ describe("runFixture", () => {
   });
 });
 
+describe("totalScore normalisation", () => {
+  it("normalises weights that do not sum to 1", () => {
+    expect(totalScore(sc([5, 1]), crit([0.2, 0.2]))).toBe(50);
+  });
+});
+
 describe("hasModelVerdict", () => {
   it.each([["otomatis", true], ["perlu_review", true], ["informasi_tidak_cukup", true], ["gagal", false], ["tertunda", false]] as const)(
     "%s -> %s", (status, expected) => expect(hasModelVerdict({ status })).toBe(expected),

@@ -10,7 +10,7 @@ import { Card } from "@/components/nora/card";
 import { AssessmentStatusBadge } from "@/components/project/assessment-status";
 import { useProject } from "@/components/project/use-project";
 import { formatPercent } from "@/lib/format";
-import { RELEVANCE_LABEL, STATUS_LABEL, hasModelVerdict, reviewQueue, topTwo } from "@/lib/mock/assessment";
+import { RELEVANCE_LABEL, STATUS_LABEL, hasRelevanceResult, reviewQueue, topTwo } from "@/lib/mock/assessment";
 import type { AssessmentStatus } from "@/lib/mock/types";
 
 const ALL = "all";
@@ -58,7 +58,7 @@ export function ReviewQueue({ projectId }: { projectId: string }) {
               {rows.map((a) => {
                 const finding = state.findings.find((f) => f.id === a.findingId);
                 const cand = state.candidates.find((c) => c.id === a.candidateId);
-                const t = hasModelVerdict(a) ? topTwo(a.relevance.probs) : null;
+                const t = hasRelevanceResult(a) ? topTwo(a.relevance.probs) : null;
                 const opt = (o?: [keyof typeof RELEVANCE_LABEL, number]) => (o ? `${RELEVANCE_LABEL[o[0]]} ${formatPercent(o[1])}` : "–");
                 return (
                   <Table.Row key={a.id} id={a.id}>
