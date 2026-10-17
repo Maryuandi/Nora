@@ -83,8 +83,8 @@ interface DatasetVersion {
   }
   ```
   Delapan pemeriksaan dengan keparahan bawaan: nilai hilang pada kolom wajib (tinggi), waktu tidak wajar (tinggi), duplikasi/ambigu/konflik dari M02 (sedang), urutan ambigu (sedang), kasus belum selesai (info), waktu mulai > waktu selesai (tinggi), label belum dipetakan (sedang), kasus di luar periode (info). Aturan hitung: `totalEvents = stats.rows`, `totalCases = round(rows / 6)`;
-  - `nilai_hilang`: `round(rows × f)` dengan `f` dari hash (checksum + id) di rentang 0,2% sampai 3%.
-  - `waktu_tidak_wajar`: rentang 0,1% sampai 1,5%.
+  - `nilai_hilang`: `round(rows × f)` dengan `f` dari hash (checksum + id) di rentang 0,2% sampai 7%.
+  - `waktu_tidak_wajar`: rentang 0,1% sampai 6%.
   - `duplikasi`: `stats.duplicateEvents + stats.conflictEvents` (data M02 apa adanya).
   - `urutan_ambigu`: kasus terdampak = `round(totalCases × f)` dengan `f` 2% sampai 18%; event terdampak = kasus × 3.
   - `kasus_belum_selesai`: selalu `tidak_diketahui` ("Batas proses belum ditetapkan (M04)"), tanpa angka.

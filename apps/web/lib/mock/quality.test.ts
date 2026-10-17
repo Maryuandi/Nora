@@ -92,9 +92,9 @@ describe("buildQualityReport", () => {
       const r = buildQualityReport(withMap(withSnap(seed(), { checksum: `rg${i}` }), { roles: rolesWith(seed(), { start: "timestamp_start" }) }), []);
       const pct = (id: CheckId) => (find(r, id).affectedEvents / r.totalEvents) * 100;
       expect(pct("nilai_hilang")).toBeGreaterThanOrEqual(0.19);
-      expect(pct("nilai_hilang")).toBeLessThanOrEqual(3.01);
+      expect(pct("nilai_hilang")).toBeLessThanOrEqual(7.01);
       expect(pct("waktu_tidak_wajar")).toBeGreaterThanOrEqual(0.09);
-      expect(pct("waktu_tidak_wajar")).toBeLessThanOrEqual(1.51);
+      expect(pct("waktu_tidak_wajar")).toBeLessThanOrEqual(6.01);
       expect(pct("waktu_mulai_selesai")).toBeGreaterThanOrEqual(0.09);
       expect(pct("waktu_mulai_selesai")).toBeLessThanOrEqual(1.01);
       const u = find(r, "urutan_ambigu");
@@ -125,12 +125,28 @@ describe("buildQualityReport", () => {
   });
   it("label_belum_dipetakan passes hostile labels through untouched", () => {
     const d = seed();
-    const preview = d.snapshot.preview!.map((r, i) => [r[0], i % 2 ? "__proto__" : "__PROTO__.", r[2], r[3]]);
-    const hostile = withSnap(d, { preview, columns: d.snapshot.columns });
-    const f = find(buildQualityReport(hostile, []), "label_belum_dipetakan");
-    expect(["ditemukan", "bersih"]).toContain(f.status);
-    const odd = withSnap(d, { preview: [["PO-1", "constructor  ", "t", "u"], ["PO-1", "Constructor;", "t", "u"], ["PO-1", "<b>x</b>\u0000", "t", "u"]] });
-    expect(() => buildQualityReport(odd, [])).not.toThrow();
+    const columns = d.snapshot.columns;
+    const odd = withSnap(d, {
+      columns,
+      preview: [["PO-1", "constructor", "t", "u"], ["PO-1", "constructor", "t", "u"], ["PO-1", "Constructor;", "t", "u"], ["PO-1", "__proto__", "t", "u"], ["PO-1", "__PROTO__.", "t", "u"]],
+    });
+    const f = find(buildQualityReport(odd, []), "label_belum_dipetakan");
+    expect(f.status).toBe("ditemukan");
+    expect(f.examples.length).toBeGreaterThan(0);
+    const raws = activityLabels(odd.snapshot).map((l) => l.raw);
+    expect(raws).toContain("Constructor;");
+    expect(f.examples.some((e) => e.text.includes("Constructor;") || e.text.includes("__PROTO__."))).toBe(true);
+    for (const e of f.examples) expect(raws.some((r) => e.text.endsWith(`: ${r}`))).toBe(true);
+  });
+  it("label_belum_dipetakan groups 'Foo. ' with 'foo' (trim then strip trailing punctuation)", () => {
+    const d = seed();
+    const odd = withSnap(d, { preview: [["PO-1", "Foo", "t", "u"], ["PO-1", "Foo", "t", "u"], ["PO-1", "foo. ", "t", "u"]] });
+    const raws = activityLabels(odd.snapshot).map((l) => l.raw);
+    expect(raws).toContain("foo. ");
+    const covered = withMap(odd, { labels: raws.filter((r) => r !== "foo. ").map((r) => ({ raw: r, canonical: r })) });
+    const f = find(buildQualityReport(covered, []), "label_belum_dipetakan");
+    expect(f.status).toBe("ditemukan");
+    expect(f.examples.some((e) => e.text.endsWith(": foo. "))).toBe(true);
   });
   it("di_luar_periode uses the project contract", () => {
     const base = seed();
@@ -258,7 +274,7 @@ describe("verdict", () => {
   });
   it("uses a decimal comma in reasons", () => {
     const r = buildQualityReport(seed(), []);
-    expect(r.reasons.some((x) => /\d,\d%/.test(x) || /\d%/.test(x))).toBe(true);
+    expect(r.reasons.some((x) => /\d,\d%/.test(x))).toBe(true);
     expect(r.reasons.every((x) => !/\d\.\d%/.test(x))).toBe(true);
   });
 });
@@ -320,5 +336,54 @@ describe("datasetHash", () => {
     const ids = ["b", "a"];
     datasetHash("x", "y", ids);
     expect(ids).toEqual(["b", "a"]);
+  });
+});
+
+describe("boundaries", () => {
+  const tiny = (rows: number) => withSnap(coverAll(seed()), { stats: { rows, timeFrom: "2026-05-01", timeTo: "2026-06-01" } });
+
+  it("exactly 5.0% is not blocking, 5.6% is", () => {
+    const five = pickChecksum(tiny(20), (r) => find(r, "nilai_hilang").affectedEvents === 1 && find(r, "waktu_tidak_wajar").affectedEvents <= 1);
+    const r5 = buildQualityReport(five, []);
+    expect(find(r5, "nilai_hilang").percent).toBe(5);
+    expect(r5.verdict).toBe("siap_catatan");
+    const six = pickChecksum(tiny(18), (r) => find(r, "nilai_hilang").affectedEvents === 1);
+    const r6 = buildQualityReport(six, []);
+    expect(find(r6, "nilai_hilang").percent).toBe(5.6);
+    expect(r6.verdict).toBe("belum_layak");
+  });
+  it("a tiny effective impact reads 'kurang dari 0,1%'", () => {
+    const d = pickChecksum(withSnap(coverAll(seed()), { stats: { timeFrom: "2026-05-01", timeTo: "2026-06-01", rows: 1_000_000 } }), () => true);
+    const f = find(buildQualityReport(d, []), "nilai_hilang");
+    const keep = 10; // leaves ~0.001% effective
+    const r = buildQualityReport(d, [rule("nilai_hilang", { impactEvents: f.affectedEvents - keep, impactCases: 0 })]);
+    expect(r.reasons.some((x) => x === "Nilai hilang pada kolom wajib memengaruhi kurang dari 0,1% event")).toBe(true);
+    expect(r.reasons.some((x) => x.includes("0,0%"))).toBe(false);
+  });
+  it("urutan at exactly 10% of cases stays tersedia", () => {
+    const d = pickChecksum(tiny(60), (r) => r.totalCases === 10 && find(r, "urutan_ambigu").affectedCases === 1);
+    const r = buildQualityReport(d, []);
+    expect(find(r, "urutan_ambigu").affectedCases / r.totalCases).toBe(0.1);
+    expect(buildCapabilities(d, r)[2].status).toBe("tersedia");
+  });
+  it("casesIncluded falls below 100 through an exclusion rule", () => {
+    const d = withSnap(seed(), { stats: { rows: 600 } });
+    expect(buildQualityReport(d, []).casesIncluded).toBe(100);
+    const r = buildQualityReport(d, [rule("nilai_hilang", { action: "kecualikan_kasus", impactEvents: 6, impactCases: 1 })]);
+    expect(r.casesIncluded).toBe(99);
+    expect(buildCapabilities(d, r)[4].status).toBe("tidak_tersedia");
+  });
+  it("a partial exclusion that leaves a tinggi finding above 5% stays belum_layak", () => {
+    const d = pickChecksum(tiny(1000), (r) => find(r, "nilai_hilang").percent > 6);
+    const f = find(buildQualityReport(d, []), "nilai_hilang");
+    const r = buildQualityReport(d, [rule("nilai_hilang", { impactEvents: 5, impactCases: 1 })]);
+    expect((f.affectedEvents - 5) / r.totalEvents).toBeGreaterThan(0.05);
+    expect(r.verdict).toBe("belum_layak");
+    expect(r.reasons[0]).toMatch(/^Nilai hilang pada kolom wajib memengaruhi \d,\d% event$/);
+  });
+  it("excludedAfter trusts the caller to filter by source", () => {
+    const r = buildQualityReport(seed(), []);
+    // documented contract: another source's rule is counted if the caller passes it
+    expect(excludedAfter(r, [rule("nilai_hilang", { sourceId: "s-lain", impactEvents: 7, impactCases: 1 })])).toEqual({ events: 7, cases: 1 });
   });
 });

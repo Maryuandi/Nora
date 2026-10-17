@@ -55,7 +55,7 @@ const EXPLANATION: Record<CheckId, string> = {
 };
 
 const RANGE: Partial<Record<CheckId, [number, number]>> = {
-  nilai_hilang: [0.002, 0.03], waktu_tidak_wajar: [0.001, 0.015], urutan_ambigu: [0.02, 0.18], waktu_mulai_selesai: [0.001, 0.01],
+  nilai_hilang: [0.002, 0.07], waktu_tidak_wajar: [0.001, 0.06], urutan_ambigu: [0.02, 0.18], waktu_mulai_selesai: [0.001, 0.01],
 };
 const fraction = (checksum: string, check: CheckId) => {
   const [lo, hi] = RANGE[check]!;
@@ -67,8 +67,8 @@ const fmtPct = (n: number) => `${n.toFixed(1).replace(".", ",")}%`;
 const isExclusion = (r: RepairRule) => r.active && r.action !== "terima";
 const DAY = 86_400_000;
 
-// Spelling key: lowercase, collapsed whitespace, trailing . , ; removed (punctuation first, then trim).
-const labelKey = (s: string) => s.toLowerCase().replace(/\s+/g, " ").replace(/[.,;]+$/, "").trim();
+// Spelling key: lowercase, collapsed whitespace, trimmed, trailing . , ; (and spaces before them) removed.
+const labelKey = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim().replace(/[.,;\s]+$/, "");
 
 // Raw spellings that share a key with another spelling but are not covered by a mapping rule.
 // The most frequent spelling of each group is the display spelling, so it is not counted.
@@ -170,7 +170,8 @@ function verdictOf(findings: QualityFinding[], rules: RepairRule[], totalEvents:
     const handled = mine.some((r) => r.action === "terima") ? f.affectedEvents : mine.filter(isExclusion).reduce((n, r) => n + r.impactEvents, 0);
     const effective = Math.max(0, f.affectedEvents - handled);
     if (effective <= 0 || f.severity === "info") continue;
-    const sentence = `${f.title} memengaruhi ${fmtPct(pct(effective, totalEvents))} event`;
+    const p = pct(effective, totalEvents);
+    const sentence = `${f.title} memengaruhi ${p === 0 ? "kurang dari 0,1%" : fmtPct(p)} event`;
     if (f.severity === "tinggi" && pct(effective, totalEvents) > 5) blocking.push(sentence);
     else notes.push(sentence);
   }
@@ -179,6 +180,7 @@ function verdictOf(findings: QualityFinding[], rules: RepairRule[], totalEvents:
 }
 
 // Totals excluded by active exclusion rules (plus an optional hypothetical one), capped at the dataset totals.
+// Callers must pass rules already filtered to the source (e.g. repairRulesForSource(s, sourceId, true)); other sources' rules are not filtered here.
 export function excludedAfter(
   report: Pick<QualityReport, "totalEvents" | "totalCases">,
   repairRules: RepairRule[],
