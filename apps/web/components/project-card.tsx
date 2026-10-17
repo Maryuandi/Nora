@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarBlank, ClockCounterClockwise } from "@phosphor-icons/react/dist/ssr";
+import { CalendarBlank } from "@phosphor-icons/react/dist/ssr";
 import { AvatarStack } from "@/components/nora/avatar";
 import { RoleBadge, StatusBadge } from "@/components/nora/badges";
 import type { Project, Role } from "@/lib/mock/types";
@@ -26,7 +26,6 @@ export function ProjectCard({ project, clientName, role, members }: { project: P
       <div className="mt-4 flex items-center justify-between gap-3 border-t border-line pt-3 text-xs text-ink-2">
         <span className="flex min-w-0 flex-col gap-1">
           <span className="flex items-center gap-1.5 truncate"><CalendarBlank size={14} aria-hidden />{formatPeriod(project)}</span>
-          <span className="flex items-center gap-1.5 truncate text-ink-3"><ClockCounterClockwise size={14} aria-hidden />Aktivitas terakhir {fmt(project.lastActivityAt)}</span>
         </span>
         <AvatarStack names={members} />
       </div>
