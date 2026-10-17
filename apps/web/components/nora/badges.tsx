@@ -40,10 +40,10 @@ function Pill({ dot, children, className }: { dot?: string; children: React.Reac
 function StatusText({ meta }: { meta: { label: string; icon: Icon; color: string } }) {
   const I = meta.icon;
   return (
-    <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-sm font-medium text-ink">
-      <I size={18} weight={meta.icon === Circle || meta.icon === CircleDashed ? "bold" : "fill"} className={meta.color} aria-hidden />
+    <Pill>
+      <I size={14} weight={meta.icon === Circle || meta.icon === CircleDashed ? "bold" : "fill"} className={meta.color} aria-hidden />
       {meta.label}
-    </span>
+    </Pill>
   );
 }
 
