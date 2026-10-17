@@ -1,17 +1,23 @@
 import Link from "next/link";
+import { X } from "@phosphor-icons/react";
 import { Pill } from "@/components/nora/badges";
 import { RelationBadge } from "@/components/trace/relation-badge";
 import { RELATION_META, neighborhood, type BuiltGraph } from "@/lib/mock/graph";
 import type { GraphNode } from "@/lib/mock/types";
 
-export function NodePanel({ graph, node }: { graph: BuiltGraph; node: GraphNode }) {
+export function NodePanel({ graph, node, onClose }: { graph: BuiltGraph; node: GraphNode; onClose: () => void }) {
   const groups = neighborhood(graph, node.id) ?? [];
   const newer = node.supersededBy ? graph.nodes.find((n) => n.id === node.supersededBy) : undefined;
   return (
     <aside aria-label="Detail simpul" className="flex flex-col gap-4 rounded-lg border border-line bg-white p-4">
       <div>
-        <p className="text-xs text-ink-3">{node.kind} · {node.module}</p>
-        <h2 className="text-base font-semibold text-ink">{node.label}{node.sublabel && <span className="ml-1 font-normal text-ink-3">{node.sublabel}</span>}</h2>
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-xs text-ink-3">{node.kind} · {node.module}</p>
+          <button type="button" onClick={onClose} aria-label="Tutup detail simpul" className="-m-1 rounded p-1 text-ink-3 hover:text-ink">
+            <X size={14} aria-hidden />
+          </button>
+        </div>
+        <h3 className="text-base font-semibold text-ink">{node.label}{node.sublabel && <span className="ml-1 font-normal text-ink-3">{node.sublabel}</span>}</h3>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           {node.href ? <Link href={node.href} className="text-sm font-medium text-accent hover:underline">Buka di {node.module}</Link> : <Pill>Modul belum tersedia</Pill>}
           {newer && <Pill>ada versi lebih baru: {newer.label}</Pill>}
@@ -20,7 +26,7 @@ export function NodePanel({ graph, node }: { graph: BuiltGraph; node: GraphNode 
       {groups.length === 0 && <p className="text-sm text-ink-3">Tidak ada hubungan.</p>}
       {groups.map((g) => (
         <section key={g.category}>
-          <h3 className="mb-1 text-xs font-medium text-ink-2">{RELATION_META[g.category].label} ({g.total})</h3>
+          <h4 className="mb-1 text-xs font-medium text-ink-2">{RELATION_META[g.category].label} ({g.total})</h4>
           <ul className="flex flex-col gap-1.5">
             {g.items.map((i) => (
               <li key={i.node.id} className="flex flex-col gap-1 text-sm">

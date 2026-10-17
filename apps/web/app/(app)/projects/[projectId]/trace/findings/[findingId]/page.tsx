@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
 import { NotFoundPanel } from "@/components/not-found-panel";
@@ -15,7 +15,10 @@ import { RELATION_META, buildGraph, lineage } from "@/lib/mock/graph";
 import type { RelationCategory } from "@/lib/mock/types";
 import { cx } from "@/utils/cx";
 
-const GraphCanvas = dynamic(() => import("@/components/trace/graph-canvas"), { ssr: false });
+const GraphCanvas = dynamic(() => import("@/components/trace/graph-canvas"), {
+  ssr: false,
+  loading: () => <div role="status" className="flex h-[520px] items-center justify-center rounded-lg border border-line bg-white text-sm text-ink-3">Memuat graf…</div>,
+});
 
 export default function FindingTracePage() {
   const { findingId } = useParams<{ findingId: string }>();
@@ -24,12 +27,14 @@ export default function FindingTracePage() {
   const [filter, setFilter] = useState<Set<RelationCategory>>(() => new Set(Object.keys(RELATION_META) as RelationCategory[]));
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const graph = useMemo(() => (ctx ? buildGraph(ctx.state, ctx.project.id) : null), [ctx?.state, ctx?.project.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const result = useMemo(() => (graph ? lineage(graph, findingId) : null), [graph, findingId]);
+  useEffect(() => setSelectedId(null), [findingId]);
   if (!ctx || !graph) return null;
   const { project, state } = ctx;
   const finding = state.findings.find((f) => f.id === findingId && f.projectId === project.id);
-  const result = finding ? lineage(graph, finding.id) : null;
   if (!finding || !result) return <NotFoundPanel />;
-  const selected = graph.nodes.find((n) => n.id === selectedId) ?? null;
+  // Look up within this finding's lineage so an id left over from another finding can never show.
+  const selected = result.nodes.find((n) => n.id === selectedId) ?? null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -57,7 +62,7 @@ export default function FindingTracePage() {
         {view === "daftar"
           ? <LineageList result={result} graph={graph} onSelect={(n) => setSelectedId(n.id)} />
           : <GraphCanvas result={result} filter={filter} selectedId={selectedId} onSelect={setSelectedId} />}
-        {selected && <NodePanel graph={graph} node={selected} />}
+        {selected && <NodePanel graph={graph} node={selected} onClose={() => setSelectedId(null)} />}
       </div>
     </div>
   );

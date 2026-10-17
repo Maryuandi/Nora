@@ -33,7 +33,7 @@ export default function FindingsPage() {
             </Table.Header>
             <Table.Body>
               {rows.map((f) => (
-                <Table.Row key={f.id} id={f.id}>
+                <Table.Row key={f.id} id={f.id} href={`/projects/${project.id}/trace/findings/${f.id}`}>
                   <Table.Cell className="max-w-[360px] px-6 text-sm font-medium text-ink">
                     <Link href={`/projects/${project.id}/trace/findings/${f.id}`} title={f.title} className="block truncate hover:underline">{f.title}</Link>
                   </Table.Cell>

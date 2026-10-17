@@ -8,8 +8,8 @@ const KIND_ICON: Partial<Record<GraphNodeKind, Icon>> = {
   Source: Database, Snapshot: Database, MappingVersion: TreeStructure, Rule: Scales, Document: FileText, Analysis: Flask, Finding: ListChecks,
 };
 
-export function LineageList({ result, onSelect, graph }: { result: LineageResult; onSelect: (n: GraphNode) => void; graph?: BuiltGraph }) {
-  const pool = graph?.nodes ?? result.nodes;
+export function LineageList({ result, onSelect, graph }: { result: LineageResult; onSelect: (n: GraphNode) => void; graph: BuiltGraph }) {
+  const pool = graph.nodes;
   return (
     <ol className="flex flex-col gap-4">
       {result.levels.map((level, i) => (

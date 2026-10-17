@@ -17,12 +17,14 @@ function ExploreContent() {
   const router = useRouter();
   const pathname = usePathname();
   const param = useSearchParams().get("node");
-  const [expanded, setExpanded] = useState<Set<RelationCategory>>(() => new Set());
+  // Expanded groups belong to one node: remember which node they were opened on, so changing node (select, back/forward) resets them.
+  const [open, setOpen] = useState<{ nodeId: string | null; groups: Set<RelationCategory> }>({ nodeId: null, groups: new Set() });
   const graph = useMemo(() => (ctx ? buildGraph(ctx.state, ctx.project.id) : null), [ctx?.state, ctx?.project.id]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!ctx || !graph) return null;
 
   const explorable = graph.nodes.filter((n) => n.kind === "Activity" || n.kind === "Transition");
   const current = param === null ? explorable[0] : explorable.find((n) => n.id === param);
+  const expanded: ReadonlySet<RelationCategory> = open.nodeId === current?.id ? open.groups : new Set();
   const groups = current ? (neighborhood(graph, current.id, { expanded }) ?? []) : [];
 
   return (
@@ -43,7 +45,7 @@ function ExploreContent() {
               label="Aktivitas atau transisi"
               size="sm"
               value={current?.id ?? ""}
-              onChange={(e) => { setExpanded(new Set()); router.replace(`${pathname}?node=${encodeURIComponent(e.target.value)}`); }}
+              onChange={(e) => { router.replace(`${pathname}?node=${encodeURIComponent(e.target.value)}`); }}
               options={[...(current ? [] : [{ label: "Pilih simpul…", value: "", disabled: true }]), ...explorable.map((n) => ({ label: `${n.kind === "Activity" ? "Aktivitas" : "Transisi"} · ${n.label}`, value: n.id }))]}
             />
           </div>
@@ -52,7 +54,7 @@ function ExploreContent() {
           ) : groups.length === 0 ? (
             <p className="text-sm text-ink-3">Tidak ada hubungan.</p>
           ) : (
-            <NeighborGroups groups={groups} expanded={expanded} onExpand={(c) => setExpanded((s) => new Set(s).add(c))} />
+            <NeighborGroups groups={groups} expanded={expanded} onExpand={(c) => setOpen({ nodeId: current!.id, groups: new Set(expanded).add(c) })} />
           )}
         </>
       )}
