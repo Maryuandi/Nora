@@ -1,4 +1,5 @@
 import { runFixture, topTwo } from "./assessment";
+import { upsertGold } from "./classification-reducer";
 import { acceptsData } from "./permissions";
 import { correctionSchema } from "./schemas";
 import type { ReduceResult } from "./reducer";
@@ -62,7 +63,10 @@ export function reduceAssessment(state: MockState, action: AssessmentAction, ctx
     fields = { relevance: topTwo(a.relevance.probs).top[0], reason: "Dikonfirmasi analis", addToGoldSet: false, confirmedOnly: true };
   }
   const correction: AssessmentCorrection = { id: ctx.newId("k"), assessmentId: a.id, actorId: state.viewerId, at: ctx.now, ...fields };
-  const next = ctx.audit({ ...state, corrections: [...state.corrections, correction] }, {
+  const base = fields.addToGoldSet
+    ? upsertGold(state, { projectId: a.projectId, task: "relevansi", itemRef: `${a.findingId}:${a.candidateId}`, label: fields.relevance }, ctx).state
+    : state;
+  const next = ctx.audit({ ...base, corrections: [...base.corrections, correction] }, {
     action: action.type === "correctAssessment" ? "penilaian.koreksi" : "penilaian.konfirmasi", objectType: "Penilaian", objectLabel: label, projectId: a.projectId,
   });
   return { state: next, assessmentId: a.id, correctionId: correction.id };

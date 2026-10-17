@@ -1,6 +1,7 @@
 import { MOCK_TODAY, initialState } from "./data";
 import { isStale } from "../format";
 import { reduceAssessment, type AssessmentAction } from "./assessment-reducer";
+import { reduceClassification, type ClassificationAction } from "./classification-reducer";
 import { fabricate } from "./fabricate";
 import { validateMapping } from "./mapping";
 import { acceptsData } from "./permissions";
@@ -27,9 +28,11 @@ export type MockAction =
   | { type: "changeRuleStatus"; ruleId: string; to: RuleStatus }
   | { type: "confirmRuleClient"; ruleId: string }
   | AssessmentAction
+  | ClassificationAction
   | { type: "setViewer"; userId: string };
 
-export type ReduceResult = { state: MockState; error?: string; snapshotId?: string; duplicateOf?: string; mappingId?: string; ruleId?: string; assessmentId?: string; correctionId?: string };
+export type ReduceResult = { state: MockState; error?: string; snapshotId?: string; duplicateOf?: string; mappingId?: string; ruleId?: string; assessmentId?: string; correctionId?: string;
+  resultId?: string; goldId?: string; evaluationId?: string; specId?: string };
 
 const MAX_BYTES = 500 * 1024 * 1024;
 // ".xes.gz" must come before ".xes".
@@ -78,6 +81,15 @@ export function reduce(state: MockState, action: MockAction): ReduceResult {
     case "correctAssessment":
     case "confirmAssessment":
       return reduceAssessment(state, action, { now: now(), newId: id, audit: withAudit });
+
+    case "runClassification":
+    case "correctClass":
+    case "confirmClass":
+    case "setGoldLabel":
+    case "removeGoldItem":
+    case "runEvaluation":
+    case "saveSpec":
+      return reduceClassification(state, action, { now: now(), newId: id, audit: withAudit });
 
     case "setViewer":
       return { state: { ...state, viewerId: action.userId } };

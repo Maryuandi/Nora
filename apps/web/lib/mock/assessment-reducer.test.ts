@@ -49,6 +49,19 @@ describe("correctAssessment", () => {
     expect(r.state.corrections.at(-1)!.confirmedOnly).toBe(false);
     expect(r.state.audit[0].action).toBe("penilaian.koreksi");
   });
+  it("addToGoldSet creates or updates the relevance gold item with one audit event", () => {
+    const b = s0();
+    const r = reduce(b, correct(aid(b, "c3"), { addToGoldSet: true, relevance: "tidak_relevan" }));
+    expect(r.state.goldItems.length).toBe(b.goldItems.length);
+    expect(r.state.goldItems.find((g) => g.itemRef === "f-bottleneck:c3")!.label).toBe("tidak_relevan");
+    expect(r.state.audit.length).toBe(b.audit.length + 1);
+    expect(r.state.audit[0].action).toBe("penilaian.koreksi");
+    const g = { ...b, goldItems: b.goldItems.filter((x) => x.itemRef !== "f-bottleneck:c3") };
+    const created = reduce(g, correct(aid(g, "c3"), { addToGoldSet: true }));
+    expect(created.state.goldItems.length).toBe(g.goldItems.length + 1);
+    expect(created.state.goldItems.at(-1)).toMatchObject({ id: "g-relevansi-f-bottleneck-c3", task: "relevansi", label: "tidak_relevan", labeler: "u-dimas" });
+    expect(created.state.audit.length).toBe(g.audit.length + 1);
+  });
   it("validates the reason", () => {
     const b = s0();
     expect(reduce(b, correct(aid(b, "c3"), { reason: "   " })).error).toBe("Alasan wajib diisi");
