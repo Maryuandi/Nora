@@ -171,4 +171,4 @@ const rules: RuleVersion[] = [
     source: sop("Bagian 5.4", "Faktur tidak boleh dicatat lagi setelah pelunasan.") }),
 ];
 
-export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, rules, viewerId: "u-dimas" };
+export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, rules, findings: [], candidates: [], assessments: [], corrections: [], viewerId: "u-dimas" };

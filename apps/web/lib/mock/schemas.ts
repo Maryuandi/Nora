@@ -44,4 +44,10 @@ export const activateSchema = z
   })
   .refine((v) => v.confirm === v.password, { path: ["confirm"], message: "Konfirmasi tidak sama dengan kata sandi" });
 
+export const correctionSchema = z.object({
+  relevance: z.enum(["relevan", "sebagian_relevan", "tidak_relevan", "informasi_tidak_cukup"]),
+  reason: required("Alasan").max(500, "Alasan maksimal 500 karakter"),
+  addToGoldSet: z.boolean(),
+});
+
 export type ProjectInput = z.infer<typeof projectSchema>;

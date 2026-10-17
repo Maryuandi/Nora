@@ -140,6 +140,40 @@ export interface RuleVersion {
   approvedBy?: string; approvedAt?: string;
 }
 
+export type AssessmentStatus = "otomatis" | "perlu_review" | "informasi_tidak_cukup" | "gagal" | "tertunda";
+export type Relevance = "relevan" | "sebagian_relevan" | "tidak_relevan" | "informasi_tidak_cukup";
+
+export interface Criterion {
+  key: string; label: string;
+  weight: number; // bobot, jumlah 1 per kandidat
+  scale: { level: number; definition: string }[]; // 1..5
+}
+export interface Candidate {
+  id: string; kind: "hipotesis" | "intervensi"; name: string;
+  criteria: Criterion[]; applicable: boolean; notApplicableReason?: string;
+}
+export interface Finding {
+  id: string; projectId: string; title: string; summary: string;
+  candidateIds: string[]; evidenceBundleId: string;
+}
+
+export interface CriterionScore { key: string; level: number; probs: number[] } // probs: panjang 5, jumlah 1
+export interface Assessment {
+  id: string; projectId: string; findingId: string; candidateId: string;
+  status: AssessmentStatus;
+  sufficient: { prob: number }; // Noul: probabilitas "cukup"
+  scores: CriterionScore[]; // Score per kriteria
+  relevance: { probs: Record<Relevance, number> }; // Choice: distribusi
+  modelId: string; specVersion: number; evidenceBundleId: string; runId: string; createdAt: string;
+  rawOutputRef: string; // tautan tiruan ke keluaran mentah
+  supersededBy?: string; // id hasil yang menggantikannya
+}
+export interface AssessmentCorrection {
+  id: string; assessmentId: string; actorId: string; at: string;
+  relevance: Relevance; reason: string; addToGoldSet: boolean;
+  confirmedOnly: boolean; // konfirmasi tanpa mengubah nilai
+}
+
 export interface MockState {
   clients: Client[];
   projects: Project[];
@@ -150,5 +184,9 @@ export interface MockState {
   snapshots: Snapshot[];
   mappings: MappingVersion[];
   rules: RuleVersion[];
+  findings: Finding[];
+  candidates: Candidate[];
+  assessments: Assessment[];
+  corrections: AssessmentCorrection[];
   viewerId: string;
 }

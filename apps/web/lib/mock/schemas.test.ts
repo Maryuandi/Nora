@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activateSchema, clientSchema, memberSchema, projectSchema, statusChangeSchema } from "./schemas";
+import { activateSchema, clientSchema, correctionSchema, memberSchema, projectSchema, statusChangeSchema } from "./schemas";
 
 const errorsOf = (r: { success: boolean; error?: { flatten(): { fieldErrors: Record<string, string[] | undefined> } } }) =>
   r.success ? {} : r.error!.flatten().fieldErrors;
@@ -46,5 +46,21 @@ describe("schemas", () => {
     const e = errorsOf(activateSchema.safeParse({ password: "a".repeat(12), confirm: "b".repeat(12) }));
     expect(e.confirm?.[0]).toBeTruthy();
     expect(e.password).toBeUndefined();
+  });
+
+  describe("correctionSchema", () => {
+    const ok = { relevance: "relevan", reason: "Bukti jelas", addToGoldSet: false };
+    it("rejects a whitespace-only reason", () => {
+      expect(errorsOf(correctionSchema.safeParse({ ...ok, reason: "   " })).reason?.[0]).toBe("Alasan wajib diisi");
+    });
+    it("rejects a 501-character reason", () => {
+      expect(errorsOf(correctionSchema.safeParse({ ...ok, reason: "a".repeat(501) })).reason?.[0]).toBe("Alasan maksimal 500 karakter");
+    });
+    it("accepts a 500-character reason", () => {
+      expect(correctionSchema.safeParse({ ...ok, reason: "a".repeat(500) }).success).toBe(true);
+    });
+    it("rejects a relevance outside the enum", () => {
+      expect(correctionSchema.safeParse({ ...ok, relevance: "mungkin" }).success).toBe(false);
+    });
   });
 });

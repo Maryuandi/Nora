@@ -20,6 +20,9 @@ const EXPECTED: Record<UiAction, Role[]> = {
   "rule.view": ["administrator", "analis", "pemilik_proses"],
   "rule.edit": ["analis"],
   "rule.confirm": ["pemilik_proses"],
+  "assessment.view": ["administrator", "analis", "pemilik_proses"],
+  "assessment.run": ["analis"],
+  "assessment.correct": ["analis"],
 };
 
 describe("can", () => {
@@ -30,6 +33,10 @@ describe("can", () => {
       });
     }
   }
+});
+
+describe("assessment.view", () => {
+  it("is denied without a role", () => expect(can(null, "assessment.view")).toBe(false));
 });
 
 describe("acceptsData", () => {
