@@ -2,7 +2,7 @@ import { activityLabels, hash } from "./mapping";
 import type { MappingVersion, MockState, RuleParams, RuleScope, RuleSourceRef, RuleStatus, RuleType, RuleVersion, Snapshot } from "./types";
 
 export const RULE_TYPE_LABEL: Record<RuleType, string> = {
-  sla: "Batas waktu (SLA)", urutan: "Urutan aktivitas", wajib: "Aktivitas wajib", terlarang: "Aktivitas terlarang", pemisahan_tugas: "Pemisahan tugas",
+  sla: "SLA durasi", urutan: "Urutan", wajib: "Aktivitas wajib", terlarang: "Aktivitas terlarang", pemisahan_tugas: "Pemisahan tugas",
 };
 export const RULE_STATUS_LABEL: Record<RuleStatus, string> = { draf: "Draf", ditinjau: "Ditinjau", disetujui: "Disetujui", usang: "Usang" };
 
@@ -98,6 +98,7 @@ export function validateRule(input: RuleInput, labels: string[]): { field: strin
 export function previewDataset(state: MockState, projectId: string): { sourceId: string; snapshot: Snapshot; mapping: MappingVersion } | null {
   for (const source of state.sources.filter((x) => x.projectId === projectId)) {
     const mapping = latestMappingOf(state, source.id);
+    // Intentionally the newest siap_dipetakan snapshot, while canonicalLabels uses mapping.snapshotId (mock simplification).
     const snapshot = newestFirst(state.snapshots.filter((x) => x.sourceId === source.id && x.status === "siap_dipetakan"), (x) => x.uploadedAt)[0];
     if (mapping && snapshot) return { sourceId: source.id, mapping, snapshot };
   }
@@ -118,7 +119,8 @@ export function previewRule(input: { params: RuleParams; scope: RuleScope | null
   // Stable key: sorted keys so property order never changes the result (params and scope are flat objects).
   const stable = (o: object | null) => JSON.stringify(o, o ? Object.keys(o).sort() : undefined);
   const key = `${input.params.type}|${stable(input.params)}|${stable(input.scope)}|${snapshot.checksum}`;
-  const cases = Math.round((snapshot.stats?.rows ?? 0) / 6);
+  const rows = snapshot.stats?.rows;
+  const cases = Math.round((typeof rows === "number" && Number.isFinite(rows) ? Math.max(0, rows) : 0) / 6);
   const lo = Math.ceil(cases * 0.6);
   const evaluable = lo + Math.floor((cases - lo + 1) * ((hash(key) % 1000) / 1000));
   const cLo = Math.ceil(evaluable * 0.55);

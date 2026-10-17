@@ -21,6 +21,25 @@ describe("canonicalLabels", () => {
     expect(l).not.toContain("Cancel Invoice Receipt");
     expect(new Set(l).size).toBe(l.length);
     expect(l).toEqual([...l].sort());
+    expect(l).not.toContain("create purchase order item");
+    expect(l.some((x) => x !== x.trim())).toBe(false);
+  });
+  const withMappings = (mappings: MappingVersion[]): MockState => ({ ...s, mappings });
+  const m1 = s.mappings[0];
+  it("uses the latest mapping of a source", () => {
+    const later: MappingVersion = { ...m1, id: "m-x", version: 2, createdAt: "2026-10-16T00:00:00Z", labels: [{ raw: "Clear Invoice", canonical: "Bayar Faktur" }] };
+    const l2 = canonicalLabels(withMappings([later, m1]), "s-p2p-sap");
+    expect(l2).toContain("Bayar Faktur");
+    expect(l2).not.toContain("Clear Invoice");
+    expect(l2).toContain("Cancel Invoice Receipt"); // not excluded by the later mapping
+  });
+  it("dedupes raws renamed to the same canonical and drops blank renames", () => {
+    const m: MappingVersion = { ...m1, labels: [
+      { raw: "Clear Invoice", canonical: "Satu" }, { raw: "Record Goods Receipt", canonical: "Satu" }, { raw: "Record Invoice Receipt", canonical: "   " } ] };
+    const l2 = canonicalLabels(withMappings([m]), "s-p2p-sap");
+    expect(l2.filter((x) => x === "Satu")).toHaveLength(1);
+    expect(l2).not.toContain("");
+    expect(l2).not.toContain("Record Invoice Receipt");
   });
   it("is empty for a source without mapping", () => {
     expect(canonicalLabels(s, "s-p2p-tiket")).toEqual([]);
@@ -65,6 +84,9 @@ describe("validateRule", () => {
     expect(fields(base({ effectiveTo: "2026-04-30" }))).toEqual(["effectiveTo"]);
     expect(fields(base({ effectiveTo: "2026-05-01" }))).toEqual([]);
     expect(fields(base({ effectiveTo: "ngawur" }))).toEqual(["effectiveTo"]);
+    expect(fields(base({ effectiveFrom: "2024-02-29" }))).toEqual([]);
+    expect(fields(base({ effectiveFrom: "2026-02-29" }))).toEqual(["effectiveFrom"]);
+    expect(fields(base({ effectiveFrom: "2026-13-01" }))).toEqual(["effectiveFrom"]);
   });
   it("validates scope", () => {
     expect(fields(base({ scope: { attribute: "region", op: "=", value: "  " } }))).toEqual(["scope.value"]);
@@ -111,7 +133,21 @@ describe("previewDataset / previewRule", () => {
     // resource column is not a scope attribute
     expect(previewRule({ params, scope: { attribute: "resource", op: "=", value: "x" } }, ds).status).toBe("tidak_dapat_dievaluasi");
   });
-  it("handles huge limits and varies with params", () => {
+  it("varies with params/checksum but not with key order", () => {
+    const sig = (p: typeof params, sc: Parameters<typeof previewRule>[0]["scope"], d = ds) => JSON.stringify(previewRule({ params: p, scope: sc }, d));
+    const variants = [10, 11, 12, 13, 14, 15, 16, 17].map((limit) => sig({ ...(params as object), limit } as typeof params, null));
+    expect(new Set(variants).size).toBeGreaterThan(1);
+    const checksums = ["a", "b", "c", "d", "e", "f"].map((c) => sig(params, null, { ...ds, snapshot: { ...ds.snapshot, checksum: c } }));
+    expect(new Set(checksums).size).toBeGreaterThan(1);
+    const reordered = { unit: "kerja", limit: 14, to: LABELS[1], from: LABELS[0], type: "sla" } as typeof params;
+    expect(sig(reordered, null)).toBe(sig(params, null));
+    const withAttr = { ...ds, mapping: { ...ds.mapping, roles: { ...ds.mapping.roles, region: "case_attr" as const } } };
+    expect(sig(params, { value: "ID", op: "=", attribute: "region" }, withAttr)).toBe(sig(params, { attribute: "region", op: "=", value: "ID" }, withAttr));
+    for (const rows of [NaN, -5]) {
+      expect(previewRule({ params, scope: null }, { ...ds, snapshot: { ...ds.snapshot, stats: { ...ds.snapshot.stats!, rows } } })).toEqual({ status: "ok", evaluable: 0, compliant: 0, nonCompliant: 0 });
+    }
+  });
+  it("handles huge limits", () => {
     const big = previewRule({ params: { type: "sla", from: LABELS[0], to: LABELS[1], limit: 1e9, unit: "kerja" }, scope: null }, ds);
     expect(big.status).toBe("ok");
     const snap: Snapshot = { ...ds.snapshot, stats: undefined };
