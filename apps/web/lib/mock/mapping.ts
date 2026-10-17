@@ -54,7 +54,7 @@ export function detectTimeFormat(samples: string[]): string {
 const OFFSET_HOURS: Record<string, number> = { "Asia/Jakarta": 7, "Asia/Makassar": 8, "Asia/Jayapura": 9, UTC: 0 };
 
 function toUtc(text: string, format: string, timezone: string): string | null {
-  const m = PATTERNS[format]?.exec(text);
+  const m = Object.hasOwn(PATTERNS, format) ? PATTERNS[format].exec(text) : null;
   const off = Object.hasOwn(OFFSET_HOURS, timezone) ? OFFSET_HOURS[timezone] : undefined;
   if (!m || off === undefined) return null;
   const n = m.slice(1).map(Number);
@@ -141,9 +141,9 @@ export function previewEvents(input: { snapshot: Snapshot; roles: Record<string,
 
 // ---- validateMapping ----
 export function validateMapping(input: {
-  columns: string[]; roles: Record<string, ColumnRole>; confirmed: ColumnRole[]; timezoneConfirmed: boolean; timeFormat: string; labels: LabelRule[];
+  columns: string[]; roles: Record<string, ColumnRole>; confirmed: ColumnRole[]; timezoneConfirmed: boolean; timezone: string; timeFormat: string; labels: LabelRule[];
 }): { field: string; message: string }[] {
-  const { columns, roles, confirmed, timezoneConfirmed, timeFormat, labels } = input;
+  const { columns, roles, confirmed, timezoneConfirmed, timezone, timeFormat, labels } = input;
   const errors: { field: string; message: string }[] = [];
   for (const role of REQUIRED_ROLES) {
     const n = columns.filter((c) => own(roles, c) === role).length;
@@ -153,6 +153,7 @@ export function validateMapping(input: {
     else if (!confirmed.includes(role)) errors.push({ field, message: `Konfirmasi kolom ${ROLE_LABEL[role]}` });
   }
   if (!timezoneConfirmed) errors.push({ field: "timezone", message: "Konfirmasi zona waktu sumber" });
+  if (!(TIMEZONES as readonly string[]).includes(timezone)) errors.push({ field: "timezone", message: "Zona waktu tidak dikenali" });
   if (!(TIME_FORMATS as readonly string[]).includes(timeFormat)) errors.push({ field: "timeFormat", message: "Pilih format waktu yang dikenali" });
 
   if (labels.some((l) => l.canonical !== null && l.canonical.trim() === "")) errors.push({ field: "labels", message: "Nama kanonis tidak boleh kosong" });

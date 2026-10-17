@@ -106,6 +106,23 @@ describe("previewEvents", () => {
     expect(run({ timeFormat: "DD/MM/YYYY HH:mm" })[0].timeUtc).toBeNull();
     expect(run({ timeFormat: "tidak dikenali" })[0].timeUtc).toBeNull();
   });
+  it("rejects impossible dates and handles rollovers", () => {
+    const at = (t: string, timeFormat: string, timezone = "Asia/Jakarta") => {
+      const s = snap(); s.preview = [["C", "A", t, "u"]];
+      return run({ snapshot: s, timeFormat, timezone })[0].timeUtc;
+    };
+    const iso = "YYYY-MM-DD HH:mm:ss", dmy = "DD/MM/YYYY HH:mm";
+    expect(at("31/09/2026 08:00", dmy)).toBeNull();
+    expect(at("01/13/2026 10:00", dmy)).toBeNull();
+    expect(at("2026-02-29 08:00:00", iso)).toBeNull();
+    expect(at("2024-02-29 08:00:00", iso)).toBe("2024-02-29T01:00:00Z");
+    expect(at("2026-09-01 25:00:00", iso)).toBeNull();
+    expect(at("2026-09-01 03:00:00", iso)).toBe("2026-08-31T20:00:00Z");
+    expect(at("2026-01-01 05:00:00", iso, "Asia/Jayapura")).toBe("2025-12-31T20:00:00Z");
+  });
+  it("prototype-key format gives null instead of throwing", () => {
+    expect(run({ timeFormat: "toString" })[0].timeUtc).toBeNull();
+  });
   it("applies label rules", () => {
     const labels: LabelRule[] = [{ raw: "Create Order", canonical: "Buat Pesanan" }, { raw: "Cancel", canonical: null }];
     const r = run({ labels });
@@ -133,6 +150,7 @@ describe("validateMapping", () => {
     roles: { c: "case_id", a: "activity", t: "timestamp_end" } as Record<string, ColumnRole>,
     confirmed: ["case_id", "activity", "timestamp_end"] as ColumnRole[],
     timezoneConfirmed: true,
+    timezone: "Asia/Jakarta",
     timeFormat: "YYYY-MM-DD HH:mm:ss",
     labels: [] as LabelRule[],
   });
@@ -152,6 +170,10 @@ describe("validateMapping", () => {
   it("role not confirmed", () => {
     const i = ok(); i.confirmed = ["case_id", "timestamp_end"];
     expect(validateMapping(i)).toEqual([{ field: "role:activity", message: "Konfirmasi kolom Aktivitas" }]);
+  });
+  it("unknown timezone", () => {
+    const i = ok(); i.timezone = "Mars/Olympus";
+    expect(validateMapping(i)).toEqual([{ field: "timezone", message: "Zona waktu tidak dikenali" }]);
   });
   it("unknown time format", () => {
     const i = ok(); i.timeFormat = "tidak dikenali";

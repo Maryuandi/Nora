@@ -40,7 +40,7 @@ export default function MappingPage() {
       <div className="min-w-0">
         <h2 className="truncate text-[20px] leading-7 font-semibold tracking-[-0.02em]" title={source.name}>{source.name}</h2>
         <p className="mt-1 text-sm text-ink-3">
-          {snap ? <>Pemetaan untuk snapshot <span title={snap.fileName}>{snap.fileName}</span>. {template ? `Dasar: versi v${template.version}.` : "Belum ada pemetaan sebelumnya."}</> : "Pemetaan kolom, waktu, dan label aktivitas."}
+          {snap ? <>Pemetaan untuk snapshot <span className="break-all" title={snap.fileName}>{snap.fileName}</span>. {template ? `Dasar: versi v${template.version}.` : "Belum ada pemetaan sebelumnya."}</> : "Pemetaan kolom, waktu, dan label aktivitas."}
         </p>
       </div>
       <SourceTabs base={base} active="/mapping" />
@@ -55,7 +55,7 @@ export default function MappingPage() {
           <Link href={base} className="mt-3 inline-block text-sm font-medium text-accent hover:underline">Kembali ke sumber data</Link>
         </div>
       ) : (
-        <MappingForm key={`${snap.id}:${template?.id ?? ""}`} snapshot={snap} initial={template} readOnly={!(mayEdit && open)} onSave={save} />
+        <MappingForm key={`${snap.id}:${template?.id ?? ""}:${mayEdit && open}`} snapshot={snap} initial={template} readOnly={!(mayEdit && open)} onSave={save} />
       )}
     </div>
   );
