@@ -27,13 +27,12 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
   return (
     <>
       <PageHeader
-        eyebrow={client.name}
         title={project.name}
         stats={[
           { label: "Status", value: <StatusBadge status={project.status} /> },
           { label: "Proses", value: project.process.name },
           { label: "Periode kontrak", value: formatPeriod(project) },
-          { label: "Peranmu", value: ({ administrator: "Administrator", analis: "Analis", pemilik_proses: "Pemilik proses" } as const)[ctx.role] },
+          { label: "Perusahaan", value: client.name },
         ]}
         tabs={tabs}
       />
