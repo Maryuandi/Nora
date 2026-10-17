@@ -1,6 +1,9 @@
 import { MOCK_TODAY, initialState } from "./data";
+import { isStale } from "../format";
+import { fabricate } from "./fabricate";
+import { acceptsData } from "./permissions";
 import { projectSchema, type ProjectInput } from "./schemas";
-import type { AuditEvent, MockState, Project, ProjectStatus, Role } from "./types";
+import type { AuditEvent, MockState, Project, ProjectStatus, Role, Snapshot, SnapshotStatus } from "./types";
 
 export { MOCK_TODAY, initialState };
 
@@ -11,7 +14,28 @@ export type MockAction =
   | { type: "addMember"; projectId: string; email: string; role: Role }
   | { type: "changeMemberRole"; projectId: string; userId: string; role: Role }
   | { type: "removeMember"; projectId: string; userId: string }
+  | { type: "createSource"; projectId: string; name: string }
+  | { type: "uploadSnapshot"; sourceId: string; fileName: string; sizeBytes: number }
+  | { type: "confirmSnapshot"; snapshotId: string }
+  | { type: "cancelSnapshot"; snapshotId: string }
   | { type: "setViewer"; userId: string };
+
+export type ReduceResult = { state: MockState; error?: string; snapshotId?: string; duplicateOf?: string };
+
+const MAX_BYTES = 500 * 1024 * 1024;
+// ".xes.gz" must come before ".xes".
+const FORMATS = ["xes.gz", "csv", "xes", "zip"] as const;
+const DAY = 86_400_000;
+
+// 32-bit FNV-1a run twice with different seeds -> 12 hex chars. Fake checksum, not cryptographic.
+function fnv(text: string): string {
+  const h = (seed: number) => {
+    let x = seed;
+    for (let i = 0; i < text.length; i++) x = Math.imul(x ^ text.charCodeAt(i), 16777619) >>> 0;
+    return x.toString(16).padStart(8, "0");
+  };
+  return (h(2166136261) + h(0x9e3779b1)).slice(0, 12);
+}
 
 const TRANSITIONS: Record<ProjectStatus, ProjectStatus[]> = {
   draft: ["aktif"],
@@ -38,7 +62,7 @@ const isLastAdmin = (s: MockState, projectId: string, userId: string) => {
   return admins.length === 1 && admins[0].userId === userId;
 };
 
-export function reduce(state: MockState, action: MockAction): { state: MockState; error?: string } {
+export function reduce(state: MockState, action: MockAction): ReduceResult {
   const fail = (error: string) => ({ state, error });
   switch (action.type) {
     case "setViewer":
@@ -119,7 +143,85 @@ export function reduce(state: MockState, action: MockAction): { state: MockState
       const label = state.users.find((u) => u.id === action.userId)?.email ?? action.userId;
       return { state: withAudit(next, { action: "anggota.cabut", objectType: "Anggota", objectLabel: label, projectId: action.projectId }) };
     }
+
+    case "createSource": {
+      const p = state.projects.find((x) => x.id === action.projectId);
+      if (!p) return fail("Proyek tidak ditemukan");
+      if (!acceptsData(p.status)) return fail("Proyek ini tidak menerima data baru");
+      const name = action.name.trim();
+      if (!name) return fail("Nama sumber wajib diisi");
+      if (state.sources.some((x) => x.projectId === p.id && x.name.toLowerCase() === name.toLowerCase()))
+        return fail("Sumber dengan nama ini sudah ada di proyek ini");
+      const source = { id: id("s"), projectId: p.id, name, kind: "file" as const, createdAt: now(), createdBy: state.viewerId };
+      return { state: withAudit({ ...state, sources: [...state.sources, source] }, { action: "sumber.tambah", objectType: "Sumber data", objectLabel: name, projectId: p.id }) };
+    }
+
+    case "uploadSnapshot": {
+      const source = state.sources.find((x) => x.id === action.sourceId);
+      const project = source && state.projects.find((x) => x.id === source.projectId);
+      if (!source || !project) return fail("Sumber data tidak ditemukan");
+      if (!acceptsData(project.status)) return fail("Proyek ini tidak menerima data baru");
+      const lower = action.fileName.toLowerCase();
+      const format = FORMATS.find((f) => lower.endsWith(`.${f}`));
+      if (!format) return fail("Format tidak didukung");
+      if (!(action.sizeBytes > 0)) return fail("File kosong");
+      if (action.sizeBytes > MAX_BYTES) return fail("Ukuran melebihi 500 MB");
+      const checksum = fnv(`${action.fileName}:${action.sizeBytes}`);
+      const mine = state.snapshots.filter((x) => x.sourceId === source.id && x.status !== "dibatalkan");
+      const dup = mine.find((x) => x.checksum === checksum);
+      if (dup) return { state, duplicateOf: dup.id };
+
+      const snap: Snapshot = {
+        id: id("sn"), sourceId: source.id, projectId: project.id, fileName: action.fileName, sizeBytes: action.sizeBytes,
+        format, checksum, uploadedBy: state.viewerId, uploadedAt: now(), status: "siap_dipetakan",
+      };
+      if (lower.includes("gagal")) {
+        snap.status = "gagal";
+        snap.failureReason = "Isi file bukan CSV yang valid";
+        snap.errors = [{ kind: "Struktur file tidak dikenali", count: 1, examples: [{ row: 1, text: "(berkas biner, bukan teks)" }] }];
+      } else {
+        const rows = Math.round(action.sizeBytes / 220);
+        const damaged = lower.includes("rusak");
+        const rejected = Math.round(rows * (damaged ? 0.08 : 0.005));
+        const hasPrior = mine.some((x) => x.stats);
+        const duplicateEvents = hasPrior ? Math.round(rows * 0.4) : 0;
+        const conflictEvents = hasPrior ? Math.round(rows * 0.002) : 0;
+        const latest = new Date(Date.parse(MOCK_TODAY) - DAY).toISOString().slice(0, 10);
+        snap.status = damaged ? "perlu_tinjauan" : "siap_dipetakan";
+        snap.stats = {
+          rows, rejected, encoding: "UTF-8", delimiter: format === "csv" ? ";" : "-",
+          timeFrom: new Date(Date.parse(latest) - 270 * DAY).toISOString().slice(0, 10), timeTo: latest, latestEventAt: latest,
+          newEvents: rows - duplicateEvents - conflictEvents, duplicateEvents, conflictEvents,
+        };
+        Object.assign(snap, fabricate(rows, rejected));
+      }
+      const next = { ...state, snapshots: [...state.snapshots, snap] };
+      return { state: withAudit(next, { action: "snapshot.unggah", objectType: "Snapshot", objectLabel: snap.fileName, projectId: project.id }), snapshotId: snap.id };
+    }
+
+    case "confirmSnapshot":
+    case "cancelSnapshot": {
+      const snap = state.snapshots.find((x) => x.id === action.snapshotId);
+      if (!snap) return fail("Snapshot tidak ditemukan");
+      const confirm = action.type === "confirmSnapshot";
+      const allowed = confirm ? snap.status === "perlu_tinjauan" : ["memvalidasi", "perlu_tinjauan", "siap_dipetakan"].includes(snap.status);
+      if (!allowed) return fail(confirm ? "Hanya snapshot yang perlu tinjauan yang bisa dikonfirmasi" : "Snapshot ini tidak bisa dibatalkan");
+      const to: SnapshotStatus = confirm ? "siap_dipetakan" : "dibatalkan";
+      const next = { ...state, snapshots: state.snapshots.map((x) => (x === snap ? { ...x, status: to } : x)) };
+      return { state: withAudit(next, { action: confirm ? "snapshot.konfirmasi" : "snapshot.batal", objectType: "Snapshot", objectLabel: snap.fileName, projectId: snap.projectId }) };
+    }
   }
+}
+
+export const snapshotsForSource = (s: MockState, sourceId: string): Snapshot[] =>
+  s.snapshots.filter((x) => x.sourceId === sourceId).sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
+
+// Cancelled snapshots never count: their data was not imported.
+export function sourceFreshness(s: MockState, sourceId: string): { lastImportAt: string | null; latestEventAt: string | null; stale: boolean } {
+  const live = s.snapshots.filter((x) => x.sourceId === sourceId && x.status !== "dibatalkan");
+  const max = (xs: (string | undefined)[]) => xs.reduce<string | null>((m, v) => (v && (!m || v > m) ? v : m), null);
+  const latestEventAt = max(live.map((x) => x.stats?.latestEventAt));
+  return { lastImportAt: max(live.map((x) => x.uploadedAt)), latestEventAt, stale: latestEventAt ? isStale(latestEventAt) : false };
 }
 
 export const viewerRole = (s: MockState, projectId: string): Role | null =>
