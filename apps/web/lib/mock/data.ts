@@ -1,5 +1,7 @@
 import type { AuditEvent, Client, Membership, MappingVersion, MockState, Project, RuleSourceRef, RuleVersion, Snapshot, Source, User } from "./types";
 
+import { priorityPolicies, recCandidates, recFindings, scenarios, trials } from "./rec-data";
+
 export const MOCK_TODAY = "2026-10-17";
 
 const clients: Client[] = [
@@ -171,4 +173,8 @@ const rules: RuleVersion[] = [
     source: sop("Bagian 5.4", "Faktur tidak boleh dicatat lagi setelah pelunasan.") }),
 ];
 
-export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, rules, viewerId: "u-dimas" };
+export const initialState: MockState = {
+  clients, projects, users, memberships, audit, sources, snapshots, mappings, rules,
+  recFindings, recCandidates, priorityPolicies, scenarios, trials,
+  viewerId: "u-dimas",
+};

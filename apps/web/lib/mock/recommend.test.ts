@@ -44,7 +44,7 @@ describe("validateCandidate", () => {
     expect(v.missing).toContainEqual({ what: "Metrik after_hours_share", from: "M06" });
   });
   it("jev belum_dinilai (or no entry) -> belum_layak_dinilai with M08 source", () => {
-    for (const j of [{ f1: jev({ status: "belum_dinilai", score: null, prob: null, conclusion: null }) }, {}]) {
+    for (const j of <Record<string, JevResult>[]>[{ f1: jev({ status: "belum_dinilai", score: null, prob: null, conclusion: null }) }, {}]) {
       const v = validateCandidate(cand({ jev: j }), finding, { memberRoles: roles });
       expect(v.status).toBe("belum_layak_dinilai");
       expect(v.missing.some((m) => m.from === "M08")).toBe(true);

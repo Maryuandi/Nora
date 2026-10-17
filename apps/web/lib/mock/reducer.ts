@@ -1,4 +1,6 @@
 import { MOCK_TODAY, initialState } from "./data";
+import { id, now, withAudit } from "./audit";
+import { reduceRec, type RecAction } from "./rec-reducer";
 import { isStale } from "../format";
 import { fabricate } from "./fabricate";
 import { validateMapping } from "./mapping";
@@ -25,9 +27,10 @@ export type MockAction =
   | { type: "saveRule"; projectId: string; ruleKey?: string; input: RuleInput }
   | { type: "changeRuleStatus"; ruleId: string; to: RuleStatus }
   | { type: "confirmRuleClient"; ruleId: string }
+  | RecAction
   | { type: "setViewer"; userId: string };
 
-export type ReduceResult = { state: MockState; error?: string; snapshotId?: string; duplicateOf?: string; mappingId?: string; ruleId?: string };
+export type ReduceResult = { state: MockState; error?: string; snapshotId?: string; duplicateOf?: string; mappingId?: string; ruleId?: string; candidateId?: string; scenarioId?: string; trialId?: string };
 
 const MAX_BYTES = 500 * 1024 * 1024;
 // ".xes.gz" must come before ".xes".
@@ -54,23 +57,16 @@ const TRANSITIONS: Record<ProjectStatus, ProjectStatus[]> = {
 
 export const allowedTransitions = (from: ProjectStatus) => TRANSITIONS[from];
 
-// Fixed clock so the demo looks the same every time.
-const now = () => `${MOCK_TODAY}T09:30:00Z`;
-let seq = 0;
-const id = (prefix: string) => `${prefix}-${Date.now().toString(36)}${(seq++).toString(36)}`;
-
-const withAudit = (state: MockState, e: Omit<AuditEvent, "id" | "at" | "actorId" | "result">): MockState => ({
-  ...state,
-  audit: [{ id: id("a"), at: now(), actorId: state.viewerId, result: "sukses", ...e }, ...state.audit],
-});
-
 const isLastAdmin = (s: MockState, projectId: string, userId: string) => {
   const admins = s.memberships.filter((m) => m.projectId === projectId && m.role === "administrator");
   return admins.length === 1 && admins[0].userId === userId;
 };
 
+const isRec = (a: MockAction): a is RecAction => a.type.startsWith("rec/");
+
 export function reduce(state: MockState, action: MockAction): ReduceResult {
   const fail = (error: string) => ({ state, error });
+  if (isRec(action)) return reduceRec(state, action);
   switch (action.type) {
     case "setViewer":
       return { state: { ...state, viewerId: action.userId } };
@@ -369,3 +365,5 @@ export function contractEndingSoon(p: Project, today = MOCK_TODAY): boolean {
   const days = (Date.parse(p.contractEnd) - Date.parse(today)) / 86_400_000;
   return days >= 0 && days <= 14;
 }
+
+export { findingsForProject, candidatesForFinding, latestPolicy, evaluateFinding } from "./rec-reducer";
