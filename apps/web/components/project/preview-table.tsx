@@ -12,7 +12,7 @@ export function PreviewTable({ rows }: { rows: PreviewRow[] }) {
   if (!rows.length) return <p className="px-4 py-6 text-sm text-ink-3">Tidak ada baris pratinjau.</p>;
   return (
     <div className="max-h-[360px] overflow-auto" tabIndex={0} role="region" aria-label="Pratinjau event">
-      <table aria-label="Pratinjau event" className="w-full text-left text-sm">
+      <table aria-label="Baris pratinjau event" className="w-full text-left text-sm">
         <thead className="sticky top-0 bg-white">
           <tr className="border-b border-line text-xs text-ink-3">{HEADS.map((h) => <th key={h} className="px-4 py-2 font-medium whitespace-nowrap">{h}</th>)}</tr>
         </thead>

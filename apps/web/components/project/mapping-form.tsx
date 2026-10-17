@@ -50,8 +50,8 @@ export function MappingForm({ snapshot, initial, readOnly = false, onSave }: {
   const [timeFormat, setTimeFormat] = useState(initial?.timeFormat ?? "");
   const [timezone, setTimezone] = useState(initial?.timezone ?? "Asia/Jakarta");
   const [labels, setLabels] = useState<LabelRule[]>(initial?.labels ?? []);
-  const [confirmed, setConfirmed] = useState<ColumnRole[]>(readOnly ? [...REQUIRED_ROLES] : []);
-  const [timezoneConfirmed, setTimezoneConfirmed] = useState(readOnly);
+  const [confirmed, setConfirmed] = useState<ColumnRole[]>([]);
+  const [timezoneConfirmed, setTimezoneConfirmed] = useState(false);
   const [note, setNote] = useState("");
   const [attempted, setAttempted] = useState(false);
   const [saveError, setSaveError] = useState<string | undefined>();
@@ -89,6 +89,7 @@ export function MappingForm({ snapshot, initial, readOnly = false, onSave }: {
   const toggleConfirm = (role: ColumnRole, on: boolean) => setConfirmed(on ? [...confirmed, role] : confirmed.filter((r) => r !== role));
 
   function save() {
+    setSaveError(undefined);
     setAttempted(true);
     if (errors.length || !onSave) return;
     setSaveError(onSave({ roles, timeFormat, timezone, labels, confirmed, timezoneConfirmed, ...(note.trim() ? { note: note.trim() } : {}) }));
@@ -140,7 +141,7 @@ export function MappingForm({ snapshot, initial, readOnly = false, onSave }: {
                       {!readOnly && sug && sug !== role && (
                         <span className="flex items-center gap-2 text-xs text-ink-3">
                           {ROLE_LABEL[sug]}
-                          <Button color="secondary" size="xs" onClick={() => setRole(c.name, sug)}>Pakai saran</Button>
+                          <Button color="secondary" size="xs" aria-label={`Pakai saran ${ROLE_LABEL[sug]} untuk kolom ${c.name}`} onClick={() => setRole(c.name, sug)}>Pakai saran</Button>
                         </span>
                       )}
                     </td>
@@ -153,7 +154,7 @@ export function MappingForm({ snapshot, initial, readOnly = false, onSave }: {
                     </td>
                     <td className="px-4 py-2">
                       {required && <Checkbox size="sm" label="Konfirmasi" aria-label={`Konfirmasi kolom ${c.name} sebagai ${ROLE_LABEL[role]}`}
-                        isSelected={confirmed.includes(role)} isDisabled={readOnly} onChange={(on) => toggleConfirm(role, on)} />}
+                        isSelected={readOnly || confirmed.includes(role)} isDisabled={readOnly} onChange={(on) => toggleConfirm(role, on)} />}
                     </td>
                   </tr>
                 );
@@ -181,15 +182,15 @@ export function MappingForm({ snapshot, initial, readOnly = false, onSave }: {
             <Err>{msg("timeFormat")}</Err>
             {!readOnly && suggestFormat && (
               <p className="mt-1.5 flex items-center gap-2 text-xs text-ink-3">
-                Saran: {suggestFormat} <Button color="secondary" size="xs" onClick={() => setTimeFormat(suggestFormat)}>Pakai saran</Button>
+                Saran: {suggestFormat} <Button color="secondary" size="xs" aria-label={`Pakai saran format waktu ${suggestFormat}`} onClick={() => setTimeFormat(suggestFormat)}>Pakai saran</Button>
               </p>
             )}
           </div>
-          <Select size="sm" label="Zona waktu sumber" items={TZ_ITEMS} selectedKey={timezone} isDisabled={readOnly} onSelectionChange={(k) => setTimezone(String(k))}>
+          <Select size="sm" label="Zona waktu sumber" items={TZ_ITEMS} selectedKey={timezone} isDisabled={readOnly} onSelectionChange={(k) => { setTimezone(String(k)); setTimezoneConfirmed(false); }}>
             {(item) => <Select.Item id={item.id}>{item.label}</Select.Item>}
           </Select>
           <div className="sm:col-span-2">
-            <Checkbox size="sm" label="Saya mengonfirmasi zona waktu sumber" isSelected={timezoneConfirmed} isDisabled={readOnly}
+            <Checkbox size="sm" label="Saya mengonfirmasi zona waktu sumber" isSelected={readOnly || timezoneConfirmed} isDisabled={readOnly}
               onChange={(on) => setTimezoneConfirmed(on)} />
             <Err>{msg("timezone")}</Err>
           </div>

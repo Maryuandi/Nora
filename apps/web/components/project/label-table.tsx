@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Button } from "@/components/base/buttons/button";
 import { Input } from "@/components/base/input/input";
 import type { LabelRule } from "@/lib/mock/types";
@@ -7,6 +8,28 @@ import { cx } from "@/utils/cx";
 import { Trunc } from "./preview-table";
 
 type Group = { canonical: string; raws: string[] };
+
+/**
+ * Canonical-name input with local draft text, so typing never snaps back to the committed rule.
+ * Empty or raw-equal text means "tidak diubah": it removes the rule of a normal row, but a template-only row (`keep`)
+ * keeps its rule until it is removed explicitly.
+ */
+function CanonicalInput({ raw, value, keep, disabled, placeholder, onCommit }: {
+  raw: string; value: string; keep: boolean; disabled: boolean; placeholder: string; onCommit: (canonical: string | undefined) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  const [seen, setSeen] = useState(value);
+  if (seen !== value) { setSeen(value); setDraft(value); } // the rule changed elsewhere (suggestion, exclude, restore)
+  const change = (v: string) => {
+    setDraft(v);
+    const t = v.trim();
+    if (t && t !== raw) { setSeen(t); onCommit(t); } else if (!keep) { setSeen(""); onCommit(undefined); }
+  };
+  return (
+    <Input size="sm" aria-label={`Nama kanonis untuk ${raw}`} placeholder={placeholder} value={draft} onChange={change}
+      onBlur={() => setDraft(value)} isDisabled={disabled} />
+  );
+}
 
 /**
  * Rules exist only for labels that were renamed or excluded; an empty input means "tidak diubah" and is not a rule.
@@ -18,7 +41,7 @@ export function LabelTable({ labels, rules, groups, onChange, readOnly }: {
   const rule = (raw: string) => rules.find((r) => r.raw === raw);
   const without = (raw: string) => rules.filter((r) => r.raw !== raw);
   const set = (raw: string, canonical: string | null) => onChange([...without(raw), { raw, canonical }]);
-  const edit = (raw: string, text: string) => (text === "" || text === raw ? onChange(without(raw)) : set(raw, text));
+  const edit = (raw: string, canonical: string | undefined) => (canonical === undefined ? onChange(without(raw)) : set(raw, canonical));
 
   const variants = (g: Group) => g.raws.filter((r) => r !== g.canonical);
   const accepted = (g: Group) => variants(g).every((r) => rule(r)?.canonical === g.canonical);
@@ -45,7 +68,7 @@ export function LabelTable({ labels, rules, groups, onChange, readOnly }: {
                   <span className="text-ink-3"> menjadi </span><span className="font-medium text-ink">{g.canonical}</span>
                 </span>
                 {accepted(g) ? <span className="shrink-0 text-xs text-ink-3">Diterima</span>
-                  : !readOnly && <Button color="secondary" size="xs" className="shrink-0" onClick={() => accept([g])}>Terima</Button>}
+                  : !readOnly && <Button color="secondary" size="xs" className="shrink-0" aria-label={`Terima saran: ${g.canonical}`} onClick={() => accept([g])}>Terima</Button>}
               </li>
             ))}
           </ul>
@@ -67,13 +90,18 @@ export function LabelTable({ labels, rules, groups, onChange, readOnly }: {
                 <td className={cx("px-4 py-1.5", excluded ? "text-ink-3" : "text-ink")}><Trunc text={raw} max={280} /></td>
                 <td className="px-4 py-1.5 text-right whitespace-nowrap text-ink-2">{count === null ? "-" : count.toLocaleString("id-ID")}</td>
                 <td className="w-[300px] px-4 py-1.5">
-                  <Input size="sm" aria-label={`Nama kanonis untuk ${raw}`} placeholder={excluded ? "dikecualikan" : "tidak diubah"}
-                    value={excluded ? "" : (r?.canonical ?? "")} onChange={(v) => edit(raw, v)} isDisabled={readOnly || excluded} />
+                  <CanonicalInput raw={raw} value={r?.canonical ?? ""} keep={count === null} disabled={readOnly || excluded}
+                    placeholder={excluded ? "dikecualikan" : "tidak diubah"} onCommit={(c) => edit(raw, c)} />
                 </td>
                 <td className="px-4 py-1.5 text-right">
-                  {!readOnly && (excluded
-                    ? <Button color="secondary" size="xs" onClick={() => onChange(without(raw))}>Pulihkan</Button>
-                    : <Button color="secondary" size="xs" onClick={() => set(raw, null)}>Kecualikan</Button>)}
+                  {!readOnly && (
+                    <span className="inline-flex gap-2">
+                      {count === null && <Button color="secondary" size="xs" aria-label={`Hapus aturan untuk ${raw}`} onClick={() => onChange(without(raw))}>Hapus aturan</Button>}
+                      {excluded
+                        ? <Button color="secondary" size="xs" aria-label={`Pulihkan ${raw}`} onClick={() => onChange(without(raw))}>Pulihkan</Button>
+                        : <Button color="secondary" size="xs" aria-label={`Kecualikan ${raw}`} onClick={() => set(raw, null)}>Kecualikan</Button>}
+                    </span>
+                  )}
                 </td>
               </tr>
             );
