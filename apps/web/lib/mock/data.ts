@@ -1,3 +1,5 @@
+import { candidates, findings } from "./assessment-data";
+import { runFixture } from "./assessment";
 import type { AuditEvent, Client, Membership, MappingVersion, MockState, Project, RuleSourceRef, RuleVersion, Snapshot, Source, User } from "./types";
 
 export const MOCK_TODAY = "2026-10-17";
@@ -171,4 +173,8 @@ const rules: RuleVersion[] = [
     source: sop("Bagian 5.4", "Faktur tidak boleh dicatat lagi setelah pelunasan.") }),
 ];
 
-export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, rules, findings: [], candidates: [], assessments: [], corrections: [], viewerId: "u-dimas" };
+// c6 is not applicable and c9 is deliberately left unscored so the "Jalankan penilaian" button has work in the demo.
+const assessments = findings.flatMap((f) =>
+  runFixture(f, candidates.filter((c) => f.candidateIds.includes(c.id) && c.id !== "c9"), { runId: "run-seed", at: MOCK_TODAY + "T09:00:00Z" }));
+
+export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, rules, findings, candidates, assessments, corrections: [], viewerId: "u-dimas" };

@@ -47,3 +47,34 @@ describe("seed rule activities", () => {
     }
   });
 });
+
+describe("seed assessments", () => {
+  const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
+  it("are consistent with findings and candidates", () => {
+    expect(s.assessments.length).toBeGreaterThan(0);
+    for (const a of s.assessments) {
+      const f = s.findings.find((x) => x.id === a.findingId);
+      const c = s.candidates.find((x) => x.id === a.candidateId);
+      expect(f).toBeTruthy();
+      expect(c).toBeTruthy();
+      expect(f!.candidateIds).toContain(a.candidateId);
+      expect(a.id).toContain(a.candidateId);
+      expect(sum(Object.values(a.relevance.probs))).toBeCloseTo(1, 9);
+      for (const sc of a.scores) {
+        expect(sc.probs).toHaveLength(5);
+        expect(sum(sc.probs)).toBeCloseTo(1, 9);
+      }
+    }
+  });
+  it("candidate criteria weights sum to 1 with 5-level scales", () => {
+    for (const c of s.candidates) {
+      expect(sum(c.criteria.map((k) => k.weight))).toBeCloseTo(1, 9);
+      for (const k of c.criteria) expect(k.scale.map((x) => x.level)).toEqual([1, 2, 3, 4, 5]);
+    }
+  });
+  it("leave c6 (not applicable) and c9 (not yet assessed) without results", () => {
+    expect(s.assessments.some((a) => a.candidateId === "c6")).toBe(false);
+    expect(s.assessments.some((a) => a.candidateId === "c9")).toBe(false);
+    expect(s.candidates.find((c) => c.id === "c6")?.applicable).toBe(false);
+  });
+});
