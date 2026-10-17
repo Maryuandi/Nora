@@ -25,6 +25,12 @@ describe("compliance", () => {
     const ids = participatingVersions(initialState, "p-p2p").map((v) => v.id).sort();
     expect(ids).toEqual(["r-sla-1", "r-sla-2", "r-urutan"]);
   });
+  it("participatingVersions keeps ditinjau v1 when a newer draf v2 exists", () => {
+    const draf = { ...urutan, id: "r-urutan-2", version: 2, status: "draf" as const };
+    const ids = participatingVersions({ ...initialState, rules: [...initialState.rules, draf] }, "p-p2p").map((v) => v.id);
+    expect(ids).toContain("r-urutan");
+    expect(ids).not.toContain("r-urutan-2");
+  });
   it("applicableVersion by case start", () => {
     const vs = [slaV1, slaV2];
     expect(applicableVersion(vs, "2026-06-01")?.id).toBe("r-sla-1");
@@ -42,7 +48,7 @@ describe("compliance", () => {
   });
   it("summarize counts add up", () => {
     const run = { id: "x", projectId: "p-p2p", sourceId: "s-p2p-sap", snapshotId: "sn-1", mappingId: "m-1", periodFrom: "2026-03-01", periodTo: "2026-10-14",
-      ruleVersionIds: ["r-sla-1", "r-sla-2", "r-urutan"], calendar: "bawaan_tiruan" as const, createdBy: "u-dimas", createdAt: "2026-10-17T09:30:00Z" };
+      ruleVersionIds: ["r-sla-1", "r-sla-2", "r-urutan"], ruleVersions: ["r-sla-1", "r-sla-2", "r-urutan"].map(rule), calendar: "bawaan_tiruan" as const, createdBy: "u-dimas", createdAt: "2026-10-17T09:30:00Z" };
     const res = evaluateRun(initialState, run, "r-sla");
     const s = summarize(res);
     expect(s.total).toBe(res.length);

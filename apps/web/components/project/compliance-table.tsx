@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import { Table } from "@/components/application/table/table";
 import { RuleStatusBadge } from "@/components/project/rule-status";
@@ -18,11 +19,17 @@ const frac = (n: number, total: number) => `${n} (${pct(n, total)}%)`;
 
 export function ComplianceTable({ run }: { run: MonitoringRun }) {
   const ctx = useProject();
+  const snapshots = ctx?.state.snapshots, mappings = ctx?.state.mappings;
+  const rows = useMemo(() => {
+    if (!ctx) return [];
+    const top = new Map<string, RuleVersion>();
+    for (const v of run.ruleVersions) if ((top.get(v.ruleKey)?.version ?? 0) < v.version) top.set(v.ruleKey, v);
+    return [...top.values()].map((v) => ({ v, s: summarize(evaluateRun(ctx.state, run, v.ruleKey)) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- evaluateRun reads only snapshots and mappings from state
+  }, [run, snapshots, mappings]);
   if (!ctx) return null;
-  const { project, state } = ctx;
+  const { project } = ctx;
   const base = `/projects/${project.id}`;
-  const top = new Map<string, RuleVersion>();
-  for (const v of state.rules) if (run.ruleVersionIds.includes(v.id) && (top.get(v.ruleKey)?.version ?? 0) < v.version) top.set(v.ruleKey, v);
 
   return (
     <Table aria-label="Kepatuhan" size="sm">
@@ -39,8 +46,7 @@ export function ComplianceTable({ run }: { run: MonitoringRun }) {
         <Table.Head id="trend" label="TREN" />
       </Table.Header>
       <Table.Body>
-        {[...top.values()].map((v) => {
-          const s = summarize(evaluateRun(state, run, v.ruleKey));
+        {rows.map(({ v, s }) => {
           const src = `${v.source.docTitle} · ${v.source.section}`;
           const trend = s.byMonth.map((m) => { const e = m.patuh + m.tidakPatuh; return e ? (m.tidakPatuh / e) * 100 : 0; });
           return (

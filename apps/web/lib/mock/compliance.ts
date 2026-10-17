@@ -17,7 +17,8 @@ export function mockCases(snapshot: Snapshot, periodFrom: string, periodTo: stri
   if (from > to) return [];
   const days = (toMs(to) - toMs(from)) / DAY + 1;
   const fullDays = (toMs(st.timeTo) - toMs(st.timeFrom)) / DAY + 1;
-  const n = Math.round(Math.round(st.rows / 6) * days / fullDays);
+  // shortcut: case count capped at 20_000 for mock UI responsiveness, remove when real backend computes results
+  const n = Math.min(20_000, Math.round(Math.round(st.rows / 6) * days / fullDays));
   const raw = Array.from({ length: n }, (_, i) => {
     const start = toMs(from) + (hash(snapshot.checksum + i) % days) * DAY;
     const open = hash(snapshot.checksum + i, 0x9e3779b1) % 10 === 0;
@@ -31,8 +32,8 @@ export function mockCases(snapshot: Snapshot, periodFrom: string, periodTo: stri
 export function participatingVersions(state: MockState, projectId: string): RuleVersion[] {
   const rules = state.rules.filter((r) => r.projectId === projectId);
   const newest = new Map<string, RuleVersion>();
-  for (const r of rules) if (!newest.has(r.ruleKey) || newest.get(r.ruleKey)!.version < r.version) newest.set(r.ruleKey, r);
-  return rules.filter((r) => ((r === newest.get(r.ruleKey) && (r.status === "disetujui" || r.status === "ditinjau")) || r.approvedAt));
+  for (const r of rules) if ((r.status === "disetujui" || r.status === "ditinjau") && (!newest.has(r.ruleKey) || newest.get(r.ruleKey)!.version < r.version)) newest.set(r.ruleKey, r);
+  return rules.filter((r) => (r === newest.get(r.ruleKey) || r.approvedAt));
 }
 
 export function applicableVersion(versions: RuleVersion[], caseStart: string): RuleVersion | null {
@@ -62,7 +63,7 @@ export function evaluateRun(state: MockState, run: MonitoringRun, ruleKey: strin
   const snapshot = state.snapshots.find((s) => s.id === run.snapshotId);
   const mapping = state.mappings.find((m) => m.id === run.mappingId);
   if (!snapshot || !mapping) return [];
-  const versions = state.rules.filter((r) => run.ruleVersionIds.includes(r.id) && r.ruleKey === ruleKey);
+  const versions = run.ruleVersions.filter((r) => r.ruleKey === ruleKey);
   return mockCases(snapshot, run.periodFrom, run.periodTo).map((c) => {
     const v = applicableVersion(versions, c.start);
     return v ? evaluateCase(v, c, mapping)

@@ -302,7 +302,7 @@ export function reduce(state: MockState, action: MockAction): ReduceResult {
       if (versions.length === 0) return fail("Belum ada aturan disetujui atau ditinjau");
       const run: MonitoringRun = {
         id: id("run"), projectId: project.id, sourceId: source.id, snapshotId: runnable.snapshot.id, mappingId: runnable.mapping.id,
-        periodFrom, periodTo, ruleVersionIds: versions.map((v) => v.id), calendar: "bawaan_tiruan", createdBy: state.viewerId, createdAt: now(),
+        periodFrom, periodTo, ruleVersionIds: versions.map((v) => v.id), ruleVersions: versions.map((v) => ({ ...v })), calendar: "bawaan_tiruan", createdBy: state.viewerId, createdAt: now(),
       };
       return { state: withAudit({ ...state, runs: [...state.runs, run] }, { action: "monitoring.jalankan", objectType: "Monitoring", objectLabel: `${source.name} ${periodFrom}–${periodTo}`, projectId: project.id }), runId: run.id };
     }

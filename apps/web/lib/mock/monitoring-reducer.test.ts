@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluateRun } from "./compliance";
+import { evaluateRun, termFor } from "./compliance";
 import { initialState, reduce, runsForProject } from "./reducer";
 import type { RuleVersion } from "./types";
 
@@ -30,13 +30,26 @@ describe("runMonitoring", () => {
     expect(reduce(initialState, { ...ok, projectId: "nope" }).error).toBe("Proyek tidak ditemukan");
     expect(reduce(initialState, { ...ok, sourceId: "s-o2c-erp" }).error).toBe("Sumber tidak ditemukan");
   });
-  it("editing a rule after the run does not change the old run", () => {
+  it("editing a reverted draf rule after the run does not change the old run", () => {
     const r = reduce(initialState, ok);
     const run = r.state.runs.find((x) => x.id === r.runId)!;
     const before = evaluateRun(r.state, run, "r-urutan");
-    const edited = reduce(r.state, { type: "saveRule", projectId: "p-p2p", ruleKey: "r-urutan", input: { ...urutanInput, name: "Diubah" } });
+    expect(before.some((c) => c.status !== "tidak_dapat_dievaluasi")).toBe(true);
+    const back = reduce(r.state, { type: "changeRuleStatus", ruleId: "r-urutan", to: "draf" });
+    expect(back.error).toBeUndefined();
+    const edited = reduce(back.state, { type: "saveRule", projectId: "p-p2p", ruleKey: "r-urutan", input: { ...urutanInput, scope: { attribute: "zzz", op: "=", value: "x" } } });
     expect(edited.error).toBeUndefined();
+    expect(edited.state.rules.find((x) => x.id === "r-urutan")!.scope).toEqual({ attribute: "zzz", op: "=", value: "x" });
     expect(evaluateRun(edited.state, run, "r-urutan")).toEqual(before);
+  });
+  it("approving a rule after the run keeps the frozen term", () => {
+    const r = reduce(initialState, ok);
+    const run = r.state.runs.find((x) => x.id === r.runId)!;
+    const approved = reduce(r.state, { type: "changeRuleStatus", ruleId: "r-urutan", to: "disetujui" });
+    expect(approved.error).toBeUndefined();
+    expect(approved.state.rules.find((x) => x.id === "r-urutan")!.status).toBe("disetujui");
+    const frozen = run.ruleVersions.find((v) => v.id === "r-urutan")!;
+    expect(termFor(frozen)).toBe("Tidak sesuai dengan acuan");
   });
   it("runsForProject newest first, seeds two p-p2p runs", () => {
     expect(runsForProject(initialState, "p-p2p")).toHaveLength(2);

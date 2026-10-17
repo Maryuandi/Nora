@@ -49,13 +49,13 @@ function ComplianceContent() {
         {mayRun && !open && <p className="text-sm text-ink-3">Proyek berstatus {STATUS_META[project.status].label}; monitoring dinonaktifkan</p>}
       </div>
       <Card>
-        {run && !noRules ? (
+        {run ? (
           <ComplianceTable run={run} />
         ) : (
           <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
             <Pulse size={28} className="text-ink-3" aria-hidden />
-            <p className="text-sm font-medium">{run ? "Belum ada aturan disetujui atau ditinjau" : "Belum ada run monitoring"}</p>
-            {run ? <Link href={`${base}/context/rules`} className="text-sm font-medium text-accent hover:underline">Buka Konteks › Aturan</Link> : runButton}
+            <p className="text-sm font-medium">{noRules ? "Belum ada aturan disetujui atau ditinjau" : "Belum ada run monitoring"}</p>
+            {noRules ? <Link href={`${base}/context/rules`} className="text-sm font-medium text-accent hover:underline">Buka Konteks › Aturan</Link> : runButton}
           </div>
         )}
       </Card>

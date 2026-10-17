@@ -147,6 +147,7 @@ export interface MonitoringRun {
   sourceId: string; snapshotId: string; mappingId: string;
   periodFrom: string; periodTo: string; // YYYY-MM-DD, inklusif
   ruleVersionIds: string[]; // dibekukan saat run
+  ruleVersions: RuleVersion[]; // salinan beku versi aturan saat run (hasil tidak berubah bila aturan diedit)
   calendar: "bawaan_tiruan"; // Senin–Jumat, tanpa libur
   createdBy: string; createdAt: string;
 }

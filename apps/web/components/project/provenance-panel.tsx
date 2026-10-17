@@ -20,7 +20,7 @@ export function ProvenancePanel({ run, ruleKey }: { run: MonitoringRun; ruleKey:
   const source = state.sources.find((s) => s.id === run.sourceId);
   const snapshot = state.snapshots.find((s) => s.id === run.snapshotId);
   const mapping = state.mappings.find((m) => m.id === run.mappingId);
-  const versions = state.rules.filter((r) => run.ruleVersionIds.includes(r.id) && r.ruleKey === ruleKey).sort((a, b) => a.version - b.version);
+  const versions = run.ruleVersions.filter((r) => r.ruleKey === ruleKey).sort((a, b) => a.version - b.version);
   return (
     <Card>
       <h3 className="border-b border-line px-4 py-3 text-sm font-semibold text-ink">Asal-usul hasil</h3>

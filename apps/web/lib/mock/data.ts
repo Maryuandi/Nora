@@ -172,11 +172,12 @@ const rules: RuleVersion[] = [
 ];
 
 const RUN_RULES = ["r-sla-1", "r-sla-2", "r-urutan"];
+const frozen = (ids: string[]) => rules.filter((r) => ids.includes(r.id)).map((r) => ({ ...r }));
 const runs: MonitoringRun[] = [
   { id: "run-1", projectId: "p-p2p", sourceId: "s-p2p-sap", snapshotId: "sn-1", mappingId: "m-1", periodFrom: "2026-05-01", periodTo: "2026-07-31",
-    ruleVersionIds: RUN_RULES, calendar: "bawaan_tiruan", createdBy: "u-dimas", createdAt: "2026-08-01T03:00:00Z" },
+    ruleVersionIds: RUN_RULES, ruleVersions: frozen(RUN_RULES), calendar: "bawaan_tiruan", createdBy: "u-dimas", createdAt: "2026-08-01T03:00:00Z" },
   { id: "run-2", projectId: "p-p2p", sourceId: "s-p2p-sap", snapshotId: "sn-1", mappingId: "m-1", periodFrom: "2026-08-01", periodTo: "2026-10-14",
-    ruleVersionIds: RUN_RULES, calendar: "bawaan_tiruan", createdBy: "u-anton", createdAt: "2026-10-15T09:00:00Z" },
+    ruleVersionIds: RUN_RULES, ruleVersions: frozen(RUN_RULES), calendar: "bawaan_tiruan", createdBy: "u-anton", createdAt: "2026-10-15T09:00:00Z" },
 ];
 
 export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, rules,

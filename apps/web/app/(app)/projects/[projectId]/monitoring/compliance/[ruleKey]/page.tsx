@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowSquareOut } from "@phosphor-icons/react";
@@ -31,7 +31,13 @@ const pct = (n: number, total: number) => (total ? Math.round((n / total) * 100)
 
 export default function ComplianceDetailPage() {
   const { ruleKey } = useParams<{ ruleKey: string }>();
-  return <Suspense><ComplianceDetail key={ruleKey} ruleKey={ruleKey} /></Suspense>;
+  return <Suspense><ComplianceRoute ruleKey={ruleKey} /></Suspense>;
+}
+
+// Remount on rule or run change so filter and page reset.
+function ComplianceRoute({ ruleKey }: { ruleKey: string }) {
+  const wanted = useSearchParams().get("run") ?? "";
+  return <ComplianceDetail key={`${ruleKey}:${wanted}`} ruleKey={ruleKey} />;
 }
 
 function ComplianceDetail({ ruleKey }: { ruleKey: string }) {
@@ -41,18 +47,20 @@ function ComplianceDetail({ ruleKey }: { ruleKey: string }) {
   const [page, setPage] = useState(0);
   const runs = ctx ? runsForProject(ctx.state, ctx.project.id) : [];
   const run = wanted ? runs.find((r) => r.id === wanted) : runs[0];
-  const version = ctx && run
-    ? ctx.state.rules.filter((r) => run.ruleVersionIds.includes(r.id) && r.ruleKey === ruleKey).sort((a, b) => b.version - a.version)[0]
-    : undefined;
+  const version = run?.ruleVersions.filter((r) => r.ruleKey === ruleKey).sort((a, b) => b.version - a.version)[0];
+  const snapshots = ctx?.state.snapshots, mappings = ctx?.state.mappings;
+  const { results, s } = useMemo(() => {
+    const results = ctx && run ? evaluateRun(ctx.state, run, ruleKey) : [];
+    return { results, s: summarize(results) };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- evaluateRun reads only snapshots and mappings from state
+  }, [run, ruleKey, snapshots, mappings]);
   if (!ctx || !run || !version) return <NotFoundPanel />;
   const { project } = ctx;
-  const results = evaluateRun(ctx.state, run, ruleKey);
-  const s = summarize(results);
   const rows = filter ? results.filter((r) => r.status === filter) : results;
   const pages = Math.max(1, Math.ceil(rows.length / PAGE));
   const from = page * PAGE;
   const shown = rows.slice(from, from + PAGE);
-  const count = (f: CaseStatus | null) => (f ? results.filter((r) => r.status === f).length : results.length);
+  const count = (f: CaseStatus | null) => (f === "patuh" ? s.patuh : f === "tidak_patuh" ? s.tidakPatuh : f ? s.tidakDapat : s.total);
   const stats: [string, number][] = [["Patuh", s.patuh], [termFor(version), s.tidakPatuh], ["Tidak dapat dievaluasi", s.tidakDapat]];
 
   return (
@@ -124,7 +132,7 @@ function ComplianceDetail({ ruleKey }: { ruleKey: string }) {
                 <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{formatDate(r.start)}</Table.Cell>
                 <Table.Cell className="px-6"><Pill dot={DOT[r.status]}>{CASE_STATUS_LABEL[r.status]}</Pill></Table.Cell>
                 <Table.Cell className="px-6 text-sm text-ink-2">{r.reason ?? "—"}</Table.Cell>
-                <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{(() => { const v = ctx.state.rules.find((x) => x.id === r.ruleVersionId); return v ? `v${v.version}` : "—"; })()}</Table.Cell>
+                <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{(() => { const v = run.ruleVersions.find((x) => x.id === r.ruleVersionId); return v ? `v${v.version}` : "—"; })()}</Table.Cell>
               </Table.Row>
             ))}
           </Table.Body>
