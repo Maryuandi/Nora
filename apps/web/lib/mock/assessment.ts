@@ -1,5 +1,5 @@
 import { FIXTURE } from "./assessment-data";
-import type { Assessment, AssessmentCorrection, AssessmentStatus, Candidate, Criterion, CriterionScore, Finding, MockState, Relevance } from "./types";
+import type { Assessment, AssessmentCorrection, AssessmentStatus, Candidate, Criterion, CriterionScore, Finding, MockState, Relevance, Thresholds } from "./types";
 
 export const THRESHOLDS = { sufficient: 0.5, topProb: 0.6, margin: 0.15 } as const;
 export const RELEVANCE_ORDER: Relevance[] = ["relevan", "sebagian_relevan", "tidak_relevan", "informasi_tidak_cukup"];
@@ -30,13 +30,13 @@ export function topTwo(probs: Record<Relevance, number>): { top: [Relevance, num
   return { top: a, second: b, margin: a[1] - b[1] };
 }
 
-export function deriveStatus(i: { sufficientProb: number; relevanceProbs: Record<Relevance, number>; failed?: boolean; pending?: boolean }): AssessmentStatus {
+export function deriveStatus(i: { sufficientProb: number; relevanceProbs: Record<Relevance, number>; failed?: boolean; pending?: boolean }, th: Thresholds = THRESHOLDS): AssessmentStatus {
   if (i.failed) return "gagal";
   if (i.pending) return "tertunda";
-  if (i.sufficientProb < THRESHOLDS.sufficient) return "informasi_tidak_cukup";
+  if (i.sufficientProb < th.sufficient) return "informasi_tidak_cukup";
   const { top, margin } = topTwo(i.relevanceProbs);
   // epsilon: float subtraction (e.g. 0.75 - 0.6) must not push an exact-boundary margin below 0.15
-  return top[1] < THRESHOLDS.topProb - 1e-9 || margin < THRESHOLDS.margin - 1e-9 ? "perlu_review" : "otomatis";
+  return top[1] < th.topProb - 1e-9 || margin < th.margin - 1e-9 ? "perlu_review" : "otomatis";
 }
 
 /** gagal/tertunda results carry placeholder probabilities, so they have no model verdict to show. */

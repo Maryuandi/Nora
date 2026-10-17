@@ -25,6 +25,13 @@ describe("totalScore", () => {
 
 describe("deriveStatus", () => {
   const ok = probs(0.8, 0.1, 0.05, 0.05);
+  it("uses custom thresholds when given", () => {
+    const th = { sufficient: 0.3, topProb: 0.9, margin: 0.1 };
+    expect(deriveStatus({ sufficientProb: 0.35, relevanceProbs: probs(0.85, 0.05, 0.05, 0.05) }, th)).toBe("perlu_review");
+    expect(deriveStatus({ sufficientProb: 0.35, relevanceProbs: probs(0.9, 0.05, 0.03, 0.02) }, th)).toBe("otomatis");
+    expect(deriveStatus({ sufficientProb: 0.25, relevanceProbs: ok }, th)).toBe("informasi_tidak_cukup");
+    expect(deriveStatus({ sufficientProb: 0.6, relevanceProbs: probs(0.85, 0.05, 0.05, 0.05) })).toBe("otomatis");
+  });
   it("sufficient threshold is exclusive at 0.5", () => {
     expect(deriveStatus({ sufficientProb: 0.49, relevanceProbs: ok })).toBe("informasi_tidak_cukup");
     expect(deriveStatus({ sufficientProb: 0.5, relevanceProbs: ok })).toBe("otomatis");

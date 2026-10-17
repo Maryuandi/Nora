@@ -1,6 +1,7 @@
 import { candidates, findings } from "./assessment-data";
 import { runFixture } from "./assessment";
-import type { AuditEvent, Client, Membership, MappingVersion, MockState, Project, RuleSourceRef, RuleVersion, Snapshot, Source, User } from "./types";
+import { DEFAULT_THRESHOLDS } from "./specs";
+import type { AuditEvent, Client, Membership, MappingVersion, MockState, Project, QuestionSpec, RuleSourceRef, RuleVersion, Snapshot, Source, User } from "./types";
 
 export const MOCK_TODAY = "2026-10-17";
 
@@ -177,4 +178,31 @@ const rules: RuleVersion[] = [
 const assessments = findings.flatMap((f) =>
   runFixture(f, candidates.filter((c) => f.candidateIds.includes(c.id) && c.id !== "c9"), { runId: "run-seed", at: MOCK_TODAY + "T09:00:00Z" }));
 
-export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, rules, findings, candidates, assessments, corrections: [], viewerId: "u-dimas" };
+const sp = (task: QuestionSpec["task"], question: string, cats: [string, string, string][]): QuestionSpec => ({
+  id: `sp-${task}-1`, projectId: "p-p2p", task, version: 1, question,
+  categories: cats.map(([key, label, definition]) => ({ key, label, definition })),
+  thresholds: { ...DEFAULT_THRESHOLDS }, createdBy: "u-dimas", createdAt: MOCK_TODAY + "T09:00:00Z",
+});
+
+export const specs: QuestionSpec[] = [
+  sp("relevansi", "Seberapa relevan kandidat ini sebagai penjelasan temuan?", []),
+  sp("aktivitas", "Golongan apa yang paling tepat untuk aktivitas ini?", [
+    ["persetujuan", "Persetujuan", "Aktivitas yang menyetujui atau menolak suatu dokumen atau permintaan."],
+    ["pembuatan", "Pembuatan", "Aktivitas yang membuat dokumen atau transaksi baru."],
+    ["perubahan", "Perubahan", "Aktivitas yang mengubah isi dokumen atau transaksi yang sudah ada."],
+    ["pembatalan", "Pembatalan", "Aktivitas yang membatalkan atau menghapus dokumen atau transaksi."],
+    ["penerimaan", "Penerimaan", "Aktivitas yang mencatat penerimaan barang atau jasa."],
+    ["pencatatan_dokumen", "Pencatatan dokumen", "Aktivitas yang mencatat atau mengarsipkan dokumen pendukung."],
+    ["pembayaran", "Pembayaran", "Aktivitas yang melakukan atau mengeluarkan pembayaran."],
+    ["lainnya", "Lainnya", "Aktivitas yang tidak masuk golongan lain."],
+  ]),
+  sp("catatan", "Apa alasan utama yang tertulis pada catatan ini?", [
+    ["harga_tidak_sesuai", "Harga tidak sesuai", "Harga pada dokumen berbeda dari kesepakatan atau pesanan."],
+    ["kuantitas_tidak_sesuai", "Kuantitas tidak sesuai", "Jumlah barang berbeda antara pesanan, penerimaan, dan faktur."],
+    ["dokumen_kurang", "Dokumen kurang", "Dokumen pendukung belum lengkap atau belum diterima."],
+    ["vendor_salah", "Vendor salah", "Data vendor pada dokumen keliru atau tidak sesuai."],
+    ["lainnya", "Lainnya", "Alasan yang tidak masuk kategori lain."],
+  ]),
+];
+
+export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, rules, findings, candidates, assessments, corrections: [], specs, classItems: [], classResults: [], classCorrections: [], goldItems: [], evaluations: [], viewerId: "u-dimas" };

@@ -23,6 +23,15 @@ const EXPECTED: Record<UiAction, Role[]> = {
   "assessment.view": ["administrator", "analis", "pemilik_proses"],
   "assessment.run": ["analis"],
   "assessment.correct": ["analis"],
+  "classify.view": ["administrator", "analis", "pemilik_proses"],
+  "classify.run": ["analis"],
+  "classify.correct": ["analis"],
+  "gold.view": ["administrator", "analis", "pemilik_proses"],
+  "gold.edit": ["analis"],
+  "evaluation.view": ["administrator", "analis", "pemilik_proses"],
+  "evaluation.run": ["analis"],
+  "spec.view": ["administrator", "analis", "pemilik_proses"],
+  "spec.edit": ["analis"],
 };
 
 describe("can", () => {

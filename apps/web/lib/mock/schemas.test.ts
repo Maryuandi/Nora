@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activateSchema, clientSchema, correctionSchema, memberSchema, projectSchema, statusChangeSchema } from "./schemas";
+import { activateSchema, clientSchema, classCorrectionSchema, correctionSchema, memberSchema, projectSchema, statusChangeSchema, thresholdsSchema } from "./schemas";
 
 const errorsOf = (r: { success: boolean; error?: { flatten(): { fieldErrors: Record<string, string[] | undefined> } } }) =>
   r.success ? {} : r.error!.flatten().fieldErrors;
@@ -61,6 +61,40 @@ describe("schemas", () => {
     });
     it("rejects a relevance outside the enum", () => {
       expect(correctionSchema.safeParse({ ...ok, relevance: "mungkin" }).success).toBe(false);
+    });
+  });
+
+  describe("classCorrectionSchema", () => {
+    const ok = { category: "pembayaran", reason: "Jelas", addToGoldSet: false };
+    it("rejects a whitespace-only reason", () => {
+      expect(errorsOf(classCorrectionSchema.safeParse({ ...ok, reason: "   " })).reason?.[0]).toBe("Alasan wajib diisi");
+    });
+    it("rejects 501 characters and accepts 500", () => {
+      expect(errorsOf(classCorrectionSchema.safeParse({ ...ok, reason: "a".repeat(501) })).reason?.[0]).toBe("Alasan maksimal 500 karakter");
+      expect(classCorrectionSchema.safeParse({ ...ok, reason: "a".repeat(500) }).success).toBe(true);
+    });
+    it("rejects an empty category", () => {
+      expect(errorsOf(classCorrectionSchema.safeParse({ ...ok, category: "" })).category?.[0]).toBe("Kategori wajib diisi");
+    });
+  });
+
+  describe("thresholdsSchema", () => {
+    const ok = { sufficient: 0.5, topProb: 0.6, margin: 0.15 };
+    it("accepts the defaults and the range edges", () => {
+      expect(thresholdsSchema.safeParse(ok).success).toBe(true);
+      expect(thresholdsSchema.safeParse({ sufficient: 0, topProb: 0.3, margin: 0 }).success).toBe(true);
+      expect(thresholdsSchema.safeParse({ sufficient: 1, topProb: 0.95, margin: 0.5 }).success).toBe(true);
+    });
+    it.each([
+      [{ topProb: 0.29 }, "topProb", "Ambang probabilitas teratas harus 0,3–0,95"],
+      [{ topProb: 0.96 }, "topProb", "Ambang probabilitas teratas harus 0,3–0,95"],
+      [{ margin: 0.51 }, "margin", "Margin harus 0–0,5"],
+      [{ margin: -0.01 }, "margin", "Margin harus 0–0,5"],
+      [{ sufficient: 1.1 }, "sufficient", "Ambang bukti cukup harus 0–1"],
+      [{ sufficient: NaN }, "sufficient", "Ambang bukti cukup harus 0–1"],
+      [{ topProb: NaN }, "topProb", "Ambang probabilitas teratas harus 0,3–0,95"],
+    ])("rejects %j", (patch, key, msg) => {
+      expect(errorsOf(thresholdsSchema.safeParse({ ...ok, ...patch }))[key]?.[0]).toBe(msg);
     });
   });
 });
