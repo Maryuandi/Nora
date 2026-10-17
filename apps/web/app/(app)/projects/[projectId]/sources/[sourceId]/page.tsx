@@ -10,6 +10,7 @@ import { STATUS_META } from "@/components/nora/badges";
 import { Card } from "@/components/nora/card";
 import { NotFoundPanel } from "@/components/not-found-panel";
 import { FreshnessBadge } from "@/components/project/freshness-badge";
+import { SourceTabs } from "@/components/project/source-tabs";
 import { SnapshotStatusBadge } from "@/components/project/snapshot-status";
 import { UploadDialog } from "@/components/project/upload-dialog";
 import { useProject } from "@/components/project/use-project";
@@ -36,6 +37,7 @@ export default function SourceDetailPage() {
       <Link href={`${base}/sources`} className="inline-flex w-fit items-center gap-1 text-sm text-ink-2 hover:text-ink">
         <ArrowLeft size={14} aria-hidden /> Sumber data
       </Link>
+      <SourceTabs base={`${base}/sources/${source.id}`} active="" />
       <Card>
         <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
           <div className="min-w-0">
