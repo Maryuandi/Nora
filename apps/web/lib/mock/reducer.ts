@@ -247,7 +247,7 @@ export function reduce(state: MockState, action: MockAction): ReduceResult {
       let written: RuleVersion;
       let rules: RuleVersion[];
       if (latest?.status === "draf") {
-        written = { ...latest, ...fields };
+        written = { ...latest, ...fields, clientConfirmed: false }; // changed content needs a fresh client confirmation
         rules = state.rules.map((x) => (x === latest ? written : x));
       } else {
         written = {
@@ -269,7 +269,7 @@ export function reduce(state: MockState, action: MockAction): ReduceResult {
         const invalid = validateRule(rule, projectCanonicalLabels(state, project.id))[0];
         if (invalid) return fail(invalid.message);
       }
-      let updated: RuleVersion = { ...rule, status: action.to };
+      let updated: RuleVersion = { ...rule, status: action.to, ...(action.to === "draf" ? { clientConfirmed: false } : {}) };
       if (action.to === "disetujui") {
         if (![rule.source.docTitle, rule.source.section, rule.source.quote].every((v) => typeof v === "string" && v.trim())) return fail("Aturan tanpa rujukan sumber tidak dapat disetujui");
         const preview = previewRule(rule, previewDataset(state, project.id));

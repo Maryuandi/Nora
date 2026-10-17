@@ -11,6 +11,9 @@ const input = (over: Partial<Save["input"]> = {}): Save["input"] => ({
 });
 const save = (over: Partial<Save> = {}): Save => ({ type: "saveRule", projectId: "p-p2p", input: input(), ...over });
 const rule = (s: MockState, id: string) => s.rules.find((r) => r.id === id)!;
+const inputOf = (r: RuleVersion): Save["input"] => ({
+  name: r.name, description: r.description, params: r.params, scope: r.scope, effectiveFrom: r.effectiveFrom, effectiveTo: r.effectiveTo, source: r.source,
+});
 const status = (ruleId: string, to: RuleVersion["status"]): MockAction => ({ type: "changeRuleStatus", ruleId, to });
 
 describe("saveRule: new rule", () => {
@@ -95,9 +98,32 @@ describe("saveRule: editing", () => {
   });
   it("rejects a ruleKey that belongs to another project", () => {
     const before = s0();
-    const r = reduce(before, save({ projectId: "p-hr", ruleKey: "r-urutan" }));
-    expect(r.error).toBeDefined();
+    before.projects.find((p) => p.id === "p-o2c")!.status = "aktif"; // aktif, so only the ownership guard can fail
+    const r = reduce(before, save({ projectId: "p-o2c", ruleKey: "r-urutan" }));
+    expect(r.error).toBe("Aturan bukan milik proyek ini");
     expect(r.state).toBe(before);
+  });
+  it("saving again after a new version edits that new draf in place", () => {
+    for (const [key, base] of [["r-urutan", 2], ["r-sla", 3]] as const) {
+      const before = s0();
+      const first = reduce(before, save({ ruleKey: key, input: input({ name: "Versi baru" }) }));
+      expect(first.error).toBeUndefined();
+      const second = reduce(first.state, save({ ruleKey: key, input: input({ name: "Versi baru lagi" }) }));
+      expect(second.error).toBeUndefined();
+      expect(second.ruleId).toBe(first.ruleId);
+      expect(second.state.rules.length).toBe(before.rules.length + 1);
+      expect(rule(second.state, first.ruleId!)).toMatchObject({ version: base, status: "draf", name: "Versi baru lagi" });
+    }
+  });
+  it("resets clientConfirmed when a returned draf is edited in place", () => {
+    let s = reduce(s0(), { type: "confirmRuleClient", ruleId: "r-urutan" }).state;
+    expect(rule(s, "r-urutan").clientConfirmed).toBe(true);
+    s = reduce(s, status("r-urutan", "draf")).state;
+    expect(rule(s, "r-urutan").clientConfirmed).toBe(false); // kembalikan resets
+    s.rules = s.rules.map((x) => (x.id === "r-urutan" ? { ...x, clientConfirmed: true } : x)); // even if it were stale, an edit resets
+    const r = reduce(s, save({ ruleKey: "r-urutan", input: input({ name: "Diubah", params: { type: "urutan", before: "Record Goods Receipt", after: "Clear Invoice" } }) }));
+    expect(r.error).toBeUndefined();
+    expect(rule(r.state, "r-urutan")).toMatchObject({ id: "r-urutan", status: "draf", clientConfirmed: false });
   });
   it("rejects an identical configuration with 'Tidak ada perubahan'", () => {
     const before = s0();
@@ -111,11 +137,18 @@ describe("saveRule: editing", () => {
     expect(r.error).toBe("Tidak ada perubahan");
     expect(r.state).toBe(before);
   });
+  it("rejects an identical configuration on a latest draf and on a latest ditinjau", () => {
+    for (const id of ["r-terlarang", "r-urutan"]) {
+      const before = s0();
+      const r = reduce(before, save({ ruleKey: id, input: inputOf(rule(before, id)) }));
+      expect(r.error).toBe("Tidak ada perubahan");
+      expect(r.state).toBe(before);
+    }
+  });
   it("compares against the latest version, not an older one", () => {
     const before = s0();
     // r-sla v2 is latest (kerja); v1 was kalender. Saving v1's config is a change.
-    const v1 = rule(before, "r-sla-1");
-    const r = reduce(before, save({ ruleKey: "r-sla", input: { ...v1, params: v1.params, scope: null } }));
+    const r = reduce(before, save({ ruleKey: "r-sla", input: inputOf(rule(before, "r-sla-1")) }));
     expect(r.error).toBeUndefined();
   });
 });
@@ -173,8 +206,17 @@ describe("changeRuleStatus", () => {
     expect(r.error).toMatch(/^Aturan tidak dapat dievaluasi/);
     expect(r.state).toBe(before);
   });
+  it("rejects approval when there is no preview dataset (no snapshot siap_dipetakan)", () => {
+    const before = s0();
+    before.snapshots.find((x) => x.id === "sn-1")!.status = "perlu_tinjauan"; // labels still resolve via the mapping, but no dataset
+    const r = reduce(before, status("r-urutan", "disetujui"));
+    expect(r.error).toMatch(/^Aturan tidak dapat dievaluasi/);
+    expect(r.error).toContain("Belum ada pemetaan data (M03)");
+    expect(r.state).toBe(before);
+  });
   it("approving v2 makes the other disetujui version usang without a second audit", () => {
     const before = s0();
+    rule(before, "r-sla-1").status = "disetujui"; // two disetujui versions, both must be retired
     // Fresh v3 of r-sla goes draf -> ditinjau -> disetujui; v2 (disetujui) must become usang.
     const saved = reduce(before, save({ ruleKey: "r-sla", input: input({ name: "SLA", params: { type: "sla", from: "Create Purchase Order Item", to: "Record Goods Receipt", limit: 10, unit: "kerja" } }) }));
     const v3 = saved.ruleId!;
