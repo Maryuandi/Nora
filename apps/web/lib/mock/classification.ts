@@ -7,7 +7,9 @@ export const CLASS_STATUS_LABEL: Record<ClassStatus, string> = { otomatis: "Otom
 
 export function topTwoOf(probs: Record<string, number>, order: string[]): { top: [string, number]; second: [string, number]; margin: number } {
   // Array.prototype.sort is stable, so ties keep `order`.
-  const [a, b = ["", 0] as [string, number]] = order.map((k): [string, number] => [k, probs[k] ?? 0]).sort((x, y) => y[1] - x[1]);
+  // Keys no longer in the active spec (older results) still rank, after the spec's own keys on ties.
+  const keys = [...order.filter((k) => k in probs), ...Object.keys(probs).filter((k) => !order.includes(k))];
+  const [a, b = ["", 0] as [string, number]] = keys.map((k): [string, number] => [k, probs[k]]).sort((x, y) => y[1] - x[1]);
   return { top: a ?? ["", 0], second: b, margin: (a?.[1] ?? 0) - b[1] };
 }
 

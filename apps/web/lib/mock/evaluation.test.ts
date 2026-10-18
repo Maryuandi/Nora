@@ -121,6 +121,14 @@ describe("buildEvaluation", () => {
   });
 });
 
+describe("evalPairs informasi_tidak_cukup", () => {
+  it("predicts that label with confidence 1 - P(sufficient)", () => {
+    const item = evalPairs(seed, P, "relevansi").items.find((i) => i.gold.itemRef.endsWith(":c5"))!;
+    expect(item.result).toMatchObject({ pred: "informasi_tidak_cukup" });
+    expect(item.result!.conf).toBeCloseTo(0.69, 9);
+  });
+});
+
 describe("canEditSecondLabel", () => {
   const g = seed.goldItems.find((x) => x.labeler === "u-dimas")!;
   it("is offered to another labeler only", () => {

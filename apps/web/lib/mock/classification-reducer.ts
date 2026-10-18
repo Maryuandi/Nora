@@ -3,7 +3,7 @@ import { buildEvaluation } from "./evaluation";
 import { acceptsData, can, type UiAction } from "./permissions";
 import type { ReduceResult } from "./reducer";
 import { classCorrectionSchema, thresholdsSchema } from "./schemas";
-import { activeSpec, slugify, validateSpecInput } from "./specs";
+import { activeSpec, resolveKey, validateSpecInput } from "./specs";
 import type { AuditEvent, ClassCorrection, GoldItem, MockState, QuestionSpec, Relevance, TaskKind, Thresholds } from "./types";
 
 export type ClassificationAction =
@@ -13,7 +13,7 @@ export type ClassificationAction =
   | { type: "setGoldLabel"; projectId: string; task: TaskKind; itemRef: string; label: string }
   | { type: "removeGoldItem"; goldId: string }
   | { type: "runEvaluation"; projectId: string; task: TaskKind }
-  | { type: "saveSpec"; projectId: string; task: TaskKind; question: string; categories: { label: string; definition: string }[]; thresholds: Thresholds; note?: string };
+  | { type: "saveSpec"; projectId: string; task: TaskKind; question: string; categories: { label: string; definition: string; key?: string }[]; thresholds: Thresholds; note?: string };
 
 export type ClassificationCtx = {
   now: string;
@@ -140,12 +140,14 @@ export function reduceClassification(state: MockState, action: ClassificationAct
       if (!active) return fail("Spesifikasi tidak ditemukan");
       const denied = guard(action.projectId, "spec.edit");
       if (denied) return fail(denied);
-      const invalid = validateSpecInput(action.task, action);
+      const invalid = validateSpecInput(action.task, action, active.categories.map((c) => c.key));
+      if (action.note && action.note.trim().length > 500) return fail("Catatan maksimal 500 karakter");
       if (invalid) return fail(invalid);
       const th = thresholdsSchema.safeParse(action.thresholds);
       if (!th.success) return fail(th.error.issues[0].message);
-      // Key = slug of the label, so a label that still slugs to an existing key keeps that key.
-      const categories = action.task === "relevansi" ? [] : action.categories.map((c) => ({ key: slugify(c.label), label: c.label.trim(), definition: c.definition.trim() }));
+      // Existing rows keep their key (passed back by the caller); new rows get the label slug.
+      const prevKeys = active.categories.map((c) => c.key);
+      const categories = action.task === "relevansi" ? [] : action.categories.map((c) => ({ key: resolveKey(c, prevKeys), label: c.label.trim(), definition: c.definition.trim() }));
       const question = action.question.trim();
       if (question === active.question && JSON.stringify(categories) === JSON.stringify(active.categories) && (["sufficient", "topProb", "margin"] as const).every((k) => th.data[k] === active.thresholds[k])) return fail("Tidak ada perubahan");
       const note = action.note?.trim();

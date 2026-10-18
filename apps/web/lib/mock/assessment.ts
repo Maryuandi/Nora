@@ -43,7 +43,7 @@ export function deriveStatus(i: { sufficientProb: number; relevanceProbs: Record
 export const hasModelVerdict = (a: Pick<Assessment, "status">): boolean => a.status !== "gagal" && a.status !== "tertunda";
 
 /** informasi_tidak_cukup stops before the relevance step, so its Choice distribution is a placeholder too. */
-export const hasRelevanceResult = (a: Pick<Assessment, "status" | "sufficient">): boolean => hasModelVerdict(a) && a.sufficient.prob >= THRESHOLDS.sufficient;
+export const hasRelevanceResult = (a: Pick<Assessment, "status">): boolean => hasModelVerdict(a) && a.status !== "informasi_tidak_cukup";
 
 export function effective(a: Assessment, corrections: AssessmentCorrection[]): { relevance: Relevance; source: "model" | "analis"; correction?: AssessmentCorrection } {
   let latest: AssessmentCorrection | undefined;
@@ -85,7 +85,7 @@ export function levelProbs(level: number): number[] {
   return p;
 }
 
-export function runFixture(finding: Finding, candidates: Candidate[], ctx: { runId: string; at: string; only?: string[] }): Assessment[] {
+export function runFixture(finding: Finding, candidates: Candidate[], ctx: { runId: string; at: string; only?: string[]; spec?: { version: number; thresholds: Thresholds } }): Assessment[] {
   return candidates
     .filter((c) => finding.candidateIds.includes(c.id) && c.applicable && (!ctx.only || ctx.only.includes(c.id)))
     .map((c) => {
@@ -96,9 +96,9 @@ export function runFixture(finding: Finding, candidates: Candidate[], ctx: { run
       const scores = failed ? [] : fx.levels.flatMap((level, i) => (c.criteria[i] ? [{ key: c.criteria[i].key, level, probs: levelProbs(level) }] : []));
       return {
         id: `${ctx.runId}-${c.id}`, projectId: finding.projectId, findingId: finding.id, candidateId: c.id,
-        status: deriveStatus({ sufficientProb: sufficient, relevanceProbs, failed }),
+        status: deriveStatus({ sufficientProb: sufficient, relevanceProbs, failed }, ctx.spec?.thresholds),
         sufficient: { prob: sufficient }, scores, relevance: { probs: relevanceProbs },
-        modelId: "jev-demo-fixture", specVersion: 1, evidenceBundleId: finding.evidenceBundleId, runId: ctx.runId, createdAt: ctx.at,
+        modelId: "jev-demo-fixture", specVersion: ctx.spec?.version ?? 1, evidenceBundleId: finding.evidenceBundleId, runId: ctx.runId, createdAt: ctx.at,
         rawOutputRef: `raw://${ctx.runId}/${c.id}`,
       };
     });

@@ -1,4 +1,4 @@
-import { currentAssessments, hasModelVerdict, topTwo } from "./assessment";
+import { currentAssessments, hasModelVerdict, hasRelevanceResult, topTwo } from "./assessment";
 import { currentClassResults, topTwoOf } from "./classification";
 import { activeSpec } from "./specs";
 import type { Bin, EvaluationRun, GoldItem, MockState, TaskKind } from "./types";
@@ -52,7 +52,8 @@ function lookup(s: MockState, projectId: string, task: TaskKind): (itemRef: stri
       const [findingId, candidateId] = ref.split(":");
       const a = currentAssessments(s, findingId).find((x) => x.projectId === projectId && x.candidateId === candidateId && hasModelVerdict(x));
       if (!a) return undefined;
-      const [pred, conf] = topTwo(a.relevance.probs).top;
+      // informasi_tidak_cukup stops before the relevance step: its verdict is that label, with confidence 1 - P(sufficient).
+      const [pred, conf] = hasRelevanceResult(a) ? topTwo(a.relevance.probs).top : ["informasi_tidak_cukup", 1 - a.sufficient.prob];
       return { id: a.id, pred, conf, auto: a.status === "otomatis" };
     };
   }

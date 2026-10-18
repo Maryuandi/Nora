@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { effective } from "./assessment";
+import { activeSpec, isStale } from "./specs";
 import { initialState, reduce, type MockAction } from "./reducer";
 import type { MockState } from "./types";
 
@@ -10,6 +11,21 @@ const correct = (assessmentId: string, over: Partial<Extract<MockAction, { type:
 const confirm = (assessmentId: string): MockAction => ({ type: "confirmAssessment", assessmentId });
 const aid = (s: MockState, cand: string) => s.assessments.find((a) => a.candidateId === cand && !a.supersededBy)!.id;
 const count = (s: MockState, action: string) => s.audit.filter((e) => e.action === action).length;
+
+describe("runAssessment with a relevansi spec", () => {
+  it("uses the active spec version and thresholds for new results", () => {
+    const b = s0();
+    const spec = activeSpec(b, "p-p2p", "relevansi")!;
+    const saved = reduce(b, { type: "saveSpec", projectId: "p-p2p", task: "relevansi", question: spec.question, categories: [], thresholds: { ...spec.thresholds, sufficient: 0.95 } });
+    expect(saved.error).toBeUndefined();
+    const r = reduce(saved.state, run("f-bottleneck", "semua"));
+    const fresh = r.state.assessments.filter((a) => a.findingId === "f-bottleneck" && !a.supersededBy);
+    expect(fresh.length).toBeGreaterThan(0);
+    expect(fresh.every((a) => a.specVersion === 2)).toBe(true);
+    expect(fresh.filter((a) => a.status !== "gagal").every((a) => a.status === "informasi_tidak_cukup")).toBe(true);
+    expect(fresh.some((a) => isStale(a.specVersion, r.state, "p-p2p", "relevansi"))).toBe(false);
+  });
+});
 
 describe("runAssessment", () => {
   it("belum_dinilai scores only the unscored candidate, once", () => {

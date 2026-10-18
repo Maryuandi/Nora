@@ -21,32 +21,38 @@ import { cx } from "@/utils/cx";
 const TASK_LABEL: Record<TaskKind, string> = { relevansi: "Relevansi", aktivitas: "Aktivitas", catatan: "Catatan" };
 const TASKS = Object.keys(TASK_LABEL) as TaskKind[];
 const THRESHOLD_FIELDS = [
-  { key: "sufficient", label: "Ambang bukti cukup" },
-  { key: "topProb", label: "Ambang probabilitas teratas" },
-  { key: "margin", label: "Ambang selisih" },
+  { key: "sufficient", label: "Ambang bukti cukup", hint: "0–1" },
+  { key: "topProb", label: "Ambang probabilitas teratas", hint: "0,3–0,95" },
+  { key: "margin", label: "Ambang selisih", hint: "0–0,5" },
 ] as const;
 
-type Row = { id: number; label: string; definition: string; orig?: { label: string } };
+type Row = { id: number; label: string; definition: string; orig?: { label: string; key: string } };
 // Decimal comma is accepted as well; empty/garbage becomes NaN, which the reducer rejects.
 const num = (v: string) => (v.trim() === "" ? NaN : Number(v.replace(",", ".")));
 
-function SpecForm({ task, spec, onSaved }: { task: TaskKind; spec: QuestionSpec; onSaved: (version: number) => void }) {
+// Only relevansi uses the "bukti cukup" threshold; classification keeps the stored value untouched.
+const fieldsFor = (task: TaskKind) => THRESHOLD_FIELDS.filter((f) => task === "relevansi" || f.key !== "sufficient");
+const comma = (n: number) => String(n).replace(".", ",");
+
+function SpecForm({ task, spec, onSaved, onDirty }: { task: TaskKind; spec: QuestionSpec; onSaved: (version: number) => void; onDirty: () => void }) {
   const ctx = useProject();
   const nextId = useRef(spec.categories.length);
   const [question, setQuestion] = useState(spec.question);
-  const [rows, setRows] = useState<Row[]>(() => spec.categories.map((c, i) => ({ id: i, label: c.label, definition: c.definition, orig: { label: c.label } })));
-  const [th, setTh] = useState(() => ({ sufficient: String(spec.thresholds.sufficient), topProb: String(spec.thresholds.topProb), margin: String(spec.thresholds.margin) }));
+  const [rows, setRows] = useState<Row[]>(() => spec.categories.map((c, i) => ({ id: i, label: c.label, definition: c.definition, orig: { label: c.label, key: c.key } })));
+  const [th, setTh] = useState(() => ({ sufficient: comma(spec.thresholds.sufficient), topProb: comma(spec.thresholds.topProb), margin: comma(spec.thresholds.margin) }));
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | undefined>();
   if (!ctx) return null;
 
-  const patch = (id: number, p: Partial<Row>) => { setRows(rows.map((r) => (r.id === id ? { ...r, ...p } : r))); setError(undefined); };
+  const touch = () => { setError(undefined); onDirty(); };
+  const patch = (id: number, p: Partial<Row>) => { setRows(rows.map((r) => (r.id === id ? { ...r, ...p } : r))); touch(); };
+  const removed = spec.categories.filter((c) => !rows.some((r) => r.orig?.key === c.key));
   function submit() {
     if (!ctx) return;
     const err = ctx.dispatch({
       type: "saveSpec", projectId: ctx.project.id, task, question,
-      categories: rows.map((r) => ({ label: r.label, definition: r.definition })),
-      thresholds: { sufficient: num(th.sufficient), topProb: num(th.topProb), margin: num(th.margin) },
+      categories: rows.map((r) => ({ label: r.label, definition: r.definition, key: r.orig?.key })),
+      thresholds: { sufficient: task === "relevansi" ? num(th.sufficient) : spec.thresholds.sufficient, topProb: num(th.topProb), margin: num(th.margin) },
       note,
     });
     if (err) return setError(err);
@@ -56,7 +62,7 @@ function SpecForm({ task, spec, onSaved }: { task: TaskKind; spec: QuestionSpec;
   return (
     <Card className="flex flex-col gap-4 p-4">
       <h3 className="text-sm font-semibold text-ink">Sunting spesifikasi</h3>
-      <TextArea label="Pertanyaan" isRequired rows={2} value={question} onChange={(v) => { setQuestion(v); setError(undefined); }} />
+      <TextArea label="Pertanyaan" isRequired rows={2} value={question} onChange={(v) => { setQuestion(v); touch(); }} />
       {task === "relevansi" ? (
         <p className="text-sm text-ink-2">Kategori relevansi tetap</p>
       ) : (
@@ -64,28 +70,32 @@ function SpecForm({ task, spec, onSaved }: { task: TaskKind; spec: QuestionSpec;
           <legend className="mb-1 text-sm font-medium text-ink">Kategori</legend>
           {rows.map((r, i) => {
             const renamed = r.orig && r.label !== r.orig.label;
+            const key = r.orig?.key ?? slugify(r.label);
             return (
               <div key={r.id} className="flex flex-col gap-1 border-b border-line pb-3">
                 <div className="flex flex-wrap items-end gap-2">
                   <div className="w-48"><Input size="sm" aria-label={`Label kategori ${i + 1}`} placeholder="Label" value={r.label} onChange={(v) => patch(r.id, { label: v })} /></div>
                   <div className="min-w-48 flex-1"><Input size="sm" aria-label={`Definisi kategori ${i + 1}`} placeholder="Definisi" value={r.definition} onChange={(v) => patch(r.id, { definition: v })} /></div>
-                  <Button color="secondary" size="xs" iconLeading={Trash} aria-label={`Hapus kategori ${i + 1}`} onClick={() => { setRows(rows.filter((x) => x.id !== r.id)); setError(undefined); }} />
+                  <Button color="secondary" size="xs" iconLeading={Trash} aria-label={`Hapus kategori ${i + 1}`} onClick={() => { setRows(rows.filter((x) => x.id !== r.id)); touch(); }} />
                 </div>
-                <p className="text-xs text-ink-3">Kunci: <code title={slugify(r.label)} className="font-mono">{slugify(r.label) || "–"}</code></p>
-                {renamed && <p className="text-xs text-ink-2">Mengubah label mengubah kunci; hasil lama tetap memakai kunci lama</p>}
+                <p className="text-xs text-ink-3">Kunci: <code title={key} className="font-mono">{key || "–"}</code></p>
+                {renamed && <p className="text-xs text-ink-2">Label berubah; kunci tetap {key} sehingga hasil lama, koreksi, dan set acuan tetap konsisten</p>}
               </div>
             );
           })}
-          <div><Button color="secondary" size="xs" iconLeading={Plus} onClick={() => { setRows([...rows, { id: nextId.current++, label: "", definition: "" }]); setError(undefined); }}>Tambah kategori</Button></div>
+          {removed.map((c) => (
+            <p key={c.key} className="text-xs text-status-ended">Menghapus kategori: label set acuan dan koreksi dengan kunci {c.key} tidak ikut berubah; perbarui di halaman Evaluasi</p>
+          ))}
+          <div><Button color="secondary" size="xs" iconLeading={Plus} onClick={() => { setRows([...rows, { id: nextId.current++, label: "", definition: "" }]); touch(); }}>Tambah kategori</Button></div>
         </fieldset>
       )}
       <div className="grid gap-3 sm:grid-cols-3">
-        {THRESHOLD_FIELDS.map((f) => (
-          <Input key={f.key} size="sm" inputMode="decimal" hint="0 sampai 1" label={f.label} value={th[f.key]}
-            onChange={(v) => { setTh({ ...th, [f.key]: v }); setError(undefined); }} />
+        {fieldsFor(task).map((f) => (
+          <Input key={f.key} size="sm" inputMode="decimal" hint={f.hint} label={f.label} value={th[f.key]}
+            onChange={(v) => { setTh({ ...th, [f.key]: v }); touch(); }} />
         ))}
       </div>
-      <TextArea label="Catatan perubahan" rows={2} value={note} onChange={setNote} />
+      <TextArea label="Catatan perubahan" rows={2} value={note} onChange={(v) => { setNote(v); touch(); }} />
       <div className="flex flex-wrap items-center gap-3">
         <Button color="primary" size="xs" onClick={submit}>Simpan versi baru</Button>
         <span role="alert" className="text-sm text-status-ended">{error}</span>
@@ -145,14 +155,14 @@ export function SpecView({ task }: { task: TaskKind }) {
               </table>
             )}
             <dl className="grid gap-3 border-t border-line pt-3 sm:grid-cols-3">
-              {THRESHOLD_FIELDS.map((f) => (
+              {fieldsFor(task).map((f) => (
                 <div key={f.key}><dt className="text-xs text-ink-3">{f.label}</dt><dd className="text-sm font-medium tabular-nums text-ink">{formatPercent(spec.thresholds[f.key])}</dd></div>
               ))}
             </dl>
             <p className="text-sm text-ink-2">Hasil otomatis bila probabilitas teratas ≥ {formatPercent(spec.thresholds.topProb)} dan selisih ≥ {formatPercent(spec.thresholds.margin)}</p>
           </Card>
 
-          {mayEdit && open && <SpecForm key={spec.id} task={task} spec={spec} onSaved={setSaved} />}
+          {mayEdit && open && <SpecForm key={spec.id} task={task} spec={spec} onSaved={setSaved} onDirty={() => setSaved(null)} />}
           {mayEdit && !open && <p className="text-sm text-ink-3">Proyek berstatus {STATUS_META[project.status].label}; penyuntingan dinonaktifkan</p>}
 
           <Card className="flex flex-col gap-2 p-4">

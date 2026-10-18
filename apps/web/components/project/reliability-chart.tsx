@@ -1,7 +1,6 @@
-import { formatScore } from "@/lib/format";
+import { formatRatioPct as pct, formatScore } from "@/lib/format";
 import type { Bin } from "@/lib/mock/types";
 
-const pct = (p: number | null) => (p == null ? "–" : `${formatScore(p * 100)}%`);
 const range = (b: Bin) => `${formatScore(b.lo)}–${formatScore(b.hi)}`;
 
 const Bar = ({ value, tone }: { value: number | null; tone: string }) => (

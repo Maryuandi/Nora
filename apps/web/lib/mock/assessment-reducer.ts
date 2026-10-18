@@ -2,6 +2,7 @@ import { runFixture, topTwo } from "./assessment";
 import { upsertGold } from "./classification-reducer";
 import { acceptsData } from "./permissions";
 import { correctionSchema } from "./schemas";
+import { activeSpec } from "./specs";
 import type { ReduceResult } from "./reducer";
 import type { Assessment, AssessmentCorrection, AuditEvent, MockState, Relevance } from "./types";
 
@@ -37,7 +38,7 @@ export function reduceAssessment(state: MockState, action: AssessmentAction, ctx
     const current = state.assessments.filter((a) => a.findingId === finding.id && !a.supersededBy);
     const scored = new Set(current.map((a) => a.candidateId));
     const only = action.scope === "semua" ? undefined : state.candidates.filter((c) => finding.candidateIds.includes(c.id) && !scored.has(c.id)).map((c) => c.id);
-    const created = runFixture(finding, state.candidates, { runId: ctx.newId("run"), at: ctx.now, only });
+    const created = runFixture(finding, state.candidates, { runId: ctx.newId("run"), at: ctx.now, only, spec: activeSpec(state, finding.projectId, "relevansi") });
     if (created.length === 0) return fail("Semua kandidat sudah dinilai");
     const replaced = new Map<string, string>();
     if (action.scope === "semua") for (const n of created) for (const a of current) if (a.candidateId === n.candidateId) replaced.set(a.id, n.id);

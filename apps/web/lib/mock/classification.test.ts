@@ -36,6 +36,18 @@ describe("topTwoOf", () => {
   });
 });
 
+describe("topTwoOf with keys missing from the order", () => {
+  const probs = { persetujuan: 0.9, pembuatan: 0.1 };
+  it("still ranks result keys that left the active spec", () => {
+    const r = topTwoOf(probs, ["approval", "pembuatan"]);
+    expect(r.top).toEqual(["persetujuan", 0.9]);
+    expect(r.second).toEqual(["pembuatan", 0.1]);
+  });
+  it("effectiveClass returns the raw key", () => {
+    expect(effectiveClass(res("r9", probs), [], ["approval", "pembuatan"]).category).toBe("persetujuan");
+  });
+});
+
 describe("effectiveClass", () => {
   const r = res("r1", { a: 0.7, b: 0.3 });
   it("uses argmax without corrections", () => expect(effectiveClass(r, [], ["a", "b"])).toEqual({ category: "a", source: "model" }));

@@ -192,6 +192,31 @@ describe("saveSpec", () => {
     expect(reduce(b, save(b, { thresholds: { ...TH, margin: Number.NaN } })).error).toBe("Margin harus 0–0,5");
     expect(reduce(b, save(b, { question: "  " })).error).toBe("Pertanyaan wajib diisi");
   });
+  it("keeps a passed key when the label changes; new rows and keyless rows slug", () => {
+    const b = s0();
+    const a = save(b) as Extract<MockAction, { type: "saveSpec" }>;
+    const keyed = a.categories.map((c, i) => (i === 0 ? { ...c, label: "Persetujuan Pembelian", key: "persetujuan" } : c));
+    const r = reduce(b, { ...a, categories: [...keyed, { label: "Audit Internal", definition: "" }] });
+    expect(r.error).toBeUndefined();
+    const v2 = activeSpec(r.state, "p-p2p", "aktivitas")!;
+    expect(v2.categories[0]).toMatchObject({ key: "persetujuan", label: "Persetujuan Pembelian" });
+    expect(v2.categories.at(-1)!.key).toBe("audit_internal");
+    const old = reduce(b, { ...a, categories: a.categories.map((c, i) => (i === 0 ? { ...c, label: "Persetujuan Pembelian" } : c)) });
+    expect(activeSpec(old.state, "p-p2p", "aktivitas")!.categories[0].key).toBe("persetujuan_pembelian");
+    const stray = reduce(b, { ...a, categories: a.categories.map((c, i) => (i === 0 ? { ...c, label: "Persetujuan Baru", key: "tidak_ada" } : c)) });
+    expect(activeSpec(stray.state, "p-p2p", "aktivitas")!.categories[0].key).toBe("persetujuan_baru");
+  });
+  it("detects duplicates on the final keys", () => {
+    const b = s0();
+    const a = save(b) as Extract<MockAction, { type: "saveSpec" }>;
+    const dup = a.categories.map((c, i) => (i === 0 ? { ...c, label: "Lain", key: "persetujuan" } : i === 1 ? { ...c, label: "Persetujuan" } : c));
+    expect(reduce(b, { ...a, categories: dup }).error).toBe("Label kategori duplikat");
+  });
+  it("caps the note at 500 characters", () => {
+    const b = s0();
+    expect(reduce(b, save(b, { note: "x".repeat(501) })).error).toBe("Catatan maksimal 500 karakter");
+    expect(reduce(b, save(b, { question: "Baru?", note: "x".repeat(500) })).error).toBeUndefined();
+  });
   it("forces relevansi categories to []", () => {
     const b = s0();
     const r = reduce(b, { type: "saveSpec", projectId: "p-p2p", task: "relevansi", question: "Pertanyaan baru?", categories: [{ label: "X", definition: "" }, { label: "Y", definition: "" }], thresholds: TH });

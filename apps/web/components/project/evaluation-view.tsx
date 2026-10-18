@@ -13,7 +13,7 @@ import { NotFoundPanel } from "@/components/not-found-panel";
 import { AssessmentTabs } from "@/components/project/assessment-tabs";
 import { ReliabilityChart } from "@/components/project/reliability-chart";
 import { useProject } from "@/components/project/use-project";
-import { formatDate, formatNumber, formatScore } from "@/lib/format";
+import { formatDate, formatNumber, formatRatioPct as pct } from "@/lib/format";
 import { RELEVANCE_LABEL, RELEVANCE_ORDER } from "@/lib/mock/assessment";
 import { TARGETS, agreementPairs, canEditSecondLabel, cohenKappa, computeMetrics, evalPairs, reviewShareOf } from "@/lib/mock/evaluation";
 import { acceptsData } from "@/lib/mock/permissions";
@@ -22,8 +22,10 @@ import type { TaskKind } from "@/lib/mock/types";
 import { cx } from "@/utils/cx";
 
 const TASK_LABEL: Record<TaskKind, string> = { relevansi: "Relevansi", aktivitas: "Aktivitas", catatan: "Catatan" };
-const pct = (p: number | null) => (p == null ? "–" : `${formatScore(p * 100)}%`);
-const pointDelta = (d: number) => `${d < 0 ? "-" : "+"}${formatNumber(Math.abs(d) * 100, 1)} poin`;
+const pointDelta = (d: number) => {
+  const r = Math.round(d * 1000) / 10; // round first so a tiny negative never prints "-0,0"
+  return `${r < 0 ? "-" : "+"}${formatNumber(Math.abs(r), 1)} poin persen`;
+};
 
 type Verdict = "ok" | "no" | "none";
 const VERDICT = {
@@ -81,7 +83,9 @@ export function EvaluationView({ task }: { task: TaskKind }) {
   const setLabel = (itemRef: string, label: string) => setError(dispatch({ type: "setGoldLabel", projectId: project.id, task, itemRef, label }));
 
   const labelCell = (current: string | undefined, editable: boolean, itemRef: string, name: string, which: string) =>
-    editable ? (
+    current !== undefined && !options.some((o) => o.id === current) ? (
+      <span className="flex flex-wrap items-center gap-1.5 text-sm text-ink-2"><span title={current} className="max-w-[10rem] truncate">{current}</span><Pill>tidak ada di spesifikasi aktif</Pill></span>
+    ) : editable ? (
       <div className="w-44">
         <Select size="sm" aria-label={`Label ${which}: ${name}`} items={options} placeholder="Pilih label" selectedKey={current ?? null} onSelectionChange={(k) => setLabel(itemRef, String(k))}>
           {(o) => <Select.Item id={o.id}>{o.label}</Select.Item>}
@@ -144,7 +148,7 @@ export function EvaluationView({ task }: { task: TaskKind }) {
                       )}
                     </Table.Cell>
                     <Table.Cell className="px-6 text-sm tabular-nums whitespace-nowrap text-ink-2">
-                      {result ? `${labelOf(result.pred)} ${pct(result.conf)}` : <span title="Belum ada hasil model">Tidak dapat dievaluasi (Belum ada hasil model)</span>}
+                      {result ? `${labelOf(result.pred)} ${pct(result.conf)}` : <span title="Tanpa hasil model yang valid">Tidak dapat dievaluasi (Tanpa hasil model yang valid)</span>}
                     </Table.Cell>
                     <Table.Cell className="px-6 whitespace-nowrap">
                       {mayEdit ? <Button color="secondary" size="xs" aria-label={`Hapus: ${short}`} onClick={() => setError(dispatch({ type: "removeGoldItem", goldId: gold.id }))}>Hapus</Button> : <span className="text-sm text-ink-3">–</span>}
@@ -164,7 +168,7 @@ export function EvaluationView({ task }: { task: TaskKind }) {
           {mayRun && <Button color="primary" size="xs" onClick={() => setError(dispatch({ type: "runEvaluation", projectId: project.id, task }))}>Jalankan evaluasi</Button>}
         </div>
         <p className="text-sm text-ink-2">
-          {empty ? (items.length ? "Tidak ada item yang dapat dievaluasi" : "Set acuan kosong") : `${m.n} item dievaluasi`} · {excluded} item dikecualikan (belum ada hasil model). Target bertanda [perlu validasi Javan].
+          {empty ? (items.length ? "Tidak ada item yang dapat dievaluasi" : "Set acuan kosong") : `${m.n} item dievaluasi`} · {excluded} item dikecualikan (tanpa hasil model yang valid). Target bertanda [perlu validasi Javan].
         </p>
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {cards.map((c) => {

@@ -72,7 +72,7 @@ export function ClassificationView({ task }: { task: Task }) {
           <h2 className="text-[20px] leading-7 font-semibold tracking-[-0.02em]">Klasifikasi</h2>
           {spec && <p title={spec.question} className="text-sm text-ink-2">{spec.question} · spesifikasi v{spec.version}</p>}
         </div>
-        {mayRun && open && (
+        {mayRun && open && items.length > 0 && (
           <Button color="primary" size="xs" onClick={() => (unscored > 0 ? run("belum_dinilai") : setConfirmAll(true))}>
             {unscored > 0 ? "Jalankan klasifikasi" : "Ulangi semua"}
           </Button>
