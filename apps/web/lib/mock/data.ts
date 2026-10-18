@@ -1,6 +1,6 @@
 import { FINDINGS } from "./findings";
 import { runCheckedGeneration, statusOf } from "./interpretation";
-import type { Audience, AuditEvent, Client, Interpretation, Membership, MappingVersion, MockState, Project, RuleSourceRef, RuleVersion, Snapshot, Source, User } from "./types";
+import type { AnalysisState, Audience, AuditEvent, Client, Comment, Decision, Interpretation, Investigation, InvestigationLink, InvestigationNote, Notification, Membership, MappingVersion, MockState, Project, RuleSourceRef, RuleVersion, Snapshot, Source, User } from "./types";
 
 export const MOCK_TODAY = "2026-10-17";
 
@@ -186,4 +186,59 @@ const interpretations: Interpretation[] = [
   seedDraft("63", "finding_63", "analis", "2026-10-17T08:00:00Z"),
 ];
 
-export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, rules, findings: FINDINGS, interpretations, investigations: [], links: [], notes: [], comments: [], notifications: [], reviews: [], decisions: [], flags: [], proposals: [], analysisStates: [], viewerId: "u-dimas" };
+const analysisStates: AnalysisState[] = [
+  { projectId: "p-p2p", datasetVersion: "ds-2", contextPackage: "ctx-4", analysis: "analisis-3", evidencePackage: "bukti-7",
+    metricValues: { "finding_42.p90_days": 18.4 }, ruleVersions: { "r-sla": "v2" } },
+];
+
+const investigations: Investigation[] = [
+  { id: "inv-1", projectId: "p-p2p", title: "Antrean persetujuan PO", question: "Mengapa persetujuan PO sering melewati batas waktu SLA?",
+    originFindingId: "finding_42", status: "terbuka", ownerId: "u-dimas", memberIds: ["u-dimas", "u-sari"], createdAt: "2026-10-14T03:00:00Z" },
+  { id: "inv-2", projectId: "p-p2p", title: "Rework verifikasi faktur", question: "Apa penyebab pengulangan pada verifikasi faktur?",
+    originFindingId: "finding_57", status: "selesai", ownerId: "u-dimas", memberIds: ["u-dimas", "u-sari"], createdAt: "2026-10-10T03:00:00Z" },
+];
+
+const lk = (id: string, investigationId: string, kind: InvestigationLink["kind"], targetId: string, linkedVersion = "analisis-3", createdAt = "2026-10-14T03:00:00Z"): InvestigationLink =>
+  ({ id, investigationId, kind, targetId, linkedVersion, createdBy: "u-dimas", createdAt });
+const links: InvestigationLink[] = [
+  lk("ln-1-1", "inv-1", "temuan", "finding_42"),
+  lk("ln-1-2", "inv-1", "aturan", "r-sla", "v2"),
+  lk("ln-1-3", "inv-1", "kandidat", "cand_1"),
+  lk("ln-1-4", "inv-1", "kandidat", "cand_2"),
+  lk("ln-1-5", "inv-1", "hasil_jev", "jev_42"),
+  lk("ln-1-6", "inv-1", "interpretasi", "i-seed-42"),
+  lk("ln-2-1", "inv-2", "temuan", "finding_57", "analisis-3", "2026-10-10T03:00:00Z"),
+  lk("ln-2-2", "inv-2", "kandidat", "cand_3", "analisis-3", "2026-10-10T03:00:00Z"),
+];
+
+const notes: InvestigationNote[] = [
+  { id: "note-1", investigationId: "inv-1", kind: "wawancara", title: "Wawancara Manajer Pengadaan",
+    body: "Persetujuan PO menumpuk saat penyetuju utama cuti; tidak ada penyetuju cadangan.",
+    interviewee: "Sari Hartono", intervieweeRole: "Manajer Pengadaan", interviewDate: "2026-10-14", initialsOnly: false,
+    createdBy: "u-dimas", createdAt: "2026-10-14T09:00:00Z" },
+  { id: "note-2", investigationId: "inv-1", kind: "hipotesis", title: "Penyetuju tunggal menjadi hambatan",
+    body: "Antrean memanjang karena PO bernilai rendah tetap menunggu penyetuju yang sama.", hypothesisState: "belum_diuji", supportingLinkIds: [],
+    createdBy: "u-dimas", createdAt: "2026-10-15T03:00:00Z" },
+  { id: "note-3", investigationId: "inv-1", kind: "pertanyaan", title: "Berapa PO yang menunggu saat penyetuju cuti?",
+    body: "Perlu data jumlah PO tertunda selama periode cuti penyetuju utama.", assigneeId: "u-dimas", questionState: "terbuka",
+    createdBy: "u-dimas", createdAt: "2026-10-15T04:00:00Z" },
+];
+
+const comments: Comment[] = [
+  { id: "cm-1", investigationId: "inv-1", targetLinkId: null, parentId: null,
+    body: "@Dimas apakah kandidat penyetuju cadangan sudah dibahas dengan tim keuangan?", mentions: ["u-dimas"], resolved: false,
+    createdBy: "u-sari", createdAt: "2026-10-16T07:00:00Z" },
+];
+const notifications: Notification[] = [
+  { id: "ntf-1", userId: "u-dimas", projectId: "p-p2p", text: "Sari Hartono menyebut Anda di Antrean persetujuan PO",
+    href: "/projects/p-p2p/investigations/inv-1", read: false, at: "2026-10-16T07:00:00Z" },
+];
+
+const decisions: Decision[] = [
+  { id: "dc-1", investigationId: "inv-2", projectId: "p-p2p", targetLinkId: "ln-2-2", version: 1, status: "ditolak",
+    reason: "Pemeriksaan otomatis tumpang tindih dengan kontrol yang sudah ada di sistem faktur.", byId: "u-dimas", byRole: "analis", at: "2026-10-16T10:00:00Z",
+    snapshot: { datasetVersion: "ds-2", contextPackage: "ctx-4", analysis: "analisis-3", evidencePackage: "bukti-7", narrativeVersion: "i-seed-57",
+      metricValues: { "finding_42.p90_days": 18.4 }, ruleVersions: { "r-sla": "v2" } } },
+];
+
+export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, rules, findings: FINDINGS, interpretations, investigations, links, notes, comments, notifications, reviews: [], decisions, flags: [], proposals: [], analysisStates, viewerId: "u-dimas" };

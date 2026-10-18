@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { initialState as s } from "./data";
 import { projectCanonicalLabels } from "./rules";
+import { linkFreshness, unreviewedModelOutputs } from "./investigation";
 
 describe("seed mappings", () => {
   it("refer to consistent source/snapshot/project and real columns", () => {
@@ -77,5 +78,56 @@ describe("seed interpretations", () => {
       const last = i.attempts[i.attempts.length - 1];
       for (const c of last.sections.flatMap((x) => x.claims).flatMap((c) => c.citations)) expect(ids.has(c)).toBe(true);
     }
+  });
+});
+
+describe("seed M11", () => {
+  const unique = (xs: { id: string }[]) => expect(new Set(xs.map((x) => x.id)).size).toBe(xs.length);
+  it("has unique ids per collection and everything in p-p2p", () => {
+    for (const c of [s.investigations, s.links, s.notes, s.comments, s.notifications, s.decisions]) unique(c);
+    expect(s.investigations.map((i) => i.id)).toEqual(["inv-1", "inv-2"]);
+    for (const i of s.investigations) expect(i.projectId).toBe("p-p2p");
+    for (const col of [s.links, s.notes, s.comments, s.decisions])
+      for (const x of col) expect(s.investigations.some((i) => i.id === x.investigationId)).toBe(true);
+    for (const d of s.decisions) expect(d.projectId).toBe("p-p2p");
+    expect(s.analysisStates).toEqual([
+      { projectId: "p-p2p", datasetVersion: "ds-2", contextPackage: "ctx-4", analysis: "analisis-3", evidencePackage: "bukti-7", metricValues: { "finding_42.p90_days": 18.4 }, ruleVersions: { "r-sla": "v2" } },
+    ]);
+    expect(s.reviews).toEqual([]);
+    expect(s.proposals).toEqual([]);
+  });
+  it("links point at existing objects and are not stale", () => {
+    const evidence = s.findings.flatMap((f) => f.evidence);
+    expect(s.links.filter((l) => l.investigationId === "inv-1").map((l) => `${l.kind}:${l.targetId}`)).toEqual([
+      "temuan:finding_42", "aturan:r-sla", "kandidat:cand_1", "kandidat:cand_2", "hasil_jev:jev_42", "interpretasi:i-seed-42",
+    ]);
+    for (const l of s.links) {
+      if (l.kind === "aturan") expect(s.rules.some((r) => r.ruleKey === l.targetId)).toBe(true);
+      else if (l.kind === "interpretasi") expect(s.interpretations.some((i) => i.id === l.targetId)).toBe(true);
+      else expect(evidence.some((e) => e.id === l.targetId && e.kind === l.kind)).toBe(true);
+      expect(linkFreshness(s, l).stale).toBe(false);
+    }
+  });
+  it("has unreviewed model outputs in inv-1", () => {
+    expect(unreviewedModelOutputs(s, "inv-1").length).toBeGreaterThanOrEqual(1);
+  });
+  it("has notes, thread, notification and a complete rejected decision", () => {
+    expect(s.notes.map((n) => n.kind).sort()).toEqual(["hipotesis", "pertanyaan", "wawancara"]);
+    const root = s.comments.find((c) => c.parentId === null)!;
+    expect(root).toMatchObject({ createdBy: "u-sari", mentions: ["u-dimas"] });
+    expect(root.body).toContain("@Dimas");
+    const n = s.notifications.find((x) => x.userId === "u-dimas")!;
+    expect(n.href).toBe("/projects/p-p2p/investigations/inv-1");
+    const [d] = s.decisions;
+    expect(s.decisions).toHaveLength(1);
+    expect(d).toMatchObject({ investigationId: "inv-2", status: "ditolak", version: 1, byId: "u-dimas", byRole: "analis" });
+    expect(d.reason.trim()).not.toBe("");
+    expect(s.links.find((l) => l.id === d.targetLinkId)).toMatchObject({ investigationId: "inv-2", kind: "kandidat" });
+    for (const [k, v] of Object.entries(d.snapshot)) { if (k !== "metricValues" && k !== "ruleVersions") expect(v).toBeTruthy(); else expect(Object.keys(v).length).toBeGreaterThan(0); }
+    expect(s.flags).toEqual([]);
+  });
+  it("has no timestamps after MOCK_TODAY", () => {
+    const ts = [...s.investigations, ...s.links, ...s.notes, ...s.comments, ...s.decisions].map((x) => ("at" in x ? x.at : x.createdAt));
+    for (const t of [...ts, ...s.notifications.map((x) => x.at)]) expect(t.slice(0, 10) <= "2026-10-17").toBe(true);
   });
 });

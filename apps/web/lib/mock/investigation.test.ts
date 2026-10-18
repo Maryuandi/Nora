@@ -29,6 +29,7 @@ const analysis = (over: Partial<AnalysisState> = {}): AnalysisState => ({ projec
 // State kecil dirakit tangan; tidak bergantung seed M11.
 function build(status: InvestigationStatus = "siap_diputuskan", validated = true): MockState {
   const s = structuredClone(initialState);
+  Object.assign(s, { investigations: [], links: [], notes: [], comments: [], notifications: [], reviews: [], decisions: [], flags: [], proposals: [], analysisStates: [] });
   s.investigations.push({
     id: INV, projectId: "p-1", title: "t", question: "q", originFindingId: null, status,
     ownerId: "u-rina", memberIds: [], createdAt: "2026-10-01",
