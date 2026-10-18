@@ -197,6 +197,10 @@ export function casesForSelection(filtered: EventLog, dfg: Dfg, sel: { kind: "no
 export const groupCases = (log: EventLog, po: string): LogCase[] => log.cases.filter((c) => c.objects.po === po);
 export const caseById = (log: EventLog, id: string): LogCase | undefined => log.cases.find((c) => c.id === id);
 
+/** Gap to the previous event per event (first = null); clamped at 0 so out-of-order rows never show a negative gap. */
+export const eventGaps = (kase: LogCase): (number | null)[] =>
+  kase.events.map((e, i) => (i === 0 ? null : Math.max(0, Date.parse(e.time) - Date.parse(kase.events[i - 1].time))));
+
 export function provenance(snapshot: Snapshot, mapping: MappingVersion, event: LogEvent): { fileName: string; rowRef: number; mappingVersion: number } {
   return { fileName: snapshot.fileName, rowRef: event.rowRef, mappingVersion: mapping.version };
 }

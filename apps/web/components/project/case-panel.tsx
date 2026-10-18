@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import type { SortDescriptor } from "react-aria-components";
 import { X } from "@phosphor-icons/react";
 import { Table } from "@/components/application/table/table";
@@ -13,7 +14,7 @@ const PAGE_SIZE = 20;
 type SortKey = "durasi" | "event" | "mulai";
 
 /** Cases behind a selected map element. Mount with a `key` per selection so sort and page reset. */
-export function CasePanel({ title, cases, note, onClose }: { title: string; cases: LogCase[]; note?: string; onClose: () => void }) {
+export function CasePanel({ title, cases, note, base, onClose }: { title: string; cases: LogCase[]; note?: string; base: string; onClose: () => void }) {
   const [sort, setSort] = useState<{ by: SortKey; dir: "asc" | "desc" }>({ by: "durasi", dir: "desc" });
   const [page, setPage] = useState(1);
   const sorted = useMemo(() => sortCases(cases, sort.by, sort.dir), [cases, sort]);
@@ -48,7 +49,7 @@ export function CasePanel({ title, cases, note, onClose }: { title: string; case
               <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{formatDateTime(new Date(c.startMs).toISOString())}</Table.Cell>
               <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{formatDuration(c.durationMs)}</Table.Cell>
               <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{c.events.length}</Table.Cell>
-              <Table.Cell className="px-6 text-sm whitespace-nowrap"><span aria-disabled="true" className="cursor-not-allowed text-ink-3">Buka timeline (M05c)</span></Table.Cell>
+              <Table.Cell className="px-6 text-sm whitespace-nowrap"><Link href={`${base}/analysis/cases/${encodeURIComponent(c.id)}`} className="text-accent hover:underline">Buka timeline</Link></Table.Cell>
             </Table.Row>
           ))}
         </Table.Body>

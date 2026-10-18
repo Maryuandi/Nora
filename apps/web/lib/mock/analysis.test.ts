@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { initialState as s } from "./data";
 import { buildDfg, casesForNode, eventLogFor, type EventLog, type LogCase } from "./eventlog";
 import {
-  applyFilter, buildVariants, caseById, casesForSelection, describeFilter, filteredLogFor, groupCases, isEmptyFilter, normalizeFilter, objectGroups, provenance,
+  applyFilter, buildVariants, caseById, casesForSelection, describeFilter, eventGaps, filteredLogFor, groupCases, isEmptyFilter, normalizeFilter, objectGroups, provenance,
   validateFilter, variantIdOf, variantsTo80, VENDORS, type FilterSpec,
 } from "./analysis";
 
@@ -317,5 +317,25 @@ describe("casesForSelection", () => {
   it("unknown id gives [] and no selection gives every case", () => {
     for (const kind of ["node", "edge", "variant"] as const) expect(casesForSelection(r.filtered, r.dfg, { kind, id: "nope" })).toEqual([]);
     expect(casesForSelection(r.filtered, r.dfg, null)).toHaveLength(r.filtered.cases.length);
+  });
+});
+
+describe("eventGaps", () => {
+  it("first is null, others the ms difference to the previous event", () => {
+    const c = mk([{ acts: ["A", "B", "C"], days: 2 }]).cases[0];
+    expect(eventGaps(c)).toEqual([null, DAY, DAY]);
+  });
+  it("never negative even when events are out of order; single event gives [null]", () => {
+    const c = mk([{ acts: ["A", "B"] }]).cases[0];
+    c.events = [c.events[1], c.events[0]];
+    expect(eventGaps(c)).toEqual([null, 0]);
+    expect(eventGaps(mk([{ acts: ["A"] }]).cases[0])).toEqual([null]);
+  });
+  it("seed log: same length as events, no negatives", () => {
+    for (const c of filteredLogFor(s, "p-p2p", {})!.full.cases.slice(0, 50)) {
+      const g = eventGaps(c);
+      expect(g).toHaveLength(c.events.length);
+      expect(g.slice(1).every((x) => x !== null && x >= 0)).toBe(true);
+    }
   });
 });

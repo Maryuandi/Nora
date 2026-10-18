@@ -4,6 +4,13 @@ export const formatDate = (d: string) => new Date(d).toLocaleDateString("id-ID",
 export const formatDateTime = (d: string) =>
   new Date(d).toLocaleString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
 
+/** Event wall-clock time in the mapping's IANA zone, with zone label (e.g. "GMT+7"). Bad zone falls back to UTC; bad date gives "-". */
+export const formatEventTime = (iso: string, timeZone: string): string => {
+  if (!Number.isFinite(Date.parse(iso))) return "-";
+  const opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", timeZoneName: "short" };
+  try { return new Date(iso).toLocaleString("id-ID", { ...opts, timeZone }); } catch { return new Date(iso).toLocaleString("id-ID", { ...opts, timeZone: "UTC" }); }
+};
+
 export const formatBytes = (n: number): string => {
   const units = ["B", "KB", "MB", "GB"];
   let i = 0;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MOCK_TODAY } from "./mock/data";
-import { daysSince, formatBytes, formatDuration, isStale } from "./format";
+import { daysSince, formatBytes, formatDuration, formatEventTime, isStale } from "./format";
 
 const before = (days: number) => new Date(Date.parse(`${MOCK_TODAY}T00:00:00Z`) - days * 86_400_000).toISOString();
 
@@ -28,4 +28,19 @@ describe("formatDuration", () => {
     [86_399_999, "1 hari"], [86_400_000, "1 hari"], [35_856_000, "10 jam"],
     [NaN, "-"], [-1, "-"], [Infinity, "-"],
   ])("%s -> %s", (ms, out) => expect(formatDuration(ms)).toBe(out));
+});
+
+describe("formatEventTime", () => {
+  it("shows the wall clock of the given IANA zone with a zone label", () => {
+    const iso = "2026-05-01T17:30:15Z";
+    const jkt = formatEventTime(iso, "Asia/Jakarta");
+    expect(jkt).toContain("00.30.15"); // 17:30 UTC = 00:30 next day in WIB (UTC+7) -> 2 May
+    expect(jkt).toMatch(/2 Mei 2026.*WIB/);
+    expect(formatEventTime(iso, "UTC")).toContain("17.30.15");
+    expect(formatEventTime(iso, "UTC")).not.toBe(jkt);
+  });
+  it("invalid zone or date falls back instead of throwing", () => {
+    expect(() => formatEventTime("2026-05-01T00:00:00Z", "Not/AZone")).not.toThrow();
+    expect(formatEventTime("garbage", "UTC")).toBe("-");
+  });
 });
