@@ -20,7 +20,7 @@ interface MockContext {
 const Ctx = createContext<MockContext | null>(null);
 
 // Preview persona -> role used for org-level actions (create client/project).
-const PERSONA_ROLE: Record<NonNullable<User["persona"]>, Role> = { rina: "administrator", dimas: "analis", sari: "pemilik_proses" };
+export const PERSONA_ROLE: Record<NonNullable<User["persona"]>, Role> = { rina: "administrator", dimas: "analis", sari: "pemilik_proses" };
 
 export function MockStoreProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<MockState>(initialState);

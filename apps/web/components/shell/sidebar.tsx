@@ -5,8 +5,10 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { CaretDown, FolderSimple, ListChecks, Buildings, ShieldCheck, UsersThree, SidebarSimple } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
+import { NativeSelect } from "@/components/base/select/select-native";
+import { ROLE_LABEL } from "@/components/nora/badges";
 import { Logo } from "@/components/nora/logo";
-import { useMock } from "@/lib/mock/store";
+import { PERSONA_ROLE, useMock } from "@/lib/mock/store";
 import { projectsForViewer } from "@/lib/mock/reducer";
 import { cx } from "@/utils/cx";
 
@@ -85,6 +87,11 @@ export function Sidebar() {
       </nav>
 
       <div className="mt-auto flex flex-col gap-3">
+        <NativeSelect
+          label="Pratinjau sebagai" hint="Demo: ganti peran untuk mencoba kewenangan" size="sm" value={mock.viewer.id}
+          onChange={(e) => mock.dispatch({ type: "setViewer", userId: e.target.value })}
+          options={mock.state.users.filter((u) => u.persona).map((u) => ({ value: u.id, label: `${u.name} (${ROLE_LABEL[PERSONA_ROLE[u.persona!]]})` }))}
+        />
         <div className="flex flex-col gap-1 px-2 text-[12px] font-medium text-ink-2">
           <Link href="/health" className="flex items-center gap-2 hover:text-ink"><ListChecks size={16} aria-hidden />Status sistem</Link>
           <Link href="/login" className="flex items-center gap-2 hover:text-ink"><UsersThree size={16} aria-hidden />Keluar</Link>
