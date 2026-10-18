@@ -74,10 +74,14 @@ describe("findingsFor seed", () => {
     const kinds = new Set(findingsFor(initialState, { ...run2, config: loose }).map((f) => f.kind));
     expect([...kinds].sort()).toEqual(["backlog", "bottleneck", "kepatuhan", "penyimpangan_model", "rework", "tren_memburuk"]);
   });
-  it("demo: run-2 vs run-1 has bottleneck, kepatuhan and a memburuk", () => {
-    const cmp = compareFindings(fs, findingsFor(initialState, baselineFor(initialState, run2)!), run2.config);
+  it("title uses decimal comma", () => {
+    const rw = fs.find((f) => f.kind === "rework")!;
+    expect(rw.title).toMatch(/^Rework tinggi pada aktivitas .+: \d+,\d% kasus mengulang$/);
+  });
+  it("demo: r-sla kepatuhan is memburuk in run-2 vs run-1", () => {
+    const base = findingsFor(initialState, baselineFor(initialState, run2)!);
+    const cmp = compareFindings(fs, base, run2.config);
     expect(fs.some((f) => f.kind === "bottleneck")).toBe(true);
-    expect(fs.some((f) => f.kind === "kepatuhan")).toBe(true);
-    expect(cmp.some((c) => c.status === "memburuk")).toBe(true);
+    expect(cmp.find((c) => c.finding.kind === "kepatuhan" && c.finding.key === "r-sla")?.status).toBe("memburuk");
   });
 });
