@@ -105,7 +105,7 @@ export async function attachBundle(job: AssessmentJob & { bundleId: string }): P
   await db().query("UPDATE assessment_runs SET evidence_bundle_id = $2 WHERE id = $1", [job.assessmentRunId, job.bundleId]);
 }
 
-const modelLabel = () => (process.env.JEV_MODE === "fixture" ? "fixture-decision@1" : `${process.env.JEV_MODEL ?? "jev"}`);
+const modelLabel = () => (process.env.JEV_MODE === "fixture" ? "fixture-decision@1" : `${process.env.JEV_MODEL ?? "jev-latest"}`);
 
 /** Creates the assessment row, or returns the earlier final result with the same idempotency key. */
 export async function createAssessment(job: AssessmentJob & { linkId: string; bundleId: string }): Promise<{ assessmentId: string; reused: boolean }> {
