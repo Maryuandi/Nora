@@ -250,6 +250,39 @@ export function p2pCsv(cases = 120): string {
   return rows.join("\n") + "\n";
 }
 
+/** Approves a process boundary (and optional rework) and activates a context package. */
+export async function activateContext(c: Client, projectId: string, opts: { rework?: boolean } = {}): Promise<string> {
+  const P = `/api/lite/projects/${projectId}`;
+  const b = await c.post(`${P}/context/definitions`, { kind: "process_boundary", payload: { startActivities: ["Create PO"], endActivities: ["Pay Invoice"] } });
+  await c.post(`${P}/context/items/process_boundary/${b.body.id}/status`, { to: "approved" });
+  if (opts.rework) {
+    const r = await c.post(`${P}/context/definitions`, { kind: "rework_definition", payload: { rules: [{ type: "repeated_activity", activity: "Approve PO", minOccurrences: 2 }, { type: "return_transition", from: "Request Change", to: "Approve PO" }] } });
+    await c.post(`${P}/context/items/rework_definition/${r.body.id}/status`, { to: "approved" });
+  }
+  const pkg = await c.post(`${P}/context/packages`);
+  if (pkg.status >= 300) throw new Error(`package ${pkg.status} ${JSON.stringify(pkg.body)}`);
+  return pkg.body.id;
+}
+
+export async function waitRun(c: Client, projectId: string, runId: string, until: string[] = ["completed", "failed"]) {
+  return waitFor(`run ${runId}`, async () => {
+    const r = await c.get(`/api/lite/projects/${projectId}/analyses/${runId}`);
+    return until.includes(r.body.status) ? r.body : null;
+  }, 240_000);
+}
+
+/** A second project with its own analyst, used for isolation checks. */
+export async function otherProjectUser(s: Smoke): Promise<Client> {
+  const admin = new Client(s.baseUrl);
+  await admin.post("/api/lite/auth/login", { email: "admin@example.test", password: "password-123" });
+  const cl = await admin.post("/api/lite/clients", { name: `Klien Lain ${randomBytes(3).toString("hex")}` });
+  const p = await admin.post("/api/lite/projects", { clientId: cl.body.id, name: "Lain", processName: "X", contractStart: "2026-01-01", contractEnd: "2099-01-01", retentionPolicy: "x" });
+  const inv = await admin.post(`/api/lite/projects/${p.body.id}/members`, { email: `other-${randomBytes(3).toString("hex")}@example.test`, name: "O", role: "analyst" });
+  const c = new Client(s.baseUrl);
+  await c.post("/api/lite/auth/activate", { token: new URL(inv.body.activationUrl).searchParams.get("token"), name: "O", password: "password-123" });
+  return c;
+}
+
 export const P2P_CONFIG = {
   columns: { caseId: "case_id", activity: "activity", timestamp: "timestamp", resource: "user", caseAttributes: ["branch"], eventAttributes: [], objectRefs: [] },
   timestampFormat: "%Y-%m-%d %H:%M", timezone: "UTC", labelMap: {}, repairRules: [],

@@ -7,7 +7,7 @@ from temporalio.worker import Worker
 
 from nora_worker.activities import python_ping
 from nora_worker.contracts import load_schema
-from nora_worker.data_activities import build_dataset_activity, ingest_snapshot, preview_mapping_activity, preview_rule_activity, validate_bpmn_activity
+from nora_worker.data_activities import build_dataset_activity, ingest_snapshot, preview_mapping_activity, preview_rule_activity, run_process_analysis_activity, validate_bpmn_activity
 
 
 async def main() -> None:
@@ -16,7 +16,7 @@ async def main() -> None:
     worker = Worker(
         client,
         task_queue=os.environ.get("TASK_QUEUE_PYTHON", "nora-python"),
-        activities=[python_ping, ingest_snapshot, preview_mapping_activity, build_dataset_activity, validate_bpmn_activity, preview_rule_activity],
+        activities=[python_ping, ingest_snapshot, preview_mapping_activity, build_dataset_activity, validate_bpmn_activity, preview_rule_activity, run_process_analysis_activity],
         # File parsing and DuckDB work are blocking; run them on threads, not the event loop.
         activity_executor=ThreadPoolExecutor(max_workers=int(os.environ.get("NORA_PY_ACTIVITY_THREADS", "4"))),
     )

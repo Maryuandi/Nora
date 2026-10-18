@@ -1,5 +1,6 @@
 import { ApplicationFailure, proxyActivities } from "@temporalio/workflow";
-import { PingResult, PreviewMappingResult, PreviewRuleResult, TASK_QUEUE_PYTHON, type BuildDatasetInput, type IngestSnapshotInput, type PingRequest, type PreviewMappingInput, type PreviewRuleInput, type ValidateBpmnInput } from "@nora/contracts";
+import { PingResult, PreviewMappingResult, PreviewRuleResult, TASK_QUEUE_PYTHON, type BuildDatasetInput, type IngestSnapshotInput, type PingRequest, type PreviewMappingInput, type PreviewRuleInput, type ProcessAnalysisInput, type ValidateBpmnInput } from "@nora/contracts";
+import type * as analysis from "./activities/analysis.ts";
 import type * as context from "./activities/context.ts";
 import type * as data from "./activities/data.ts";
 
@@ -17,12 +18,13 @@ export async function pingWorkflow(input: PingRequest): Promise<PingResult> {
 }
 
 // Transient errors retry up to three times; corrupt files and schema errors are non-retryable in the activities.
-const ts = proxyActivities<typeof data & typeof context>({ startToCloseTimeout: "30 minutes", retry: { maximumAttempts: 3, nonRetryableErrorTypes: ["Unauthorized", "NotFound", "SnapshotNotReady"] } });
+const ts = proxyActivities<typeof data & typeof context & typeof analysis>({ startToCloseTimeout: "30 minutes", retry: { maximumAttempts: 3, nonRetryableErrorTypes: ["Unauthorized", "NotFound", "SnapshotNotReady"] } });
 
 const py = proxyActivities<{
   ingestSnapshot(input: IngestSnapshotInput): Promise<{ status: string }>;
   previewMapping(input: PreviewMappingInput): Promise<unknown>;
   buildDataset(input: BuildDatasetInput): Promise<{ qualityStatus: string }>;
+  runProcessAnalysis(input: ProcessAnalysisInput): Promise<unknown>;
 }>({ taskQueue: TASK_QUEUE_PYTHON, startToCloseTimeout: "2 hours", retry: { maximumAttempts: 3, nonRetryableErrorTypes: ["ContractMismatch", "InvalidMapping", "ProjectKeyViolation"] } });
 
 const pyPreview = proxyActivities<{ previewMapping(input: PreviewMappingInput): Promise<unknown>; previewRule(input: PreviewRuleInput): Promise<unknown>; validateBpmn(input: ValidateBpmnInput): Promise<unknown> }>({
@@ -74,5 +76,20 @@ export async function validateBpmnWorkflow(job: Job & ValidateBpmnInput): Promis
   } catch (err) {
     await ts.markBpmnInvalid({ ...job, message: message(err) });
     return "invalid";
+  }
+}
+
+/** Workflow ID = analysis run ID. The map is result_ready before any later stage runs. */
+export async function processAnalysisWorkflow(job: analysis.RunJob): Promise<string> {
+  try {
+    const input = await ts.loadAnalysisInput(job);
+    if (!input) return "skipped";
+    const manifest = await py.runProcessAnalysis(input);
+    await ts.saveProcessResult({ ...job, manifest });
+    await ts.markAnalysisCompleted(job);
+    return "completed";
+  } catch (err) {
+    await ts.markAnalysisFailed({ ...job, message: message(err) });
+    return "failed";
   }
 }

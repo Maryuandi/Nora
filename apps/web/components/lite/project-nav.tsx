@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Database, SquaresFour } from "@phosphor-icons/react";
+import { Database, FlowArrow, SquaresFour } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
 import { Dropdown } from "@/components/base/dropdown/dropdown";
 import { PublishTabs } from "@/components/shell/sidebar-tabs";
@@ -17,6 +17,7 @@ interface NavItem {
 const FLOW: NavItem[] = [
   { label: "Ringkasan", icon: SquaresFour, path: "" },
   { label: "Persiapan", icon: Database, path: "prepare" },
+  { label: "Analisis", icon: FlowArrow, path: "analysis" },
 ];
 
 export function ProjectNav({ projectId }: { projectId: string }) {

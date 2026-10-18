@@ -1,0 +1,299 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "eventCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "caseCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "caseShare": {
+            "type": "number"
+          },
+          "startCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "endCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "boundaryStart": {
+            "type": "boolean"
+          },
+          "boundaryEnd": {
+            "type": "boolean"
+          },
+          "serviceMedianSeconds": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "eventCount",
+          "caseCount",
+          "caseShare",
+          "startCount",
+          "endCount",
+          "boundaryStart",
+          "boundaryEnd",
+          "serviceMedianSeconds"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "caseCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "medianSeconds": {
+            "type": "number"
+          },
+          "p90Seconds": {
+            "type": "number"
+          },
+          "totalSeconds": {
+            "type": "number"
+          },
+          "contributionShare": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "from",
+          "to",
+          "count",
+          "caseCount",
+          "medianSeconds",
+          "p90Seconds",
+          "totalSeconds",
+          "contributionShare"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "properties": {
+        "datasetCases": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "datasetEvents": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "cases": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "events": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "excludedEvents": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "periodStart": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "periodEnd": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "datasetCases",
+        "datasetEvents",
+        "cases",
+        "events",
+        "excludedEvents",
+        "periodStart",
+        "periodEnd"
+      ],
+      "additionalProperties": false
+    },
+    "startSource": {
+      "type": "string",
+      "enum": [
+        "context",
+        "observed"
+      ]
+    },
+    "mapAvailable": {
+      "type": "boolean"
+    },
+    "unavailableReason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "hasStartTime": {
+      "type": "boolean"
+    },
+    "attributeValues": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "string"
+            },
+            "count": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "value",
+            "count"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "variants": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "hash": {
+            "type": "string"
+          },
+          "sequence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "caseCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "share": {
+            "type": "number"
+          },
+          "cumulativeShare": {
+            "type": "number"
+          },
+          "medianDurationSeconds": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "hash",
+          "sequence",
+          "caseCount",
+          "share",
+          "cumulativeShare",
+          "medianDurationSeconds"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "caseDuration": {
+      "type": "object",
+      "properties": {
+        "medianSeconds": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "p90Seconds": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "meanSeconds": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "medianSeconds",
+        "p90Seconds",
+        "meanSeconds"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "nodes",
+    "edges",
+    "coverage",
+    "startSource",
+    "mapAvailable",
+    "unavailableReason",
+    "hasStartTime",
+    "attributeValues",
+    "variants",
+    "caseDuration"
+  ],
+  "additionalProperties": false
+}

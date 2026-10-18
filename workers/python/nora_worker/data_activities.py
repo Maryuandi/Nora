@@ -10,6 +10,7 @@ from temporalio.exceptions import ApplicationError
 
 from nora_worker import storage
 from nora_worker.contracts import load_schema
+from nora_worker.analysis import run_process_analysis
 from nora_worker.bpmn import validate_bpmn
 from nora_worker.dataset import build_dataset, connect, lit, preview_mapping
 from nora_worker.ingest import ingest_file
@@ -95,3 +96,19 @@ def preview_rule_activity(payload: dict) -> dict:
         rows = evaluate_rule(con, payload["rule"], payload["maxCases"])
         con.close()
         return summarize(rows)
+
+
+@activity.defn(name="runProcessAnalysis")
+def run_process_analysis_activity(payload: dict) -> dict:
+    _validate(payload, "ProcessAnalysisInput")
+    pid, prefix = payload["projectId"], payload["artifactPrefix"]
+    storage.assert_project_key(pid, prefix)
+    with _Workdir() as wd:
+        events = storage.download(pid, payload["eventsKey"], wd / "events.parquet")
+        result, files, warnings = run_process_analysis(events, wd, payload)
+        keys = {"mapKey": f"{prefix}/map.json", "variantsKey": f"{prefix}/variants.parquet", "caseIndexKey": f"{prefix}/case-index.parquet", "caseRowsKey": f"{prefix}/case-rows.ndjson.gz"}
+        storage.put_json(pid, keys["mapKey"], {**result, "warnings": warnings})
+        storage.upload(pid, keys["variantsKey"], files["variants"])
+        storage.upload(pid, keys["caseIndexKey"], files["caseIndex"])
+        storage.upload(pid, keys["caseRowsKey"], files["caseRows"], "application/gzip")
+    return {**keys, "caseCount": result["coverage"]["cases"], "eventCount": result["coverage"]["events"], "mapAvailable": result["mapAvailable"]}

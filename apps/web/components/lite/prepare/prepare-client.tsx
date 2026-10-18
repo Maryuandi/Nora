@@ -1,23 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/base/buttons/button";
 import { Input } from "@/components/base/input/input";
 import { cx } from "@/utils/cx";
 import { api, errorText } from "../api";
 
-export function PrepareTabs({ projectId, tabs }: { projectId: string; tabs: { label: string; path: string }[] }) {
+/** Sub-tabs of a project section; keeps ?run so the map and dashboard stay on the same analysis run. */
+export function PrepareTabs({ projectId, tabs, section = "prepare" }: { projectId: string; tabs: { label: string; path: string }[]; section?: string }) {
   const pathname = usePathname();
-  const base = `/lite/projects/${projectId}/prepare`;
+  const run = useSearchParams().get("run");
+  const base = `/lite/projects/${projectId}/${section}`;
   return (
-    <nav aria-label="Persiapan" className="mb-5 flex gap-6 border-b border-line">
+    <nav aria-label={section === "analysis" ? "Analisis" : "Persiapan"} className="mb-5 flex gap-6 border-b border-line">
       {tabs.map((t) => {
         const href = t.path ? `${base}/${t.path}` : base;
         const active = t.path ? pathname.startsWith(href) : !tabs.some((o) => o.path && pathname.startsWith(`${base}/${o.path}`));
         return (
-          <Link key={t.label} href={href} aria-current={active ? "page" : undefined}
+          <Link key={t.label} href={run ? `${href}?run=${run}` : href} aria-current={active ? "page" : undefined}
             className={cx("-mb-px border-b-2 pb-2.5 text-[13px] font-medium", active ? "border-accent text-accent" : "border-transparent text-ink-2 hover:text-ink")}>
             {t.label}
           </Link>
