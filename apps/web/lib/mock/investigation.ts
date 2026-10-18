@@ -162,6 +162,22 @@ export function detectRevalidation(decision: Decision, current: AnalysisState): 
   return out;
 }
 
+// Simulasi demo "analisis baru": semua versi naik satu, r-sla naik satu, P90 memburuk.
+const bump = (v: string) => v.replace(/\d+$/, (n) => String(Number(n) + 1));
+const P90 = "finding_42.p90_days";
+export function nextAnalysisState(prev: AnalysisState): AnalysisState {
+  const p90 = prev.metricValues[P90];
+  return {
+    ...prev,
+    datasetVersion: bump(prev.datasetVersion),
+    contextPackage: bump(prev.contextPackage),
+    analysis: bump(prev.analysis),
+    evidencePackage: bump(prev.evidencePackage),
+    ruleVersions: { ...prev.ruleVersions, ...(prev.ruleVersions["r-sla"] ? { "r-sla": bump(prev.ruleVersions["r-sla"]) } : {}) },
+    metricValues: { ...prev.metricValues, ...(p90 !== undefined ? { [P90]: p90 === 18.4 ? 22.1 : Math.round(p90 * 12) / 10 } : {}) },
+  };
+}
+
 // Aturan: targetId = ruleKey, dibandingkan dengan ruleVersions; interpretasi tidak berversi;
 // objek lain mengikuti versi analisis proyek.
 export function linkFreshness(s: MockState, link: InvestigationLink): { latest: string; stale: boolean } {

@@ -1,11 +1,14 @@
 // Reducer M11. Dipanggil lebih dulu oleh `reduce`; `null` berarti aksi bukan milik M11.
-import { INVESTIGATION_STATUS_LABEL, LINK_KIND_LABEL, REJECT_LABEL, canSetStatus, extractMentions, linkFreshness } from "./investigation";
+import {
+  DECISION_LABEL, INVESTIGATION_STATUS_LABEL, LINK_KIND_LABEL, REJECT_LABEL, canDecide, canSetStatus, decisionHistory, detectRevalidation,
+  extractMentions, latestDecisions, linkFreshness, nextAnalysisState, snapshotFor, validateDecision,
+} from "./investigation";
 import { id, now, withAudit } from "./mutate";
 import { acceptsData, can, type UiAction } from "./permissions";
 import type { MockAction, ReduceResult } from "./reducer";
 import type {
-  DecisionStatus, HypothesisState, Investigation, InvestigationLink, InvestigationNote, InvestigationStatus, LinkKind,
-  MockState, ModelReview, Notification, Project, RejectReason, Role,
+  Decision, DecisionStatus, HypothesisState, Investigation, InvestigationLink, InvestigationNote, InvestigationStatus, LinkKind,
+  MockState, ModelReview, Notification, Project, RejectReason, RevalidationFlag, Role,
 } from "./types";
 
 export type InvestigationAction =
@@ -88,6 +91,22 @@ function resolveTarget(state: MockState, projectId: string, kind: LinkKind, targ
     default: return null; // skenario/uji_coba belum punya sumber data
   }
 }
+
+// Versi narasi untuk potret: interpretasi tertaut yang tinjauan terakhirnya `disetujui`, paling baru.
+function approvedNarrative(state: MockState, investigationId: string): string | null {
+  const seen = new Set<string>();
+  for (const r of [...state.reviews].reverse()) {
+    if (r.investigationId !== investigationId || seen.has(r.linkId)) continue;
+    seen.add(r.linkId);
+    const link = state.links.find((l) => l.id === r.linkId);
+    if (r.outcome === "disetujui" && link?.kind === "interpretasi") return link.targetId;
+  }
+  return null;
+}
+
+// Tutup penanda aktif milik keputusan-keputusan ini.
+const clearFlags = (state: MockState, decisionIds: Set<string>): RevalidationFlag[] =>
+  state.flags.map((f) => (!f.clearedAt && decisionIds.has(f.decisionId) ? { ...f, clearedBy: state.viewerId, clearedAt: now() } : f));
 
 export function reduceInvestigation(
   state: MockState,
@@ -285,7 +304,7 @@ export function reduceInvestigation(
       if (!interp) return fail("Draf interpretasi tidak ditemukan");
       const reason = action.reason?.trim() ?? "";
       if (action.outcome === "disetujui" && interp.status !== "lolos_pemeriksaan") return fail("Draf yang gagal pemeriksaan tidak dapat disetujui");
-      if (action.outcome === "ditolak" && (!action.rejectCode || !(action.rejectCode in REJECT_LABEL) || !reason)) return fail("Kode penolakan dan alasan wajib diisi");
+      if (action.outcome === "ditolak" && (!action.rejectCode || !Object.hasOwn(REJECT_LABEL, action.rejectCode) || !reason)) return fail("Kode penolakan dan alasan wajib diisi");
       const review: ModelReview = {
         id: id("rv"), investigationId: c.inv.id, linkId: link.id, outcome: action.outcome, reason, forEvalSet: action.forEvalSet,
         ...(action.outcome === "ditolak" ? { rejectCode: action.rejectCode } : {}), by: state.viewerId, at: now(),
@@ -294,9 +313,78 @@ export function reduceInvestigation(
       return { state: withAudit({ ...state, reviews: [...state.reviews, review] }, { action: action.outcome === "disetujui" ? "draf.setujui" : "draf.tolak", objectType: "Investigasi", objectLabel: label, projectId: c.project.id }), investigationId: c.inv.id, linkId: link.id };
     }
 
-    // Diganti Task 7-9; jangan sampai tertelan diam-diam.
-    case "makeDecision": case "confirmDecision":
-    case "simulateNewAnalysis": case "createProposal":
+    case "makeDecision": {
+      // Izin per status lewat canDecide; "investigation.view" hanya memastikan keanggotaan dan proyek aktif.
+      const c = ctx(state, action.investigationId, "investigation.view");
+      if (typeof c === "string") return fail(c);
+      if (!canDecide(c.role, action.status)) return fail("Peran Anda tidak diizinkan menetapkan status ini");
+      const invalid = validateDecision(state, action);
+      if (invalid) return fail(invalid);
+      const history = decisionHistory(state, c.inv.id, action.targetLinkId);
+      if ((history[0]?.version ?? 0) !== action.expectedVersion) return fail("Keputusan sudah berubah, muat ulang");
+      const decision: Decision = {
+        id: id("dc"), investigationId: c.inv.id, projectId: c.project.id, targetLinkId: action.targetLinkId,
+        version: action.expectedVersion + 1, status: action.status,
+        ...(action.status === "digantikan" ? { replacedByLinkId: action.replacedByLinkId } : {}),
+        reason: action.reason.trim(), byId: state.viewerId, byRole: c.role!, at: now(),
+        snapshot: snapshotFor(state, c.project.id, approvedNarrative(state, c.inv.id)),
+      };
+      const target = state.links.find((l) => l.id === action.targetLinkId)!;
+      const label = `${c.inv.title}: ${targetTitle(state, c.project.id, target.kind, target.targetId)} → ${DECISION_LABEL[action.status]} (${c.role})`;
+      const next = { ...state, decisions: [...state.decisions, decision], flags: clearFlags(state, new Set(history.map((d) => d.id))) };
+      return { state: withAudit(next, { action: "keputusan.tetapkan", objectType: "Keputusan", objectLabel: label, projectId: c.project.id }), investigationId: c.inv.id, decisionId: decision.id };
+    }
+
+    case "confirmDecision": {
+      const d = state.decisions.find((x) => x.id === action.decisionId);
+      if (!d) return fail("Keputusan tidak ditemukan");
+      const c = ctx(state, d.investigationId, "investigation.view");
+      if (typeof c === "string") return fail(c);
+      if (c.role !== "analis" && c.role !== "pemilik_proses") return fail("Peran Anda tidak diizinkan untuk aksi ini");
+      // Penanda hanya ada pada versi terbaru (keputusan baru selalu menutupnya).
+      if (!state.flags.some((f) => f.decisionId === d.id && !f.clearedAt)) return fail("Keputusan ini tidak perlu ditinjau ulang");
+      const confirmed: Decision = {
+        ...d, id: id("dc"), version: d.version + 1, reason: "Ditegaskan setelah analisis baru",
+        byId: state.viewerId, byRole: c.role, at: now(), snapshot: snapshotFor(state, c.project.id, approvedNarrative(state, c.inv.id)),
+      };
+      const target = state.links.find((l) => l.id === d.targetLinkId);
+      const label = `${c.inv.title}: ${target ? targetTitle(state, c.project.id, target.kind, target.targetId) : d.targetLinkId} ${DECISION_LABEL[d.status]} (${c.role})`;
+      const next = { ...state, decisions: [...state.decisions, confirmed], flags: clearFlags(state, new Set([d.id])) };
+      return { state: withAudit(next, { action: "keputusan.tegaskan", objectType: "Keputusan", objectLabel: label, projectId: c.project.id }), investigationId: c.inv.id, decisionId: confirmed.id };
+    }
+
+    case "simulateNewAnalysis": {
+      const c = projectCtx(state, action.projectId, "investigation.status");
+      if (typeof c === "string") return fail(c);
+      const prev = state.analysisStates.find((a) => a.projectId === c.project.id);
+      if (!prev) return fail("Proyek ini belum punya analisis");
+      const current = nextAnalysisState(prev);
+      const active = new Set(state.flags.filter((f) => !f.clearedAt).map((f) => f.decisionId));
+      const flags: RevalidationFlag[] = [];
+      const pings: Notification[] = [];
+      // Workspace `selesai` adalah arsip; keputusannya tidak ditandai ulang.
+      for (const inv of state.investigations.filter((i) => i.projectId === c.project.id && i.status !== "selesai")) {
+        const added = latestDecisions(state, inv.id)
+          .filter((d) => !active.has(d.id))
+          .map((d) => ({ id: id("flag"), decisionId: d.id, summary: detectRevalidation(d, current), at: now() }))
+          .filter((f) => f.summary.length > 0);
+        if (!added.length) continue;
+        flags.push(...added);
+        pings.push(...inv.memberIds.filter((u) => u !== state.viewerId).map((userId) => ({
+          id: id("ntf"), userId, projectId: c.project.id, text: `Analisis baru: ${added.length} keputusan di ${inv.title} perlu ditinjau ulang`,
+          href: `/projects/${c.project.id}/investigations/${inv.id}`, read: false, at: now(),
+        })));
+      }
+      const next = {
+        ...state, analysisStates: state.analysisStates.map((a) => (a === prev ? current : a)),
+        flags: [...state.flags, ...flags], notifications: [...state.notifications, ...pings],
+      };
+      const label = `Dataset ${prev.datasetVersion} → ${current.datasetVersion}, ${flags.length} keputusan ditandai`;
+      return { state: withAudit(next, { action: "analisis.simulasi", objectType: "Analisis", objectLabel: label, projectId: c.project.id }) };
+    }
+
+    // Diganti Task 9; jangan sampai tertelan diam-diam.
+    case "createProposal":
       return fail("Belum didukung");
 
     default:

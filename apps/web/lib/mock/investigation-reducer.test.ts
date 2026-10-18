@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { initialState } from "./data";
-import { reduce, type MockAction } from "./reducer";
-import { linkFreshness, unreviewedModelOutputs } from "./investigation";
+import { flagsForProject, reduce, type MockAction } from "./reducer";
+import { decisionHistory, latestDecisions, linkFreshness, snapshotFor, unreviewedModelOutputs } from "./investigation";
 import type { MockState } from "./types";
 
 const s0 = () => structuredClone(initialState);
@@ -425,7 +425,7 @@ describe("reviewDraft", () => {
   });
   it("ditolak pada draf gagal boleh dengan kode + alasan; tanpa kode atau alasan galat", () => {
     const { s, linkId } = withFailed();
-    for (const over of [{}, { rejectCode: "informasi_kurang" }, { reason: "x" }, { rejectCode: "informasi_kurang", reason: " " }, { rejectCode: "bukan_kode", reason: "x" }]) {
+    for (const over of [{}, { rejectCode: "informasi_kurang" }, { reason: "x" }, { rejectCode: "informasi_kurang", reason: " " }, { rejectCode: "bukan_kode", reason: "x" }, { rejectCode: "constructor", reason: "x" }]) {
       const r = draft(s, { linkId, outcome: "ditolak", ...over });
       expect(r.error).toBeDefined();
       expect(r.state).toBe(s);
@@ -462,5 +462,171 @@ describe("reviewDraft", () => {
     expect(b.error).toBeUndefined();
     expect(b.state.reviews).toHaveLength(2);
     expect(b.state.reviews.filter((x) => x.linkId === "ln-1-6").at(-1)!.outcome).toBe("ditolak");
+  });
+});
+
+// ---------- Keputusan, penegasan, simulasi analisis ----------
+const linkOf = (s: MockState, targetId: string) => s.links.find((l) => l.investigationId === "inv-1" && l.targetId === targetId)!.id;
+// Selesaikan tinjauan jev_42 dan i-seed-42, lalu inv-1 -> siap_diputuskan (viewer tetap Dimas).
+function ready(s: MockState): MockState {
+  const jevLink = s.links.find((l) => l.investigationId === "inv-1" && l.kind === "hasil_jev")!.id;
+  let r = reduce(s, { type: "reviewJev", investigationId: "inv-1", linkId: jevLink, outcome: "dikonfirmasi", forEvalSet: false });
+  r = reduce(r.state, { type: "reviewDraft", investigationId: "inv-1", linkId: linkOf(r.state, "i-seed-42"), outcome: "disetujui", forEvalSet: false });
+  r = reduce(r.state, { type: "setInvestigationStatus", investigationId: "inv-1", to: "siap_diputuskan" });
+  expect(r.error).toBeUndefined();
+  return r.state;
+}
+const decide = (s: MockState, over: Record<string, unknown> = {}) =>
+  reduce(s, { type: "makeDecision", investigationId: "inv-1", targetLinkId: linkOf(s, "cand_1"), status: "usulan_uji_coba", reason: "Uji di satu cabang", expectedVersion: 0, ...over } as MockAction);
+const simulate = (s: MockState) => reduce(s, { type: "simulateNewAnalysis", projectId: P });
+// Sari menetapkan `dipilih` pada cand_1; viewer dikembalikan ke Dimas.
+function chosen() {
+  const r = decide(as(ready(s0()), "u-sari"), { status: "dipilih", reason: "Penyetuju cadangan disetujui" });
+  expect(r.error).toBeUndefined();
+  return { s: as(r.state, "u-dimas"), decisionId: r.decisionId! };
+}
+
+describe("makeDecision", () => {
+  it("usulan_uji_coba oleh Dimas setelah ready: versi 1, potret kini, byRole analis, audit keputusan.tetapkan", () => {
+    const s = ready(s0());
+    const r = decide(s);
+    expect(r.error).toBeUndefined();
+    const d = r.state.decisions.find((x) => x.id === r.decisionId)!;
+    expect(d).toMatchObject({ investigationId: "inv-1", projectId: P, targetLinkId: linkOf(s, "cand_1"), version: 1, status: "usulan_uji_coba", reason: "Uji di satu cabang", byId: "u-dimas", byRole: "analis" });
+    expect(d.snapshot).toEqual(snapshotFor(s, P, "i-seed-42"));
+    const a = audits(s, r.state);
+    expect(a).toHaveLength(1);
+    expect(a[0]).toMatchObject({ action: "keputusan.tetapkan", objectType: "Keputusan", projectId: P });
+    expect(a[0].objectLabel).toContain("Usulan uji coba");
+    expect(a[0].objectLabel).toContain("analis");
+  });
+  it("matriks peran: dipilih oleh Dimas, ditolak oleh Sari, apa pun oleh administrator -> galat", () => {
+    const s = ready(s0());
+    const sari = as(s, "u-sari");
+    const rina = as(s, "u-rina");
+    for (const [st, over] of [[s, { status: "dipilih" }], [sari, { status: "ditolak" }], [rina, {}], [rina, { status: "dipilih" }]] as const) {
+      const r = decide(st, over);
+      expect(r.error).toBeDefined();
+      expect(r.state).toBe(st);
+    }
+  });
+  it("dipilih oleh Sari: sukses byRole pemilik_proses", () => {
+    const { s, decisionId } = chosen();
+    expect(s.decisions.find((d) => d.id === decisionId)).toMatchObject({ status: "dipilih", byId: "u-sari", byRole: "pemilik_proses", version: 1 });
+  });
+  it("dipilih pada cand_2 (tak tervalidasi) -> galat", () => {
+    const s = as(ready(s0()), "u-sari");
+    const r = decide(s, { status: "dipilih", targetLinkId: linkOf(s, "cand_2") });
+    expect(r.error).toBeDefined();
+    expect(r.state).toBe(s);
+  });
+  it("digantikan wajib pengganti; dengan cand_2 sukses", () => {
+    const s = ready(s0());
+    expect(decide(s, { status: "digantikan" }).state).toBe(s);
+    const r = decide(s, { status: "digantikan", replacedByLinkId: linkOf(s, "cand_2") });
+    expect(r.error).toBeUndefined();
+    expect(r.state.decisions.find((d) => d.id === r.decisionId)!.replacedByLinkId).toBe(linkOf(s, "cand_2"));
+  });
+  it("sebelum siap_diputuskan hanya perlu_investigasi yang boleh", () => {
+    const s = s0();
+    expect(decide(s).state).toBe(s);
+    const r = decide(s, { status: "perlu_investigasi", targetLinkId: linkOf(s, "cand_2") });
+    expect(r.error).toBeUndefined();
+    expect(r.state.decisions.find((d) => d.id === r.decisionId)!.snapshot.narrativeVersion).toBeNull();
+  });
+  it("proyek tidak aktif atau workspace tak dikenal -> galat tanpa melempar", () => {
+    const s = ready(s0());
+    s.projects = s.projects.map((p) => (p.id === P ? { ...p, status: "ditangguhkan" } : p));
+    expect(decide(s).state).toBe(s);
+    const t = ready(s0());
+    expect(decide(t, { investigationId: "nope" }).error).toBeDefined();
+  });
+  it("versi optimistis: dua keputusan expectedVersion 0 -> yang kedua galat 'muat ulang'; expectedVersion 1 -> versi 2", () => {
+    const a = decide(ready(s0()));
+    const b = decide(a.state, { status: "ditolak", reason: "Terlalu mahal" });
+    expect(b.error).toContain("muat ulang");
+    expect(b.state).toBe(a.state);
+    const c = decide(a.state, { status: "ditolak", reason: "Terlalu mahal", expectedVersion: 1 });
+    expect(c.error).toBeUndefined();
+    const hist = decisionHistory(c.state, "inv-1", linkOf(c.state, "cand_1"));
+    expect(hist.map((d) => [d.version, d.status])).toEqual([[2, "ditolak"], [1, "usulan_uji_coba"]]);
+    expect(decide(c.state, { expectedVersion: 5 }).error).toContain("muat ulang");
+  });
+});
+
+describe("simulateNewAnalysis", () => {
+  it("menaikkan analisis, satu penanda aktif dengan ringkasan, status keputusan tetap, notifikasi, audit", () => {
+    const { s, decisionId } = chosen();
+    const r = simulate(s);
+    expect(r.error).toBeUndefined();
+    expect(r.state.analysisStates[0]).toMatchObject({ datasetVersion: "ds-3", contextPackage: "ctx-5", ruleVersions: { "r-sla": "v3" }, metricValues: { "finding_42.p90_days": 22.1 } });
+    const flags = flagsForProject(r.state, P);
+    expect(flags).toHaveLength(1);
+    expect(flags[0].decisionId).toBe(decisionId);
+    expect(flags[0].summary).toEqual(expect.arrayContaining(["Dataset ds-2 → ds-3", "Aturan r-sla v2 → v3", "P90 berubah dari 18,4 ke 22,1 hari kerja"]));
+    expect(r.state.decisions).toEqual(s.decisions);
+    const pings = r.state.notifications.slice(s.notifications.length);
+    expect(pings.map((n) => n.userId)).toEqual(["u-sari"]);
+    expect(pings[0]).toMatchObject({ projectId: P, href: "/projects/p-p2p/investigations/inv-1", read: false });
+    expect(audits(s, r.state).map((e) => e.action)).toEqual(["analisis.simulasi"]);
+  });
+  it("dipanggil lagi tanpa keputusan baru: analisis naik lagi, penanda tidak bertambah", () => {
+    const r1 = simulate(chosen().s);
+    const r2 = simulate(r1.state);
+    expect(r2.error).toBeUndefined();
+    expect(r2.state.analysisStates[0].datasetVersion).toBe("ds-4");
+    expect(r2.state.flags).toHaveLength(1);
+    expect(r2.state.notifications).toHaveLength(r1.state.notifications.length);
+  });
+  it("tanpa keputusan terbuka (inv-2 selesai) tidak membuat penanda", () => {
+    const r = simulate(s0());
+    expect(r.error).toBeUndefined();
+    expect(r.state.flags).toHaveLength(0);
+  });
+  it("hanya analis", () => {
+    for (const u of ["u-sari", "u-rina"]) {
+      const s = as(s0(), u);
+      const r = simulate(s);
+      expect(r.error).toBeDefined();
+      expect(r.state).toBe(s);
+    }
+  });
+});
+
+describe("confirmDecision", () => {
+  it("tanpa penanda aktif -> galat", () => {
+    const { s, decisionId } = chosen();
+    const r = reduce(s, { type: "confirmDecision", decisionId });
+    expect(r.error).toBeDefined();
+    expect(r.state).toBe(s);
+    expect(reduce(s, { type: "confirmDecision", decisionId: "nope" }).state).toBe(s);
+  });
+  it("dengan penanda: penanda ditutup, versi naik, status sama, potret kini, audit keputusan.tegaskan", () => {
+    const { s, decisionId } = chosen();
+    const sim = simulate(s).state;
+    const r = reduce(sim, { type: "confirmDecision", decisionId });
+    expect(r.error).toBeUndefined();
+    expect(r.state.flags[0]).toMatchObject({ decisionId, clearedBy: "u-dimas", clearedAt: expect.any(String) });
+    expect(flagsForProject(r.state, P)).toEqual([]);
+    const d = r.state.decisions.find((x) => x.id === r.decisionId)!;
+    expect(d).toMatchObject({ version: 2, status: "dipilih", reason: "Ditegaskan setelah analisis baru", byId: "u-dimas", byRole: "analis" });
+    expect(d.snapshot).toEqual(snapshotFor(sim, P, "i-seed-42"));
+    expect(latestDecisions(r.state, "inv-1")).toEqual([d]);
+    expect(audits(sim, r.state).map((e) => e.action)).toEqual(["keputusan.tegaskan"]);
+    // versi lama tidak lagi punya penanda aktif
+    expect(reduce(r.state, { type: "confirmDecision", decisionId }).error).toBeDefined();
+  });
+  it("administrator ditolak", () => {
+    const { s, decisionId } = chosen();
+    const sim = as(simulate(s).state, "u-rina");
+    expect(reduce(sim, { type: "confirmDecision", decisionId }).state).toBe(sim);
+  });
+  it("keputusan baru pada target berpenanda menutup penanda", () => {
+    const { s, decisionId } = chosen();
+    const sim = as(simulate(s).state, "u-sari");
+    const r = decide(sim, { status: "dipilih", reason: "Tetap dipilih", expectedVersion: 1 });
+    expect(r.error).toBeUndefined();
+    expect(flagsForProject(r.state, P)).toEqual([]);
+    expect(r.state.flags[0]).toMatchObject({ decisionId, clearedBy: "u-sari" });
   });
 });
