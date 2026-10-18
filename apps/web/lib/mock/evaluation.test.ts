@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { initialState as seed } from "./data";
-import { BIN_EDGES, TARGETS, agreementPairs, buildEvaluation, cohenKappa, computeMetrics, evalPairs, reviewShareOf } from "./evaluation";
+import { BIN_EDGES, TARGETS, agreementPairs, buildEvaluation, canEditSecondLabel, cohenKappa, computeMetrics, evalPairs, reviewShareOf } from "./evaluation";
 import type { EvalPair } from "./evaluation";
 import type { GoldItem, MockState } from "./types";
 
@@ -118,5 +118,13 @@ describe("buildEvaluation", () => {
   });
   it("returns null without an active spec", () => {
     expect(buildEvaluation({ ...seed, specs: [] }, P, "catatan", ctx)).toBeNull();
+  });
+});
+
+describe("canEditSecondLabel", () => {
+  const g = seed.goldItems.find((x) => x.labeler === "u-dimas")!;
+  it("is offered to another labeler only", () => {
+    expect(canEditSecondLabel(g, "u-anton")).toBe(true);
+    expect(canEditSecondLabel(g, "u-dimas")).toBe(false);
   });
 });

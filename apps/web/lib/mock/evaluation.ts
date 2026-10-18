@@ -99,3 +99,6 @@ export function buildEvaluation(s: MockState, projectId: string, task: TaskKind,
     reviewShare: reviewShareOf(s, projectId, task) ?? 0, highConf: m.highConf, kappa: cohenKappa(agreementPairs(s, projectId, task)), bins: m.bins,
   };
 }
+
+/** Mirrors upsertGold: only an analyst other than the first labeler writes the second label. */
+export const canEditSecondLabel = (g: GoldItem, viewerId: string): boolean => g.labeler !== viewerId;

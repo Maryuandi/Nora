@@ -15,7 +15,7 @@ import { ReliabilityChart } from "@/components/project/reliability-chart";
 import { useProject } from "@/components/project/use-project";
 import { formatDate, formatNumber, formatScore } from "@/lib/format";
 import { RELEVANCE_LABEL, RELEVANCE_ORDER } from "@/lib/mock/assessment";
-import { TARGETS, agreementPairs, cohenKappa, computeMetrics, evalPairs, reviewShareOf } from "@/lib/mock/evaluation";
+import { TARGETS, agreementPairs, canEditSecondLabel, cohenKappa, computeMetrics, evalPairs, reviewShareOf } from "@/lib/mock/evaluation";
 import { acceptsData } from "@/lib/mock/permissions";
 import { activeSpec } from "@/lib/mock/specs";
 import type { TaskKind } from "@/lib/mock/types";
@@ -81,9 +81,9 @@ export function EvaluationView({ task }: { task: TaskKind }) {
   const setLabel = (itemRef: string, label: string) => setError(dispatch({ type: "setGoldLabel", projectId: project.id, task, itemRef, label }));
 
   const labelCell = (current: string | undefined, editable: boolean, itemRef: string, name: string, which: string) =>
-    editable && current !== undefined ? (
+    editable ? (
       <div className="w-44">
-        <Select size="sm" aria-label={`Label ${which}: ${name}`} items={options} selectedKey={current} onSelectionChange={(k) => setLabel(itemRef, String(k))}>
+        <Select size="sm" aria-label={`Label ${which}: ${name}`} items={options} placeholder="Pilih label" selectedKey={current ?? null} onSelectionChange={(k) => setLabel(itemRef, String(k))}>
           {(o) => <Select.Item id={o.id}>{o.label}</Select.Item>}
         </Select>
       </div>
@@ -137,7 +137,7 @@ export function EvaluationView({ task }: { task: TaskKind }) {
                   <Table.Row key={gold.id} id={gold.id}>
                     <Table.Cell className="px-6 text-sm text-ink"><Trunc text={name} /></Table.Cell>
                     <Table.Cell className="px-6 whitespace-nowrap">{labelCell(gold.label, mayEdit && mine, gold.itemRef, short, "pertama")}</Table.Cell>
-                    <Table.Cell className="px-6 whitespace-nowrap">{labelCell(gold.labelB, mayEdit && !mine, gold.itemRef, short, "kedua")}</Table.Cell>
+                    <Table.Cell className="px-6 whitespace-nowrap">{labelCell(gold.labelB, mayEdit && canEditSecondLabel(gold, state.viewerId), gold.itemRef, short, "kedua")}</Table.Cell>
                     <Table.Cell className="px-6 whitespace-nowrap">
                       {agree === undefined ? <span className="text-sm text-ink-3">Belum ada label kedua</span> : (
                         <Pill>{agree ? <CheckCircle size={14} weight="fill" className="text-status-active" aria-hidden /> : <XCircle size={14} weight="fill" className="text-status-ended" aria-hidden />}{agree ? "Sepakat" : "Berbeda"}</Pill>
