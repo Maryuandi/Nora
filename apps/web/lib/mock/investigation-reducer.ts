@@ -22,7 +22,7 @@ export type InvestigationAction =
   | { type: "setQuestionState"; noteId: string; state: "terbuka" | "terjawab" }
   | { type: "addComment"; investigationId: string; targetLinkId?: string; parentId?: string; body: string }
   | { type: "resolveComment"; commentId: string; resolved: boolean }
-  | { type: "markNotificationsRead" }
+  | { type: "markNotificationsRead"; projectId?: string }
   | { type: "reviewJev"; investigationId: string; linkId: string; outcome: "dikonfirmasi" | "dikoreksi"; correctedVerdict?: string; reason?: string; forEvalSet: boolean }
   | { type: "reviewDraft"; investigationId: string; linkId: string; outcome: "disetujui" | "ditolak"; rejectCode?: RejectReason; reason?: string; forEvalSet: boolean }
   | { type: "makeDecision"; investigationId: string; targetLinkId: string; status: DecisionStatus; reason: string; replacedByLinkId?: string; expectedVersion: number }
@@ -277,7 +277,7 @@ export function reduceInvestigation(
     }
 
     case "markNotificationsRead":
-      return { state: { ...state, notifications: state.notifications.map((n) => (n.userId === state.viewerId && !n.read ? { ...n, read: true } : n)) } };
+      return { state: { ...state, notifications: state.notifications.map((n) => (n.userId === state.viewerId && !n.read && (!action.projectId || n.projectId === action.projectId) ? { ...n, read: true } : n)) } };
 
     case "reviewJev": {
       const c = ctx(state, action.investigationId, "review.jev");

@@ -329,6 +329,15 @@ describe("markNotificationsRead", () => {
     expect(r.state.notifications.find((n) => n.id === "ntf-s")!.read).toBe(false);
     expect(r.state.audit).toBe(s.audit);
   });
+  it("dengan projectId hanya notifikasi proyek itu yang ditandai", () => {
+    const s = s0();
+    s.notifications.push({ id: "ntf-o", userId: "u-dimas", projectId: "p-lain", text: "t", href: "/x", read: false, at: "2026-10-16T07:00:00Z" });
+    const r = reduce(s, { type: "markNotificationsRead", projectId: P });
+    expect(r.state.notifications.filter((n) => n.userId === "u-dimas" && n.projectId === P).every((n) => n.read)).toBe(true);
+    expect(r.state.notifications.find((n) => n.id === "ntf-o")!.read).toBe(false);
+    const all = reduce(s, { type: "markNotificationsRead" });
+    expect(all.state.notifications.find((n) => n.id === "ntf-o")!.read).toBe(true);
+  });
   it("tanpa notifikasi tetap sukses", () => {
     const s = s0();
     s.notifications = [];
