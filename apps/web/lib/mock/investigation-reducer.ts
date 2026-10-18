@@ -66,14 +66,14 @@ function attachmentError(a: NonNullable<InvestigationNote["attachment"]>): strin
   }
 }
 
-// Sumber yang sama dengan linkFreshness: versi di analisis proyek, atau disetujui terbaru (bukan draf/ditinjau).
+// Sumber yang sama dengan linkFreshness: versi di analisis proyek, lalu disetujui terbaru (bukan draf/ditinjau),
+// lalu versi terbaru apa pun agar aturan yang ada selalu bisa ditautkan.
 const currentRuleVersion = (state: MockState, projectId: string, ruleKey: string): string | null => {
   const mine = ruleVersions(state, ruleKey).filter((r) => r.projectId === projectId);
   if (!mine.length) return null;
   const pinned = state.analysisStates.find((a) => a.projectId === projectId)?.ruleVersions[ruleKey];
   if (pinned) return pinned;
-  const approved = mine.find((r) => r.status === "disetujui");
-  return approved ? `v${approved.version}` : null;
+  return `v${(mine.find((r) => r.status === "disetujui") ?? mine[0]).version}`;
 };
 const evidenceOf = (state: MockState, projectId: string) =>
   state.findings.filter((f) => f.projectId === projectId).flatMap((f) => f.evidence);

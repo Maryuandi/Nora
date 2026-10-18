@@ -78,6 +78,16 @@ describe("linkObject / unlinkObject", () => {
     expect(r.error).toBeDefined();
     expect(r.state).toBe(s);
   });
+  it("aturan tanpa versi disetujui/terpasang (r-urutan ditinjau v1) tetap bisa ditautkan dengan versi v1", () => {
+    const r = reduce(s0(), { type: "linkObject", investigationId: "inv-1", kind: "aturan", targetId: "r-urutan" });
+    expect(r.error).toBeUndefined();
+    expect(r.state.links.find((l) => l.id === r.linkId)).toMatchObject({ kind: "aturan", targetId: "r-urutan", linkedVersion: "v1" });
+  });
+  it("createInvestigation dari finding_57 menautkan aturan r-urutan v1", () => {
+    const r = create(s0(), { findingId: "finding_57" });
+    expect(r.error).toBeUndefined();
+    expect(r.state.links.find((l) => l.investigationId === r.investigationId && l.kind === "aturan")).toMatchObject({ targetId: "r-urutan", linkedVersion: "v1" });
+  });
   it("tautan aturan baru memakai versi analisis (v2), bukan usulan ditinjau terbaru; label audit memakai nama versi terbaru", () => {
     const proposed = reduce(s0(), { type: "createProposal", investigationId: "inv-1", ruleKey: "r-sla", note: "Perjelas batas SLA" });
     expect(proposed.error).toBeUndefined();
