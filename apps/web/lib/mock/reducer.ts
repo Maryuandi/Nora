@@ -4,11 +4,13 @@ import { participatingVersions } from "./compliance";
 import { fabricate } from "./fabricate";
 import { configFor, copyConfig } from "./metrics";
 import { validateMapping } from "./mapping";
-import { acceptsData } from "./permissions";
+import { normalizeFilter, validateFilter, type FilterSpec } from "./analysis";
+import { eventLogFor } from "./eventlog";
+import { acceptsData, can } from "./permissions";
 import { nextStatuses, previewDataset, previewRule, projectCanonicalLabels, validateRule, type RuleInput } from "./rules";
 import { ACTION_LABEL, CHECK_META, buildCapabilities, buildQualityReport, datasetHash, excludedAfter, qualityDataset, repairImpact } from "./quality";
 import { projectSchema, type ProjectInput } from "./schemas";
-import type { AuditEvent, CheckId, ColumnRole, DatasetVersion, LabelRule, MappingVersion, MockState, MonitoringConfig, MonitoringRun, Project, ProjectStatus, RepairAction, RepairRule, Role, RuleStatus, RuleVersion, Snapshot, SnapshotStatus, Source } from "./types";
+import type { AuditEvent, CheckId, ColumnRole, DatasetVersion, LabelRule, MappingVersion, MockState, MonitoringConfig, MonitoringRun, Project, ProjectStatus, RepairAction, RepairRule, Role, RuleStatus, RuleVersion, SavedView, Snapshot, SnapshotStatus, Source } from "./types";
 
 export { MOCK_TODAY, initialState };
 
@@ -33,10 +35,11 @@ export type MockAction =
   | { type: "addRepairRule"; sourceId: string; check: CheckId; action: RepairAction; reason: string; confirmLarge?: boolean }
   | { type: "revokeRepairRule"; ruleId: string }
   | { type: "publishDataset"; sourceId: string; note?: string }
+  | { type: "saveView"; projectId: string; name: string; note?: string; filter: FilterSpec; mode: SavedView["mode"]; selection: SavedView["selection"]; activityPct: number; transitionPct: number }
   | { type: "setViewer"; userId: string };
 
 export type ReduceResult = {
-  state: MockState; error?: string; snapshotId?: string; duplicateOf?: string; mappingId?: string; datasetId?: string; repairRuleId?: string; ruleId?: string; runId?: string;
+  state: MockState; error?: string; snapshotId?: string; duplicateOf?: string; mappingId?: string; datasetId?: string; repairRuleId?: string; ruleId?: string; runId?: string; savedViewId?: string;
 };
 
 const MAX_BYTES = 500 * 1024 * 1024;
@@ -410,6 +413,29 @@ export function reduce(state: MockState, action: MockAction): ReduceResult {
       };
       const next = { ...state, datasetVersions: [...state.datasetVersions, ds] };
       return { state: withAudit(next, { action: "dataset.terbit", objectType: "Dataset", objectLabel: `${source.name} v${version}`, projectId: project.id }), datasetId: ds.id };
+    }
+
+    case "saveView": {
+      const project = state.projects.find((x) => x.id === action.projectId);
+      if (!project) return fail("Proyek tidak ditemukan");
+      if (!acceptsData(project.status)) return fail("Proyek ini tidak menerima perubahan");
+      const current = eventLogFor(state, project.id);
+      if (!current) return fail("Belum ada data yang siap dinilai");
+      if (!can(viewerRole(state, project.id), "view.save")) return fail("Peranmu tidak dapat menyimpan tampilan");
+      const name = (action.name ?? "").trim(), note = action.note?.trim();
+      if (!name) return fail("Nama wajib diisi");
+      if (name.length > 80) return fail("Nama terlalu panjang");
+      if (note && note.length > 500) return fail("Catatan terlalu panjang");
+      const [invalid] = validateFilter(action.filter);
+      if (invalid) return fail(invalid);
+      const view: SavedView = {
+        id: id("sv"), projectId: project.id, name, ...(note ? { note } : {}), filter: normalizeFilter(action.filter), mode: action.mode, selection: action.selection,
+        activityPct: action.activityPct, transitionPct: action.transitionPct,
+        sourceId: current.log.source.sourceId, snapshotId: current.snapshot.id, mappingVersion: current.mappingVersion,
+        createdBy: state.viewerId, createdAt: now(),
+      };
+      const next = { ...state, savedViews: [...state.savedViews, view] };
+      return { state: withAudit(next, { action: "tampilan.simpan", objectType: "Tampilan", objectLabel: name, projectId: project.id }), savedViewId: view.id };
     }
 
     case "confirmSnapshot":

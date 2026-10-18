@@ -1,7 +1,8 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import type { FilterSpec } from "@/lib/mock/analysis";
+import type { SavedView } from "@/lib/mock/types";
 
 export type AnalysisMode = "frekuensi" | "performa";
 export type AnalysisSelection = { kind: "node" | "edge" | "variant"; id: string } | null;
@@ -13,6 +14,8 @@ interface AnalysisState {
   selection: AnalysisSelection; setSelection: (s: AnalysisSelection) => void;
   /** undefined = the map's default for the current data. */
   activityPct?: number; transitionPct?: number; setPct: (p: SimplifyPct | undefined) => void;
+  /** Restores filter, mode, selection and sliders from a saved view. */
+  load: (view: SavedView) => void;
 }
 
 const Ctx = createContext<AnalysisState | null>(null);
@@ -23,9 +26,12 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
   const [mode, setMode] = useState<AnalysisMode>("frekuensi");
   const [selection, setSelection] = useState<AnalysisSelection>(null);
   const [pct, setPct] = useState<SimplifyPct | undefined>();
+  const load = useCallback((v: SavedView) => {
+    setFilter(v.filter); setMode(v.mode); setSelection(v.selection); setPct({ activityPct: v.activityPct, transitionPct: v.transitionPct });
+  }, []);
   const value = useMemo<AnalysisState>(() => ({
     filter, setFilter, resetFilter: () => setFilter({}), mode, setMode, selection, setSelection,
-    activityPct: pct?.activityPct, transitionPct: pct?.transitionPct, setPct,
+    activityPct: pct?.activityPct, transitionPct: pct?.transitionPct, setPct, load,
   }), [filter, mode, selection, pct]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

@@ -27,6 +27,7 @@ const EXPECTED: Record<UiAction, Role[]> = {
   "quality.view": ["administrator", "analis", "pemilik_proses"],
   "repair.edit": ["administrator", "analis"],
   "dataset.publish": ["analis"],
+  "view.save": ["administrator", "analis"],
 };
 
 describe("can", () => {

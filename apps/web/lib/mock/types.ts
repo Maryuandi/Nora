@@ -1,3 +1,5 @@
+import type { FilterSpec } from "./analysis";
+
 export type Role = "administrator" | "analis" | "pemilik_proses";
 export type ProjectStatus = "draft" | "aktif" | "ditangguhkan" | "berakhir" | "diarsipkan";
 export type AuditResult = "sukses" | "ditolak" | "gagal";
@@ -189,6 +191,7 @@ export interface MockState {
   monitoringConfigs: MonitoringConfig[];
   repairRules: RepairRule[];
   datasetVersions: DatasetVersion[];
+  savedViews: SavedView[];
   viewerId: string;
 }
 
@@ -216,5 +219,14 @@ export interface DatasetVersion {
   verdict: "siap" | "siap_catatan" | "belum_layak";
   eventsIncluded: number; casesIncluded: number;
   capabilities: Capability[]; note?: string;
+  createdBy: string; createdAt: string;
+}
+
+export interface SavedView {
+  id: string; projectId: string; name: string; note?: string;
+  filter: FilterSpec; mode: "frekuensi" | "performa";
+  selection: { kind: "node" | "edge" | "variant"; id: string } | null;
+  activityPct: number; transitionPct: number;
+  sourceId: string; snapshotId: string; mappingVersion: number; // data the view was saved against
   createdBy: string; createdAt: string;
 }

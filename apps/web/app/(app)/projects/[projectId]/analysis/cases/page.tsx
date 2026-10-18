@@ -7,6 +7,7 @@ import { AnalysisTabs } from "@/components/project/analysis-tabs";
 import { useAnalysis } from "@/components/project/analysis-filter";
 import { CaseTable } from "@/components/project/case-table";
 import { EmptyFilterResult, FilterBar, NoDataCard } from "@/components/project/filter-bar";
+import { SaveViewButton } from "@/components/project/saved-view-dialog";
 import { useProject } from "@/components/project/use-project";
 import { casesForSelection, filteredLogFor, validateFilter, variantIdOf } from "@/lib/mock/analysis";
 import { END_ID, START_ID, eventLogFor, type LogCase } from "@/lib/mock/eventlog";
@@ -48,6 +49,7 @@ export default function CasesPage() {
       <AnalysisTabs active="/analysis/cases" />
       <h2 className="text-xl font-semibold">Kasus</h2>
       <FilterBar attrsAvailable={result.attrsAvailable} activities={full.log.activities} />
+      <SaveViewButton dfg={result.dfg} />
       {total === 0 ? <EmptyFilterResult /> : (
         <Card>
           <div className="flex flex-wrap items-center gap-3 px-4 py-3">

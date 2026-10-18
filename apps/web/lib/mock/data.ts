@@ -196,5 +196,5 @@ const runs: MonitoringRun[] = [
 export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, rules,
   runs,
   monitoringConfigs: [p2pConfig],
-  repairRules: [], datasetVersions: [],
+  repairRules: [], datasetVersions: [], savedViews: [],
   viewerId: "u-dimas" };

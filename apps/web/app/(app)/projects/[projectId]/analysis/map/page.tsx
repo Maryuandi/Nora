@@ -12,6 +12,7 @@ import { CasePanel } from "@/components/project/case-panel";
 import { EmptyFilterResult, FilterBar } from "@/components/project/filter-bar";
 import { MapLegend } from "@/components/project/map-legend";
 import { ProcessMap, type MapSelection } from "@/components/project/process-map";
+import { SaveViewButton } from "@/components/project/saved-view-dialog";
 import { useProject } from "@/components/project/use-project";
 import { formatDuration } from "@/lib/format";
 import { describeFilter, filteredLogFor, validateFilter } from "@/lib/mock/analysis";
@@ -100,6 +101,7 @@ function MapContent() {
       <AnalysisTabs active="/analysis/map" />
       <h2 className="text-xl font-semibold">Peta proses</h2>
       <FilterBar attrsAvailable={result.attrsAvailable} activities={full.log.activities} />
+      <SaveViewButton dfg={dfg} />
       <Card>
         <dl className="grid gap-x-6 gap-y-2 p-4 text-sm sm:grid-cols-2 xl:grid-cols-4">
           {header.map(([k, v]) => (
