@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { initialState } from "./data";
 import { reduce, type MockAction } from "./reducer";
-import { linkFreshness } from "./investigation";
+import { linkFreshness, unreviewedModelOutputs } from "./investigation";
 import type { MockState } from "./types";
 
 const s0 = () => structuredClone(initialState);
@@ -338,5 +338,129 @@ describe("markNotificationsRead", () => {
     const s = s0();
     s.notifications = [];
     expect(reduce(s, { type: "markNotificationsRead" }).error).toBeUndefined();
+  });
+});
+
+describe("seed interpretasi", () => {
+  it("i-seed-42 lolos_pemeriksaan, i-seed-63 gagal_pemeriksaan", () => {
+    const st = (n: string) => initialState.interpretations.find((i) => i.id === n)?.status;
+    expect(st("i-seed-42")).toBe("lolos_pemeriksaan");
+    expect(st("i-seed-63")).toBe("gagal_pemeriksaan");
+  });
+});
+
+describe("reviewJev", () => {
+  const jev = (s: MockState, over: Record<string, unknown> = {}) =>
+    reduce(s, { type: "reviewJev", investigationId: "inv-1", linkId: "ln-1-5", outcome: "dikonfirmasi", forEvalSet: false, ...over } as MockAction);
+  it("dikonfirmasi: review tersimpan, belum ditinjau berkurang 1, audit jev.konfirmasi", () => {
+    const s = s0();
+    const before = unreviewedModelOutputs(s, "inv-1").length;
+    const r = jev(s, { forEvalSet: true });
+    expect(r.error).toBeUndefined();
+    expect(r.state.reviews).toHaveLength(1);
+    expect(r.state.reviews[0]).toMatchObject({ investigationId: "inv-1", linkId: "ln-1-5", outcome: "dikonfirmasi", forEvalSet: true, by: "u-dimas" });
+    expect(unreviewedModelOutputs(r.state, "inv-1")).toHaveLength(before - 1);
+    expect(audits(s, r.state).map((e) => e.action)).toEqual(["jev.konfirmasi"]);
+  });
+  it("dikoreksi: butuh correctedVerdict dan reason; sukses audit jev.koreksi", () => {
+    const s = s0();
+    for (const over of [{}, { correctedVerdict: "tidak_wajar" }, { reason: "x" }, { correctedVerdict: " ", reason: "x" }, { correctedVerdict: "a", reason: "  " }]) {
+      const r = jev(s, { outcome: "dikoreksi", ...over });
+      expect(r.error).toBeDefined();
+      expect(r.state).toBe(s);
+    }
+    const r = jev(s, { outcome: "dikoreksi", correctedVerdict: " tidak_wajar ", reason: " Bukti lain " });
+    expect(r.error).toBeUndefined();
+    expect(r.state.reviews[0]).toMatchObject({ outcome: "dikoreksi", correctedVerdict: "tidak_wajar", reason: "Bukti lain" });
+    expect(audits(s, r.state).map((e) => e.action)).toEqual(["jev.koreksi"]);
+  });
+  it("tautan bukan hasil_jev, tautan workspace lain, atau tak ada -> galat", () => {
+    const s = s0();
+    for (const linkId of ["ln-1-6", "ln-1-3", "ln-2-1", "nope"]) {
+      const r = jev(s, { linkId });
+      expect(r.error).toBeDefined();
+      expect(r.state).toBe(s);
+    }
+    expect(jev(s, { investigationId: "nope" }).state).toBe(s);
+  });
+  it("pemilik proses dan administrator ditolak", () => {
+    for (const u of ["u-sari", "u-rina"]) {
+      const s = as(s0(), u);
+      expect(jev(s).state).toBe(s);
+      expect(jev(s).error).toBeDefined();
+    }
+  });
+  it("meninjau ulang menambah review; review terakhir berlaku", () => {
+    const a = jev(s0());
+    const b = jev(a.state, { outcome: "dikoreksi", correctedVerdict: "v", reason: "r" });
+    expect(b.error).toBeUndefined();
+    expect(b.state.reviews).toHaveLength(2);
+    expect(b.state.reviews.filter((x) => x.linkId === "ln-1-5").at(-1)!.outcome).toBe("dikoreksi");
+    expect(audits(a.state, b.state).map((e) => e.action)).toEqual(["jev.koreksi"]);
+  });
+});
+
+describe("reviewDraft", () => {
+  const draft = (s: MockState, over: Record<string, unknown> = {}) =>
+    reduce(s, { type: "reviewDraft", investigationId: "inv-1", linkId: "ln-1-6", outcome: "disetujui", forEvalSet: false, ...over } as MockAction);
+  // tautkan i-seed-63 (gagal_pemeriksaan) ke inv-1
+  const withFailed = () => {
+    const r = reduce(s0(), { type: "linkObject", investigationId: "inv-1", kind: "interpretasi", targetId: "i-seed-63" });
+    return { s: r.state, linkId: r.linkId! };
+  };
+  it("disetujui pada i-seed-42 (lolos): sukses, audit draf.setujui, belum ditinjau berkurang 1", () => {
+    const s = s0();
+    const before = unreviewedModelOutputs(s, "inv-1").length;
+    const r = draft(s);
+    expect(r.error).toBeUndefined();
+    expect(r.state.reviews[0]).toMatchObject({ linkId: "ln-1-6", outcome: "disetujui", by: "u-dimas" });
+    expect(unreviewedModelOutputs(r.state, "inv-1")).toHaveLength(before - 1);
+    expect(audits(s, r.state).map((e) => e.action)).toEqual(["draf.setujui"]);
+  });
+  it("disetujui pada draf gagal_pemeriksaan -> galat", () => {
+    const { s, linkId } = withFailed();
+    const r = draft(s, { linkId });
+    expect(r.error).toBeDefined();
+    expect(r.state).toBe(s);
+  });
+  it("ditolak pada draf gagal boleh dengan kode + alasan; tanpa kode atau alasan galat", () => {
+    const { s, linkId } = withFailed();
+    for (const over of [{}, { rejectCode: "informasi_kurang" }, { reason: "x" }, { rejectCode: "informasi_kurang", reason: " " }, { rejectCode: "bukan_kode", reason: "x" }]) {
+      const r = draft(s, { linkId, outcome: "ditolak", ...over });
+      expect(r.error).toBeDefined();
+      expect(r.state).toBe(s);
+    }
+    const ok = draft(s, { linkId, outcome: "ditolak", rejectCode: "klaim_tidak_didukung", reason: "Klaim berlebih", forEvalSet: true });
+    expect(ok.error).toBeUndefined();
+    expect(ok.state.reviews.at(-1)).toMatchObject({ linkId, outcome: "ditolak", rejectCode: "klaim_tidak_didukung", reason: "Klaim berlebih", forEvalSet: true });
+    expect(audits(s, ok.state).map((e) => e.action)).toEqual(["draf.tolak"]);
+  });
+  it("ditolak pada draf lolos juga boleh", () => {
+    expect(draft(s0(), { outcome: "ditolak", rejectCode: "bahasa_tidak_sesuai", reason: "Nada" }).error).toBeUndefined();
+  });
+  it("tautan bukan interpretasi / workspace lain / interpretasi tak ada -> galat", () => {
+    const s = s0();
+    for (const linkId of ["ln-1-5", "ln-1-3", "ln-2-1", "nope"]) {
+      const r = draft(s, { linkId });
+      expect(r.error).toBeDefined();
+      expect(r.state).toBe(s);
+    }
+    const t = s0();
+    t.interpretations = t.interpretations.filter((i) => i.id !== "i-seed-42");
+    expect(draft(t).state).toBe(t);
+  });
+  it("pemilik proses dan administrator ditolak", () => {
+    for (const u of ["u-sari", "u-rina"]) {
+      const s = as(s0(), u);
+      expect(draft(s).state).toBe(s);
+      expect(draft(s).error).toBeDefined();
+    }
+  });
+  it("meninjau ulang menambah review; review terakhir berlaku", () => {
+    const a = draft(s0());
+    const b = draft(a.state, { outcome: "ditolak", rejectCode: "informasi_kurang", reason: "r" });
+    expect(b.error).toBeUndefined();
+    expect(b.state.reviews).toHaveLength(2);
+    expect(b.state.reviews.filter((x) => x.linkId === "ln-1-6").at(-1)!.outcome).toBe("ditolak");
   });
 });

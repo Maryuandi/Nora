@@ -1,11 +1,11 @@
 // Reducer M11. Dipanggil lebih dulu oleh `reduce`; `null` berarti aksi bukan milik M11.
-import { INVESTIGATION_STATUS_LABEL, LINK_KIND_LABEL, canSetStatus, extractMentions, linkFreshness } from "./investigation";
+import { INVESTIGATION_STATUS_LABEL, LINK_KIND_LABEL, REJECT_LABEL, canSetStatus, extractMentions, linkFreshness } from "./investigation";
 import { id, now, withAudit } from "./mutate";
 import { acceptsData, can, type UiAction } from "./permissions";
 import type { MockAction, ReduceResult } from "./reducer";
 import type {
   DecisionStatus, HypothesisState, Investigation, InvestigationLink, InvestigationNote, InvestigationStatus, LinkKind,
-  MockState, Notification, Project, RejectReason, Role,
+  MockState, ModelReview, Notification, Project, RejectReason, Role,
 } from "./types";
 
 export type InvestigationAction =
@@ -260,8 +260,42 @@ export function reduceInvestigation(
     case "markNotificationsRead":
       return { state: { ...state, notifications: state.notifications.map((n) => (n.userId === state.viewerId && !n.read ? { ...n, read: true } : n)) } };
 
-    // Diganti Task 6-9; jangan sampai tertelan diam-diam.
-    case "reviewJev": case "reviewDraft": case "makeDecision": case "confirmDecision":
+    case "reviewJev": {
+      const c = ctx(state, action.investigationId, "review.jev");
+      if (typeof c === "string") return fail(c);
+      const link = state.links.find((l) => l.id === action.linkId && l.investigationId === c.inv.id);
+      if (!link || link.kind !== "hasil_jev") return fail("Tautan bukan hasil Jev di workspace ini");
+      const correctedVerdict = action.correctedVerdict?.trim();
+      const reason = action.reason?.trim() ?? "";
+      if (action.outcome === "dikoreksi" && (!correctedVerdict || !reason)) return fail("Putusan koreksi dan alasan wajib diisi");
+      const review: ModelReview = {
+        id: id("rv"), investigationId: c.inv.id, linkId: link.id, outcome: action.outcome, reason, forEvalSet: action.forEvalSet,
+        ...(action.outcome === "dikoreksi" ? { correctedVerdict } : {}), by: state.viewerId, at: now(),
+      };
+      const label = `${c.inv.title}: ${targetTitle(state, c.project.id, link.kind, link.targetId)}`;
+      return { state: withAudit({ ...state, reviews: [...state.reviews, review] }, { action: action.outcome === "dikonfirmasi" ? "jev.konfirmasi" : "jev.koreksi", objectType: "Investigasi", objectLabel: label, projectId: c.project.id }), investigationId: c.inv.id, linkId: link.id };
+    }
+
+    case "reviewDraft": {
+      const c = ctx(state, action.investigationId, "review.draft");
+      if (typeof c === "string") return fail(c);
+      const link = state.links.find((l) => l.id === action.linkId && l.investigationId === c.inv.id);
+      if (!link || link.kind !== "interpretasi") return fail("Tautan bukan draf interpretasi di workspace ini");
+      const interp = state.interpretations.find((i) => i.id === link.targetId);
+      if (!interp) return fail("Draf interpretasi tidak ditemukan");
+      const reason = action.reason?.trim() ?? "";
+      if (action.outcome === "disetujui" && interp.status !== "lolos_pemeriksaan") return fail("Draf yang gagal pemeriksaan tidak dapat disetujui");
+      if (action.outcome === "ditolak" && (!action.rejectCode || !(action.rejectCode in REJECT_LABEL) || !reason)) return fail("Kode penolakan dan alasan wajib diisi");
+      const review: ModelReview = {
+        id: id("rv"), investigationId: c.inv.id, linkId: link.id, outcome: action.outcome, reason, forEvalSet: action.forEvalSet,
+        ...(action.outcome === "ditolak" ? { rejectCode: action.rejectCode } : {}), by: state.viewerId, at: now(),
+      };
+      const label = `${c.inv.title}: ${targetTitle(state, c.project.id, link.kind, link.targetId)}`;
+      return { state: withAudit({ ...state, reviews: [...state.reviews, review] }, { action: action.outcome === "disetujui" ? "draf.setujui" : "draf.tolak", objectType: "Investigasi", objectLabel: label, projectId: c.project.id }), investigationId: c.inv.id, linkId: link.id };
+    }
+
+    // Diganti Task 7-9; jangan sampai tertelan diam-diam.
+    case "makeDecision": case "confirmDecision":
     case "simulateNewAnalysis": case "createProposal":
       return fail("Belum didukung");
 
