@@ -3,6 +3,7 @@ import { Client, Connection, ScheduleAlreadyRunning, ScheduleOverlapPolicy } fro
 import { NativeConnection, Worker } from "@temporalio/worker";
 import { TASK_QUEUE_TS } from "@nora/contracts";
 import * as analysis from "./activities/analysis.ts";
+import * as assessment from "./activities/assessment.ts";
 import * as context from "./activities/context.ts";
 import * as data from "./activities/data.ts";
 import * as evidence from "./activities/evidence.ts";
@@ -17,7 +18,7 @@ const worker = await Worker.create({
   namespace: process.env.TEMPORAL_NAMESPACE ?? "default",
   taskQueue: TASK_QUEUE_TS,
   workflowsPath: fileURLToPath(new URL("./workflows.ts", import.meta.url)),
-  activities: { ...data, ...context, ...analysis, ...monitoring, ...graph, ...evidence },
+  activities: { ...data, ...context, ...analysis, ...monitoring, ...graph, ...evidence, ...assessment },
 });
 // Graph projection runs on a schedule in this namespace; creating it again is a no-op.
 const client = new Client({ connection: await Connection.connect({ address: process.env.TEMPORAL_ADDRESS ?? "localhost:7233" }), namespace: process.env.TEMPORAL_NAMESPACE ?? "default" });

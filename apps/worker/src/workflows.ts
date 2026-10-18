@@ -1,6 +1,7 @@
 import { ApplicationFailure, proxyActivities } from "@temporalio/workflow";
 import { PingResult, PreviewMappingResult, PreviewRuleResult, TASK_QUEUE_PYTHON, type BuildDatasetInput, type IngestSnapshotInput, type PingRequest, type PreviewMappingInput, type MonitoringInput, type PreviewRuleInput, type ProcessAnalysisInput, type ValidateBpmnInput } from "@nora/contracts";
 import type * as analysis from "./activities/analysis.ts";
+import type * as assessment from "./activities/assessment.ts";
 import type * as context from "./activities/context.ts";
 import type * as monitoring from "./activities/monitoring.ts";
 import type * as data from "./activities/data.ts";
@@ -21,7 +22,7 @@ export async function pingWorkflow(input: PingRequest): Promise<PingResult> {
 }
 
 // Transient errors retry up to three times; corrupt files and schema errors are non-retryable in the activities.
-const ts = proxyActivities<typeof data & typeof context & typeof analysis & typeof monitoring & typeof graph & typeof evidence>({ startToCloseTimeout: "30 minutes", retry: { maximumAttempts: 3, nonRetryableErrorTypes: ["Unauthorized", "NotFound", "SnapshotNotReady"] } });
+const ts = proxyActivities<typeof data & typeof context & typeof analysis & typeof monitoring & typeof graph & typeof evidence & typeof assessment>({ startToCloseTimeout: "30 minutes", retry: { maximumAttempts: 3, nonRetryableErrorTypes: ["Unauthorized", "NotFound", "SnapshotNotReady"] } });
 
 const py = proxyActivities<{
   ingestSnapshot(input: IngestSnapshotInput): Promise<{ status: string }>;
@@ -115,4 +116,37 @@ export async function graphProjectionSweepWorkflow(): Promise<number> {
 /** Internal retrieval service: model-facing features call this; there is no public free-form endpoint. */
 export async function evidenceBundleWorkflow(request: unknown): Promise<Awaited<ReturnType<typeof evidence.buildEvidenceBundle>>> {
   return ts.buildEvidenceBundle(request);
+}
+
+const jev = proxyActivities<typeof assessment>({
+  startToCloseTimeout: "10 minutes",
+  // Provider outages and malformed responses retry a few times; config/budget/auth problems do not.
+  retry: { maximumAttempts: 3, initialInterval: "2 seconds", nonRetryableErrorTypes: ["JevNotConfigured", "BudgetExceeded", "ProviderRejected", "Unauthorized", "NotFound"] },
+});
+
+/** Precondition check → evidence bundle → per-candidate Noul/Score/Choice → code aggregation. */
+export async function assessmentWorkflow(job: assessment.AssessmentJob): Promise<string> {
+  try {
+    const { eligible } = await jev.startAssessmentRun(job);
+    if (!eligible.length) {
+      await jev.completeAssessmentRun(job);
+      return "no_candidates";
+    }
+    const bundle = await ts.buildEvidenceBundle({ projectId: job.projectId, targetType: "finding", targetId: job.findingId, purpose: "jev_assessment", requestedBy: job.requestedBy, correlationId: job.correlationId });
+    await jev.attachBundle({ ...job, bundleId: bundle.bundleId });
+    for (const linkId of eligible) {
+      const { assessmentId, reused } = await jev.createAssessment({ ...job, linkId, bundleId: bundle.bundleId });
+      if (reused) continue;
+      try {
+        await jev.runAssessment({ ...job, assessmentId });
+      } catch (err) {
+        await jev.failAssessment({ ...job, assessmentId, message: message(err) });
+      }
+    }
+    await jev.completeAssessmentRun(job);
+    return "completed";
+  } catch (err) {
+    await jev.completeAssessmentRun({ ...job, error: message(err) });
+    return "failed";
+  }
 }

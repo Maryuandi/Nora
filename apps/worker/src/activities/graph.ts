@@ -147,6 +147,23 @@ const HANDLERS: Record<string, Handler> = {
       await w.rel("MAY_EXPLAIN", ref("Hypothesis", h.id), ref("Finding", id), { creatorType: "human", recordId: h.id, status: "unproven", at: f.created_at });
     }
   },
+  async assessments(w, id) {
+    const a = await one(`SELECT a.*, l.candidate_id FROM assessments a JOIN candidate_links l ON l.id = a.candidate_link_id WHERE a.id = $1`, [id]);
+    if (!a || !["automatic", "needs_review", "insufficient_information"].includes(a.status)) return;
+    await w.node(ref("Assessment", id), `Penilaian Jev: ${a.conclusion ?? a.status}`, { status: a.status, conclusion: a.conclusion, totalScore: a.total_score, modelVersion: a.model_version });
+    const m = { creatorType: "model", recordId: id, at: a.completed_at, version: a.model_version };
+    await w.rel("DERIVED_FROM", ref("Assessment", id), ref("Finding", a.finding_id), m);
+    if (a.evidence_bundle_id) await w.rel("CITES", ref("Assessment", id), ref("EvidenceBundle", a.evidence_bundle_id), m);
+    // A model judgement is a hypothesis-level relation, never an observation.
+    if (a.conclusion === "relevant" || a.conclusion === "partly_relevant") await w.rel("SUPPORTS", ref("Intervention", a.candidate_id), ref("Finding", a.finding_id), { ...m, status: "unproven", assessmentId: id });
+    if (a.conclusion === "not_relevant") await w.rel("CONTRADICTS", ref("Intervention", a.candidate_id), ref("Finding", a.finding_id), { ...m, status: "unproven", assessmentId: id });
+  },
+  async assessment_corrections(w, id) {
+    const c = await one("SELECT * FROM assessment_corrections WHERE id = $1", [id]);
+    if (!c) return;
+    await w.rel("REVIEWED", ref("Assessment", c.assessment_id), ref("Finding", (await one("SELECT finding_id FROM assessments WHERE id = $1", [c.assessment_id]))!.finding_id),
+      { creatorType: "human", recordId: id, at: c.created_at, kind: c.kind, conclusion: c.conclusion, status: c.kind === "confirm" ? "confirmed" : "corrected" });
+  },
   async evidence_bundles(w, id) {
     const b = await one("SELECT * FROM evidence_bundles WHERE id = $1", [id]);
     if (!b) return;

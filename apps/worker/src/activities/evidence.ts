@@ -21,6 +21,8 @@ export interface Candidate {
 }
 
 const STALE_AFTER_SECONDS = 30;
+/** Downstream outputs do not move the graph version; their influence on a bundle shows up in item content hashes. */
+const OUTPUT_AGGREGATES = ["evidence_bundles", "assessments", "assessment_corrections", "interpretations", "candidate_comparisons"];
 const tokens = (c: unknown) => Math.ceil(JSON.stringify(c).length / 4);
 const many = async (sql: string, p: unknown[]): Promise<Row[]> => (await db().query(sql, p)).rows;
 const one = async (sql: string, p: unknown[]): Promise<Row | undefined> => (await db().query(sql, p)).rows[0];
@@ -120,11 +122,11 @@ export async function buildEvidenceBundle(input: unknown): Promise<{ bundleId: s
   if (!source) throw ApplicationFailure.nonRetryable(`no evidence source for ${req.targetType}`, "NotFound");
   const candidates = await source(req.projectId, req.targetId, req.purpose, req);
 
-  // Graph version: projected sequence, ignoring bundle events themselves so asking twice gives the same bundle.
+  // Graph version: projected sequence of input records, so asking twice gives the same bundle.
   const g = await one(
-    `SELECT coalesce(max(sequence) FILTER (WHERE projected_at IS NOT NULL AND aggregate_type <> 'evidence_bundles'), 0) AS seq,
-            count(*) FILTER (WHERE projected_at IS NULL AND NOT dead_letter AND aggregate_type <> 'evidence_bundles' AND occurred_at < now() - make_interval(secs => $2)) AS stale
-       FROM outbox_events WHERE project_id = $1`, [req.projectId, STALE_AFTER_SECONDS],
+    `SELECT coalesce(max(sequence) FILTER (WHERE projected_at IS NOT NULL AND aggregate_type <> ALL($3::text[])), 0) AS seq,
+            count(*) FILTER (WHERE projected_at IS NULL AND NOT dead_letter AND aggregate_type <> ALL($3::text[]) AND occurred_at < now() - make_interval(secs => $2)) AS stale
+       FROM outbox_events WHERE project_id = $1`, [req.projectId, STALE_AFTER_SECONDS, OUTPUT_AGGREGATES],
   );
   const graphSequence = Number(g!.seq);
   let distance = new Map<string, number>();

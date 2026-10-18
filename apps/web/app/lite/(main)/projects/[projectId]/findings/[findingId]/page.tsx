@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { MetricInfo } from "@/components/lite/analysis/dashboard-client";
 import { describeFilter } from "@/components/lite/analysis/run-header";
 import { StatePill } from "@/components/lite/badges";
+import { AssessmentPanel } from "@/components/lite/findings/assessment-panel";
 import { EvidencePanel } from "@/components/lite/findings/evidence-panel";
 import { FindingCases } from "@/components/lite/findings/finding-panels";
 import { SEV_TONE, TYPE_LABEL } from "@/components/lite/findings/labels";
@@ -43,20 +44,17 @@ async function Downstream({ projectId, findingId }: { projectId: string; finding
   const d = await downstreamStatus(projectId, findingId);
   const base = `/lite/projects/${projectId}`;
   return (
-    <ul className="flex flex-col gap-2 text-sm">
-      <li className="flex items-center gap-2"><span className="w-36 text-ink-3">Penilaian Jev</span>
-        {d.assessments?.total ? <StatePill tone={d.assessments.needsReview ? "warning" : "active"}>{d.assessments.total} penilaian{d.assessments.needsReview ? ` · ${d.assessments.needsReview} perlu review` : ""}</StatePill> : <span className="text-ink-2">Belum dijalankan</span>}</li>
-      <li className="flex items-center gap-2"><span className="w-36 text-ink-3">Rekomendasi</span>
-        {d.recommendations?.total ? <Link className="text-accent hover:underline" href={`${base}/recommendations/${findingId}`}>{d.recommendations.total} kandidat · {d.recommendations.validated} tervalidasi</Link> : <span className="text-ink-2">Belum disusun</span>}</li>
-      <li className="flex items-center gap-2"><span className="w-36 text-ink-3">Interpretasi</span>
-        {d.interpretations?.total ? <StatePill tone="info">{d.interpretations.latestStatus}</StatePill> : <span className="text-ink-2">Belum dibuat</span>}</li>
+    <ul className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-xs">
+      <li>{d.assessments?.total ? <StatePill tone={d.assessments.needsReview ? "warning" : "active"}>{d.assessments.total} penilaian{d.assessments.needsReview ? ` · ${d.assessments.needsReview} perlu review` : ""}</StatePill> : <span className="text-ink-3">Penilaian belum dijalankan</span>}</li>
+      <li>{d.recommendations?.total ? <Link className="text-accent hover:underline" href={`${base}/recommendations/${findingId}`}>{d.recommendations.total} kandidat · {d.recommendations.validated} tervalidasi</Link> : <span className="text-ink-3">Rekomendasi belum disusun</span>}</li>
+      <li>{d.interpretations?.total ? <StatePill tone="info">Interpretasi {d.interpretations.latestStatus}</StatePill> : <span className="text-ink-3">Interpretasi belum dibuat</span>}</li>
     </ul>
   );
 }
 
 export default async function FindingDetailPage({ params }: { params: Promise<{ projectId: string; findingId: string }> }) {
   const { projectId, findingId } = await params;
-  const { viewer, project } = await loadPageProject(projectId);
+  const { viewer, project, may } = await loadPageProject(projectId);
   const f = await orNotFound(getFinding(viewer, projectId, findingId));
   const hypotheses = await relatedHypotheses(projectId, f);
   const base = `/lite/projects/${projectId}`;
@@ -114,16 +112,12 @@ export default async function FindingDetailPage({ params }: { params: Promise<{ 
         <FindingCases projectId={projectId} findingId={f.id} datasetId={f.datasetVersionId} type={f.type} timezone={project.timezone} />
       </SectionCard>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <SectionCard title="Bukti">
-          <EvidencePanel projectId={projectId} findingId={f.id} timezone={project.timezone} />
-        </SectionCard>
-        <SectionCard title="Penilaian & interpretasi">
-          <Suspense fallback={<p className="text-sm text-ink-3">Memuat status…</p>}>
-            <Downstream projectId={projectId} findingId={f.id} />
-          </Suspense>
-        </SectionCard>
-      </div>
+      <SectionCard title="Bukti">
+        <EvidencePanel projectId={projectId} findingId={f.id} timezone={project.timezone} />
+      </SectionCard>
+      <SectionCard title="Penilaian & interpretasi" actions={<Suspense fallback={null}><Downstream projectId={projectId} findingId={f.id} /></Suspense>}>
+        <AssessmentPanel projectId={projectId} findingId={f.id} canRun={may("assessment.run") && project.status === "active"} canCorrect={may("assessment.correct") && project.status === "active"} />
+      </SectionCard>
     </div>
   );
 }

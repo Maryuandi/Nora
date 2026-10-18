@@ -6,6 +6,7 @@ import { PreviewRuleInput, PreviewRuleResult, ValidateBpmnInput, ValidateBpmnRes
 import { PingRequest, PingResult } from "./ping.ts";
 
 export * from "./analysis.ts";
+export * from "./assessment.ts";
 export * from "./context.ts";
 export * from "./dataset.ts";
 export * from "./evidence.ts";
