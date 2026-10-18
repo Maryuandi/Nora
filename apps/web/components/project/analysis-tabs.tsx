@@ -2,7 +2,10 @@ import Link from "next/link";
 import { useProject } from "@/components/project/use-project";
 import { cx } from "@/utils/cx";
 
-const TABS = [["/analysis/map", "Peta proses"]] as const;
+const TABS = [
+  ["/analysis/map", "Peta proses"], ["/analysis/variants", "Varian"], ["/analysis/cases", "Kasus"],
+  ["/analysis/objects", "Objek"], ["/analysis/views", "Tampilan tersimpan"],
+] as const;
 
 /** Secondary tabs of the Analisis section. `active` is the path suffix of the current tab. */
 export function AnalysisTabs({ active }: { active: (typeof TABS)[number][0] }) {
