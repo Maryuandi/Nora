@@ -10,7 +10,10 @@
     "infra:down": "docker compose --env-file .env -f infra/docker-compose.yml down",
     "dev": "concurrently -n web,worker,python \"pnpm --filter web dev\" \"pnpm --filter @nora/worker dev\" \"cd workers/python && uv run --env-file ../../.env python -m nora_worker.main\"",
     "test": "pnpm -r test && cd workers/python && uv run pytest",
-    "contracts:export": "pnpm --filter @nora/contracts export"
+    "contracts:export": "pnpm --filter @nora/contracts export",
+    "db:migrate": "pnpm --filter @nora/db migrate",
+    "db:expire-contracts": "pnpm --filter @nora/db expire-contracts",
+    "smoke:f01": "pnpm --filter web smoke:f01"
   },
   "devDependencies": {
     "concurrently": "^10.0.6"
