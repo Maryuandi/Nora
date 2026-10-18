@@ -9,6 +9,7 @@ import { useProject } from "@/components/project/use-project";
 import { interpretationsForProject, investigationsForProject, rulesForProject } from "@/lib/mock/reducer";
 import { latestByKey } from "@/lib/mock/rules";
 import { PageHeader } from "@/components/shell/page-header";
+import { PublishTabs } from "@/components/shell/sidebar-tabs";
 
 export default function ProjectLayout({ children }: { children: React.ReactNode }) {
   const path = usePathname();
@@ -36,6 +37,7 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
 
   return (
     <>
+      <PublishTabs tabs={tabs} />
       <PageHeader
         title={project.name}
         stats={[
@@ -44,7 +46,6 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
           { label: "Periode kontrak", value: formatPeriod(project) },
           { label: "Perusahaan", value: client.name },
         ]}
-        tabs={tabs}
       />
       <div className="px-8 py-6">{children}</div>
     </>
