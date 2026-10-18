@@ -125,6 +125,7 @@ export default function QualityPage() {
                               {expanded.includes(f.id) ? "Sembunyikan" : "Lihat contoh"}
                             </Button>
                           )}
+                          {hasActive && <span className="text-sm text-ink-3">Ditangani</span>}
                           {showTangani && <Button color="primary" size="xs" aria-label={`Tangani ${f.title}`} onClick={() => setHandling(f.id)}>Tangani</Button>}
                         </div>
                       </Table.Cell>

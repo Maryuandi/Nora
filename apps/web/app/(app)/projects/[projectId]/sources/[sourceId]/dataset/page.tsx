@@ -81,7 +81,7 @@ export default function DatasetPage() {
   const unchanged = !!(dataset && latest && latest.hash === datasetHash(dataset.snapshot.id, dataset.mapping.id, activeRules.map((r) => r.id)));
   const blocked = report?.verdict === "belum_layak"
     ? `Data belum layak diterbitkan: ${report.reasons[0] ?? "periksa laporan kualitas"}`
-    : unchanged && latest ? `Tidak ada perubahan dari v${latest.version}` : undefined;
+    : unchanged ? `Tidak ada perubahan dari v${latest.version}` : undefined;
 
   return (
     <div className="flex flex-col gap-4">
@@ -110,6 +110,7 @@ export default function DatasetPage() {
             <span className="text-sm text-ink-2">{num(report.eventsIncluded)} dari {num(report.totalEvents)} event · {num(report.casesIncluded)} kasus disertakan</span>
           </div>
           <CapabilityList items={capabilities} />
+          {!mayPublish && <p className="text-sm text-ink-3">Hanya Analis yang dapat menerbitkan versi dataset.</p>}
           {mayPublish && open && (
             <div className="flex flex-wrap items-center gap-3">
               <Button color="primary" size="xs" isDisabled={!!blocked} onClick={() => setPublishing(true)}>Terbitkan</Button>
@@ -119,6 +120,7 @@ export default function DatasetPage() {
         </Card>
       )}
 
+      {versions.length === 0 && <p className="text-sm text-ink-3">Belum ada versi dataset</p>}
       {versions.length > 0 && (
         <Card>
           <Table aria-label="Versi dataset" size="sm">
@@ -143,7 +145,7 @@ export default function DatasetPage() {
                   <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{formatDateTime(v.createdAt)}</Table.Cell>
                   <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{userName(v.createdBy)}</Table.Cell>
                   <Table.Cell className="max-w-[240px] px-6 text-sm text-ink-2"><span className="block truncate" title={fileName(v.snapshotId)}>{fileName(v.snapshotId)}</span></Table.Cell>
-                  <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">v{mappingVersion(v.mappingId) ?? "-"}</Table.Cell>
+                  <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{mappingVersion(v.mappingId) ? `v${mappingVersion(v.mappingId)}` : "-"}</Table.Cell>
                   <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{v.repairRuleIds.length}</Table.Cell>
                   <Table.Cell className="px-6 font-mono text-xs whitespace-nowrap text-ink-2">{v.hash.slice(0, 8)}</Table.Cell>
                   <Table.Cell className="px-6"><VerdictPill verdict={v.verdict} /></Table.Cell>
@@ -164,7 +166,7 @@ export default function DatasetPage() {
               <dt className="text-ink-3">Snapshot</dt>
               <dd className="min-w-0 break-all text-ink-2">{fileName(shown.snapshotId)}</dd>
               <dt className="text-ink-3">Pemetaan</dt>
-              <dd className="text-ink-2">v{mappingVersion(shown.mappingId) ?? "-"}</dd>
+              <dd className="text-ink-2">{mappingVersion(shown.mappingId) ? `v${mappingVersion(shown.mappingId)}` : "-"}</dd>
               <dt className="text-ink-3">Disertakan</dt>
               <dd className="text-ink-2">{num(shown.eventsIncluded)} event · {num(shown.casesIncluded)} kasus</dd>
               <dt className="text-ink-3">Aturan perbaikan</dt>
