@@ -7,6 +7,7 @@ import { CaretDown, FolderSimple, ListChecks, Buildings, ShieldCheck, UsersThree
 import type { Icon } from "@phosphor-icons/react";
 import { NativeSelect } from "@/components/base/select/select-native";
 import { ROLE_LABEL } from "@/components/nora/badges";
+import { NotificationBell } from "@/components/shell/notification-bell";
 import { Logo } from "@/components/nora/logo";
 import { PERSONA_ROLE, useMock } from "@/lib/mock/store";
 import { projectsForViewer } from "@/lib/mock/reducer";
@@ -61,7 +62,10 @@ export function Sidebar() {
           <Logo />
           <CaretDown size={12} className="text-ink-3" aria-hidden />
         </span>
-        <SidebarSimple size={18} className="text-ink-3" aria-hidden />
+        <span className="flex items-center gap-2">
+          <NotificationBell />
+          <SidebarSimple size={18} className="text-ink-3" aria-hidden />
+        </span>
       </div>
 
       <nav className="flex flex-col gap-0.5" aria-label="Navigasi utama">
