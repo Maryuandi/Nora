@@ -29,6 +29,7 @@ const FILTERS: { id: Filter; label: string }[] = [
   ...(["patuh", "tidak_patuh", "tidak_dapat_dievaluasi"] as const).map((id) => ({ id, label: CASE_STATUS_LABEL[id] })),
   { id: "berisiko", label: "Berisiko melewati SLA" },
 ];
+const nf = new Intl.NumberFormat("id-ID");
 const pct = (n: number, total: number) => (total ? Math.round((n / total) * 100) : 0);
 
 export default function ComplianceDetailPage() {
@@ -48,7 +49,7 @@ function ComplianceDetail({ ruleKey }: { ruleKey: string }) {
   const [filter, setFilter] = useState<Filter>(null);
   const [page, setPage] = useState(0);
   const runs = ctx ? runsForProject(ctx.state, ctx.project.id) : [];
-  const run = wanted ? runs.find((r) => r.id === wanted) : runs[0];
+  const run = (wanted ? runs.find((r) => r.id === wanted) : undefined) ?? runs[0];
   const version = run?.ruleVersions.filter((r) => r.ruleKey === ruleKey).sort((a, b) => b.version - a.version)[0];
   const snapshots = ctx?.state.snapshots, mappings = ctx?.state.mappings;
   const { results, s } = useMemo(() => {
@@ -83,8 +84,8 @@ function ComplianceDetail({ ruleKey }: { ruleKey: string }) {
         {stats.map(([label, n]) => (
           <Card key={label} className="p-4">
             <p className="text-xs text-ink-3">{label}</p>
-            <p className="mt-1 text-[28px] leading-9 font-semibold tracking-[-0.02em]">{n}</p>
-            <p className="text-xs text-ink-3">{pct(n, s.total)}% dari {s.total} kasus</p>
+            <p className="mt-1 text-[28px] leading-9 font-semibold tracking-[-0.02em]">{nf.format(n)}</p>
+            <p className="text-xs text-ink-3">{pct(n, s.total)}% dari {nf.format(s.total)} kasus</p>
           </Card>
         ))}
       </div>
@@ -97,14 +98,14 @@ function ComplianceDetail({ ruleKey }: { ruleKey: string }) {
           <ul className="divide-y divide-line">
             {s.reasons.map((r) => (
               <li key={r.reason} className="flex items-center justify-between gap-4 px-4 py-2 text-sm">
-                <span className="text-ink">{r.reason}</span><span className="text-ink-2">{r.count}</span>
+                <span className="text-ink">{r.reason}</span><span className="text-ink-2">{nf.format(r.count)}</span>
               </li>
             ))}
           </ul>
         ) : <p className="px-4 py-3 text-sm text-ink-3">Semua kasus dapat dievaluasi</p>}
         {atRisk > 0 && (
           <p className="flex items-center justify-between gap-4 border-t border-line px-4 py-2 text-sm">
-            <span className="text-ink">Berisiko melewati SLA</span><span className="text-ink-2">{atRisk}</span>
+            <span className="text-ink">Berisiko melewati SLA</span><span className="text-ink-2">{nf.format(atRisk)}</span>
           </p>
         )}
       </Card>
@@ -113,7 +114,7 @@ function ComplianceDetail({ ruleKey }: { ruleKey: string }) {
         {FILTERS.map((f) => (
           <button key={f.label} role="tab" aria-selected={filter === f.id} onClick={() => { setFilter(f.id); setPage(0); }}
             className={cx("rounded-md px-3 py-1 text-sm", filter === f.id ? "bg-white font-medium text-ink shadow-[0_0_0_1px_var(--color-line)]" : "text-ink-2 hover:text-ink")}>
-            {f.label} <span className="ml-1 text-ink-3">{count(f.id)}</span>
+            {f.label} <span className="ml-1 text-ink-3">{nf.format(count(f.id))}</span>
           </button>
         ))}
       </div>
@@ -146,7 +147,7 @@ function ComplianceDetail({ ruleKey }: { ruleKey: string }) {
           </Table.Body>
         </Table>
         <div className="flex items-center justify-between border-t border-line px-4 py-2 text-sm text-ink-2">
-          <span>{rows.length ? `${from + 1}–${from + shown.length} dari ${rows.length}` : "0 dari 0"}</span>
+          <span>{rows.length ? `${nf.format(from + 1)}–${nf.format(from + shown.length)} dari ${nf.format(rows.length)}` : "0 dari 0"}</span>
           <div className="flex gap-2">
             <Button color="secondary" size="xs" isDisabled={page === 0} onClick={() => setPage(page - 1)}>Sebelumnya</Button>
             <Button color="secondary" size="xs" isDisabled={page >= pages - 1} onClick={() => setPage(page + 1)}>Berikutnya</Button>

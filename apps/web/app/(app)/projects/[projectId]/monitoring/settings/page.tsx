@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { Button } from "@/components/base/buttons/button";
 import { Checkbox } from "@/components/base/checkbox/checkbox";
 import { Input } from "@/components/base/input/input";
@@ -24,6 +24,10 @@ const NUMBERS = [
 ] as const;
 
 export default function SettingsPage() {
+  return <Suspense><Content /></Suspense>;
+}
+
+function Content() {
   const ctx = useProject();
   const [saved, setSaved] = useState<number | null>(null); // lives here so it survives the Form remount
   if (!ctx) return null;
@@ -43,13 +47,13 @@ function Form({ config, onSaved }: { config: MonitoringConfig; onSaved: (v: numb
   const allowed = can("monitoring.configure", project.id);
   const dataset = previewDataset(state, project.id);
   const activities = dataset ? processActivities(dataset.snapshot, dataset.mapping) : [];
-  const [nums, setNums] = useState<Record<string, string>>(() => Object.fromEntries(NUMBERS.map(([k]) => [k, String(config[k])])));
+  const [nums, setNums] = useState<Record<string, string>>(() => Object.fromEntries(NUMBERS.map(([k]) => [k, String(config[k]).replace(".", ",")])));
   const [buckets, setBuckets] = useState(config.ageBuckets.join(", "));
   const [reworkOn, setReworkOn] = useState(config.reworkActivities !== null);
   const [picked, setPicked] = useState<string[]>(config.reworkActivities ?? []);
   const [error, setError] = useState<string | null>(null);
   const updater = state.users.find((u) => u.id === config.updatedBy);
-  const parse = (v: string) => (v.trim() === "" ? NaN : Number(v));
+  const parse = (v: string) => (v.trim() === "" ? NaN : Number(v.trim().replace(",", ".")));
 
   const save = () => {
     const patch = {

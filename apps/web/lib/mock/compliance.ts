@@ -108,3 +108,13 @@ export function summarize(results: CaseResult[]): ComplianceSummary {
 
 export const termFor = (version: RuleVersion): "Pelanggaran" | "Tidak sesuai dengan acuan" =>
   version.status === "disetujui" ? "Pelanggaran" : "Tidak sesuai dengan acuan";
+
+/** Highest version actually applied to cases, and the term from the versions that produced non-compliant cases. */
+export function appliedRule(run: MonitoringRun, results: CaseResult[]): { top: RuleVersion | null; term: ReturnType<typeof termFor> } {
+  const byId = (id: string) => run.ruleVersions.find((v) => v.id === id);
+  const applied = new Set(results.flatMap((r) => (r.ruleVersionId ? [r.ruleVersionId] : [])));
+  const top = [...applied].map(byId).reduce<RuleVersion | null>((a, v) => (v && (!a || v.version > a.version) ? v : a), null);
+  const bad = new Set(results.flatMap((r) => (r.status === "tidak_patuh" && r.ruleVersionId ? [r.ruleVersionId] : [])));
+  const approved = bad.size > 0 && [...bad].every((id) => byId(id)?.status === "disetujui");
+  return { top, term: approved ? "Pelanggaran" : "Tidak sesuai dengan acuan" };
+}

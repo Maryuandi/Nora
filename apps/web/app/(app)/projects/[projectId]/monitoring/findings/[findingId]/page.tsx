@@ -23,7 +23,9 @@ const nf = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 1 });
 
 export default function FindingDetailPage() {
   const { findingId } = useParams<{ findingId: string }>();
-  return <Suspense><Detail id={decodeURIComponent(findingId)} /></Suspense>;
+  let id = findingId;
+  try { id = decodeURIComponent(findingId); } catch { /* malformed escape: keep raw param */ }
+  return <Suspense><Detail id={id} /></Suspense>;
 }
 
 function Detail({ id }: { id: string }) {
@@ -46,7 +48,7 @@ function Detail({ id }: { id: string }) {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <Link href={`${base}/monitoring/findings?run=${view.id}`} className="inline-flex items-center gap-1 text-sm text-ink-2 hover:text-ink">
+        <Link href={`${base}/monitoring/findings?run=${view.id}${params.get("baseline") ? `&baseline=${encodeURIComponent(params.get("baseline")!)}` : ""}`} className="inline-flex items-center gap-1 text-sm text-ink-2 hover:text-ink">
           <ArrowLeft size={14} aria-hidden />Temuan
         </Link>
         <h1 className="mt-2 text-[20px] leading-7 font-semibold tracking-[-0.02em]">{f.title}</h1>
@@ -59,10 +61,10 @@ function Detail({ id }: { id: string }) {
       <Card>
         <dl className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
           {([
-            ["Ukuran sekarang", fmtMeasure(f.measure, f.unit)],
+            ["Ukuran sekarang", fmtMeasure(change?.status === "tidak_lagi_terdeteksi" ? null : f.measure, f.unit)],
             ["Ambang", fmtMeasure(f.threshold, f.unit)],
             ["Pembanding", fmtMeasure(change?.baselineMeasure ?? null, f.unit)],
-            ["Kasus terdampak", `${f.affectedCases} dari ${f.populationCases}`],
+            ["Kasus terdampak", `${nf.format(f.affectedCases)} dari ${nf.format(f.populationCases)}`],
           ] as const).map(([k, v]) => (
             <div key={k}><dt className="text-xs text-ink-3">{k}</dt><dd className="mt-0.5 text-sm text-ink">{v}</dd></div>
           ))}

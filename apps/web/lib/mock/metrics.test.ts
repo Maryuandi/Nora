@@ -67,7 +67,7 @@ describe("backlog", () => {
     const b = backlog(initialState, run1);
     if (b.unknown) throw new Error("unexpected");
     expect(b.buckets.map((x) => x.label)).toEqual(["0–7 hari", "8–30 hari", "31–90 hari", "> 90 hari"]);
-    expect(b.reference).toBe("2026-10-14");
+    expect(b.reference).toBe("2026-07-31"); // min(snapshot end, run periodTo)
     expect(b.buckets.reduce((n, x) => n + x.count, 0)).toBe(b.open);
     expect(b.lastActivities.reduce((n, x) => n + x.count, 0)).toBe(b.open);
     expect(b.caseIds).toHaveLength(b.open);
