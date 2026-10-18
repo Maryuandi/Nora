@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { initialState } from "./data";
 import {
   canDecide, canSetStatus, decisionHistory, detectRevalidation, extractMentions, latestDecisions, linkFreshness,
-  nextAnalysisState, snapshotFor, splitMentions, unreviewedModelOutputs, validateDecision,
+  nextAnalysisState, snapshotFor, decisionBlocker, splitMentions, unreviewedModelOutputs, validateDecision,
 } from "./investigation";
 import type {
   AnalysisState, Decision, DecisionStatus, EvidenceSnapshot, InvestigationLink, InvestigationStatus, LinkKind,
@@ -121,6 +121,14 @@ describe("validateDecision", () => {
     expect(validateDecision(build("terbuka"), { ...ok, status: "dipilih" })).toBeTruthy());
   it("perlu_investigasi saat terbuka -> null", () =>
     expect(validateDecision(build("terbuka"), { ...ok, status: "perlu_investigasi" })).toBeNull());
+});
+
+describe("decisionBlocker", () => {
+  it("usulan_uji_coba pada kandidat tidak tervalidasi -> galat", () =>
+    expect(decisionBlocker("usulan_uji_coba", false, "siap_diputuskan")).toMatch(/tervalidasi/));
+  it("ditolak saat terbuka -> galat status", () => expect(decisionBlocker("ditolak", true, "terbuka")).toMatch(/siap diputuskan/));
+  it("perlu_investigasi kapan saja, tanpa validasi -> null", () => expect(decisionBlocker("perlu_investigasi", false, "terbuka")).toBeNull());
+  it("dipilih tervalidasi saat siap_diputuskan -> null", () => expect(decisionBlocker("dipilih", true, "siap_diputuskan")).toBeNull());
 });
 
 describe("snapshotFor", () => {

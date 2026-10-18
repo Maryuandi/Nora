@@ -91,16 +91,19 @@ export function validateDecision(
     if (replacedByLinkId === targetLinkId) return "Pengganti harus berbeda dari kandidat yang digantikan.";
     if (!candidate(replacedByLinkId)) return "Pengganti harus berupa kandidat pada workspace ini.";
   }
-  if (status === "dipilih" || status === "usulan_uji_coba") {
-    const item = s.findings
-      .filter((f) => f.projectId === inv.projectId)
-      .flatMap((f) => f.evidence)
-      .find((e) => e.id === target.targetId && e.kind === "kandidat");
-    if (!item?.validated) return "Hanya kandidat yang sudah tervalidasi yang bisa dipilih atau diusulkan uji coba.";
+  const item = s.findings
+    .filter((f) => f.projectId === inv.projectId)
+    .flatMap((f) => f.evidence)
+    .find((e) => e.id === target.targetId && e.kind === "kandidat");
+  return decisionBlocker(status, !!item?.validated, inv.status);
+}
+
+// Syarat status yang bergantung pada kandidat dan workspace; dipakai reducer dan UI (opsi nonaktif).
+export function decisionBlocker(status: DecisionStatus, validated: boolean, invStatus: InvestigationStatus): string | null {
+  if ((status === "dipilih" || status === "usulan_uji_coba") && !validated) {
+    return "Hanya kandidat yang sudah tervalidasi yang bisa dipilih atau diusulkan uji coba.";
   }
-  if (status !== "perlu_investigasi" && inv.status !== "siap_diputuskan") {
-    return "Workspace harus berstatus siap diputuskan.";
-  }
+  if (status !== "perlu_investigasi" && invStatus !== "siap_diputuskan") return "Workspace harus berstatus siap diputuskan.";
   return null;
 }
 
