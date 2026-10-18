@@ -71,6 +71,7 @@ function Dashboard({ run }: { run: MonitoringRun }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- metrics read only snapshots and mappings from state
   }, [run, snapshots, mappings]);
   const { cards, rework, backlog: bl } = d;
+  const notSet = run.config.reworkActivities === null;
   const period = `periode ${run.periodFrom}–${run.periodTo}`;
   const done = `Dihitung dari ${nf.format(cards.finished)} kasus selesai, ${Math.round(cards.coveragePct)}% dari total · ${period}`;
   const all = `Dihitung dari semua kasus dimulai · ${period}`;
@@ -84,9 +85,9 @@ function Dashboard({ run }: { run: MonitoringRun }) {
         <Stat id="kasus_terbuka" value={nf.format(cards.open)} note={all} />
         <Stat id="durasi_median" value={days(cards.medianDays)} note={done} />
         <Stat id="durasi_p90" value={days(cards.p90Days)} note={done} />
-        <Stat id="persen_rework" value={!rework ? "Belum ditetapkan" : `${nf.format(Math.round(rework.anyPct * 10) / 10)}%`}
-          note={rework ? `Dari ${nf.format(rework.cases)} kasus di log event` : "Definisi rework belum diatur"}>
-          {!rework && <Link href={`${base}/monitoring/settings`} className="text-xs font-medium text-accent hover:underline">Atur di Ambang</Link>}
+        <Stat id="persen_rework" value={notSet ? "Belum ditetapkan" : rework ? `${nf.format(Math.round(rework.anyPct * 10) / 10)}%` : "—"}
+          note={notSet ? "Definisi rework belum diatur" : rework ? `Dari ${nf.format(rework.cases)} kasus di log event` : "Log event belum tersedia untuk run ini"}>
+          {notSet && <Link href={`${base}/monitoring/settings`} className="text-xs font-medium text-accent hover:underline">Atur di Ambang</Link>}
         </Stat>
         <Card className="flex flex-col gap-2 p-4 sm:col-span-2 xl:col-span-3">
           <div className="flex items-center gap-1.5 text-sm text-ink-2">{metricDef("persen_kepatuhan").name}<MetricInfo id="persen_kepatuhan" /> per aturan</div>
