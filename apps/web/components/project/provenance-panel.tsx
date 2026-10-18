@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Card } from "@/components/nora/card";
 import { useProject } from "@/components/project/use-project";
 import { formatDate } from "@/lib/format";
+import { metricDef } from "@/lib/mock/metrics";
 import type { MonitoringRun } from "@/lib/mock/types";
 
 const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
@@ -13,14 +14,15 @@ const Row = ({ label, children }: { label: string; children: React.ReactNode }) 
   </div>
 );
 
-export function ProvenancePanel({ run, ruleKey }: { run: MonitoringRun; ruleKey: string }) {
+export function ProvenancePanel({ run, ruleKey, metricId }: { run: MonitoringRun; ruleKey?: string; metricId?: string }) {
   const ctx = useProject();
   if (!ctx) return null;
   const { project, state } = ctx;
   const source = state.sources.find((s) => s.id === run.sourceId);
   const snapshot = state.snapshots.find((s) => s.id === run.snapshotId);
   const mapping = state.mappings.find((m) => m.id === run.mappingId);
-  const versions = run.ruleVersions.filter((r) => r.ruleKey === ruleKey).sort((a, b) => a.version - b.version);
+  const versions = ruleKey ? run.ruleVersions.filter((r) => r.ruleKey === ruleKey).sort((a, b) => a.version - b.version) : [];
+  const metric = metricId ? metricDef(metricId) : null;
   return (
     <Card>
       <h3 className="border-b border-line px-4 py-3 text-sm font-semibold text-ink">Asal-usul hasil</h3>
@@ -33,7 +35,9 @@ export function ProvenancePanel({ run, ruleKey }: { run: MonitoringRun; ruleKey:
         <Row label="Kalender">Kalender bawaan tiruan (M04a belum tersedia)</Row>
         <Row label="Waktu run">{formatDate(run.createdAt)}</Row>
         <Row label="Dijalankan oleh">{state.users.find((u) => u.id === run.createdBy)?.name ?? run.createdBy}</Row>
-        <div className="sm:col-span-2">
+        {metric && <Row label="Definisi rumus">{metric.name} v{metric.version}</Row>}
+        {metric && <Row label="Ambang">Pengaturan monitoring v{run.config.version}</Row>}
+        {ruleKey && <div className="sm:col-span-2">
           <dt className="text-xs text-ink-3">Versi aturan</dt>
           <dd className="mt-1 flex flex-col gap-3">
             {versions.map((v) => (
@@ -44,7 +48,7 @@ export function ProvenancePanel({ run, ruleKey }: { run: MonitoringRun; ruleKey:
               </div>
             ))}
           </dd>
-        </div>
+        </div>}
       </dl>
     </Card>
   );
