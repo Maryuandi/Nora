@@ -3,94 +3,90 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { CaretDown, FolderSimple, ListChecks, Buildings, ShieldCheck, UsersThree, SidebarSimple } from "@phosphor-icons/react";
+import { Buildings, FolderSimple, ListChecks, MagnifyingGlass, Plus, SidebarSimple, SignOut } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
-import { Logo } from "@/components/nora/logo";
+import { useSidebarTabs } from "@/components/shell/sidebar-tabs";
 import { useMock } from "@/lib/mock/store";
 import { projectsForViewer } from "@/lib/mock/reducer";
 import { cx } from "@/utils/cx";
 
-function NavItem({ href, label, icon: I, active, sub }: { href: string; label: string; icon?: Icon; active: boolean; sub?: boolean }) {
-  return (
-    <Link
-      href={href}
-      aria-current={active ? "page" : undefined}
-      className={cx(
-        "relative flex h-8 items-center gap-2 rounded-lg px-2 text-[13px] font-medium tracking-[-0.01em] transition-colors",
-        active ? "bg-white text-accent shadow-[0_1px_3px_rgb(20_18_15/0.08)]" : "text-ink hover:bg-white/60",
-        sub && "h-9 pl-2",
-      )}
-    >
-      {active && <span aria-hidden className="absolute top-1.5 bottom-1.5 left-0 w-0.5 rounded-full bg-accent" />}
-      {I && <I size={16} weight={active ? "fill" : "regular"} className={active ? "text-accent" : "text-ink-2"} aria-hidden />}
-      <span className="truncate">{label}</span>
-    </Link>
-  );
-}
+const TILES = ["bg-[#ece6fb] text-[#7a5bd6]", "bg-[#fde6ee] text-[#d6527f]", "bg-[#e3f5e8] text-[#2f9e57]", "bg-[#fdf3d4] text-[#b8870f]"];
+const ROW = "flex h-8 w-full items-center gap-2 rounded-lg border border-transparent px-2 text-[14px] font-medium tracking-[-0.01em] transition-colors";
+const LIFT = "border-line bg-white shadow-[0_1px_2px_rgb(20_18_15/0.06)]";
+const HOVER = "hover:border-line hover:bg-white hover:shadow-[0_1px_2px_rgb(20_18_15/0.06)]";
 
-function Group({ label, icon: I, children }: { label: string; icon: Icon; children: React.ReactNode }) {
-  const [open, setOpen] = useState(true);
+function RailLink({ href, label, icon: I, active }: { href: string; label: string; icon: Icon; active?: boolean }) {
   return (
-    <div className="mt-5">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        aria-expanded={open}
-        className="flex w-full items-center gap-2 px-2 pb-1 text-[11px] font-medium uppercase tracking-[0.06em] text-ink-2 hover:text-ink"
-      >
-        <I size={18} weight="duotone" aria-hidden />
-        {label}
-        <CaretDown size={9} weight="fill" className={cx("text-ink-3 transition-transform", !open && "-rotate-90")} aria-hidden />
-      </button>
-      {open && <div className="ml-[17px] flex flex-col gap-1 border-l-2 border-[#e6e4e1] pl-3">{children}</div>}
-    </div>
+    <Link href={href} title={label} aria-label={label} aria-current={active ? "page" : undefined} className={cx("flex size-10 items-center justify-center rounded-lg border border-transparent text-ink-2 transition-colors hover:text-ink", active ? cx(LIFT, "text-accent") : HOVER)}>
+      <I size={20} weight={active ? "fill" : "regular"} aria-hidden />
+    </Link>
   );
 }
 
 export function Sidebar() {
   const path = usePathname();
   const mock = useMock();
-  const first = projectsForViewer(mock.state)[0];
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(true);
+  const allTabs = useSidebarTabs();
+  const all = projectsForViewer(mock.state);
+  const currentId = path.match(/^\/projects\/([^/]+)/)?.[1];
+  const current = all.find((p) => p.id === currentId);
+  const canCreate = mock.can("client.create");
+  const q = query.trim().toLowerCase();
+  const tabs = current ? allTabs.filter((t) => t.label.toLowerCase().includes(q)) : [];
+  const list = all.filter((p) => p.name.toLowerCase().includes(q));
 
   return (
-    <aside className="sticky top-0 flex h-dvh w-[248px] shrink-0 flex-col bg-sidebar px-3 py-4">
-      <div className="mb-4 flex items-center justify-between px-2">
-        <span className="flex items-center gap-1">
-          <Logo />
-          <CaretDown size={12} className="text-ink-3" aria-hidden />
-        </span>
-        <SidebarSimple size={18} className="text-ink-3" aria-hidden />
-      </div>
-
-      <nav className="flex flex-col gap-0.5" aria-label="Navigasi utama">
-        <NavItem href="/" label="Proyek" icon={FolderSimple} active={path === "/"} />
-
-        <Group label="Akses" icon={ShieldCheck}>
-          {first ? (
-            <>
-              <NavItem sub href={`/projects/${first.id}/members`} label="Anggota" active={path.endsWith("/members")} />
-              <NavItem sub href={`/projects/${first.id}/audit`} label="Audit log" active={path.endsWith("/audit")} />
-            </>
-          ) : (
-            <span className="px-2 py-1.5 text-[13px] text-ink-3">Belum ada proyek</span>
-          )}
-        </Group>
-
-        {mock.can("client.create") && (
-          <Group label="Klien" icon={Buildings}>
-            <NavItem sub href="/clients/new" label="Tambah klien" active={path === "/clients/new"} />
-            <NavItem sub href="/projects/new" label="Buat proyek" active={path === "/projects/new"} />
-          </Group>
+    <div className="sticky top-0 flex h-dvh shrink-0">
+      <div className={cx("flex w-16 flex-col items-center gap-2 overflow-y-auto bg-sidebar py-4", open && "border-r border-line")}>
+        <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} title={open ? "Tutup sidebar" : "Buka sidebar"} aria-label={open ? "Tutup sidebar" : "Buka sidebar"} className={cx("mb-2 flex size-10 shrink-0 items-center justify-center rounded-lg border border-transparent text-ink-2 transition-colors hover:text-ink", HOVER)}>
+          <SidebarSimple size={20} aria-hidden />
+        </button>
+        {canCreate && (
+          <Link href="/projects/new" title="Buat proyek" aria-label="Buat proyek" className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-accent text-white shadow-[0_1px_2px_rgb(20_18_15/0.2)]">
+            <Plus size={20} weight="bold" aria-hidden />
+          </Link>
         )}
-      </nav>
-
-      <div className="mt-auto flex flex-col gap-3">
-        <div className="flex flex-col gap-1 px-2 text-[12px] font-medium text-ink-2">
-          <Link href="/health" className="flex items-center gap-2 hover:text-ink"><ListChecks size={16} aria-hidden />Status sistem</Link>
-          <Link href="/login" className="flex items-center gap-2 hover:text-ink"><UsersThree size={16} aria-hidden />Keluar</Link>
+        <RailLink href="/" label="Semua proyek" icon={FolderSimple} active={path === "/"} />
+        <div aria-hidden className="my-1 h-px w-8 bg-line" />
+        {all.map((p, i) => (
+          <Link key={p.id} href={`/projects/${p.id}`} title={p.name} aria-label={p.name} aria-current={p.id === currentId ? "page" : undefined} className={cx("flex size-10 shrink-0 items-center justify-center rounded-lg border border-transparent transition-colors", p.id === currentId ? LIFT : HOVER)}>
+            <span aria-hidden className={cx("flex size-7 items-center justify-center rounded-md text-[13px] font-medium", TILES[i % TILES.length])}>{p.name[0]}</span>
+          </Link>
+        ))}
+        <div className="mt-auto flex flex-col gap-2">
+          {canCreate && <RailLink href="/clients/new" label="Tambah klien" icon={Buildings} active={path === "/clients/new"} />}
+          <RailLink href="/health" label="Status sistem" icon={ListChecks} active={path === "/health"} />
+          <RailLink href="/login" label="Keluar" icon={SignOut} />
         </div>
       </div>
-    </aside>
+
+      {open && <aside className="flex w-[240px] flex-col gap-4 overflow-y-auto bg-sidebar px-3 py-4">
+        <label className="flex h-9 items-center gap-2 rounded-lg border border-line bg-white px-3 text-[14px] text-ink-3">
+          <MagnifyingGlass size={16} className="shrink-0 text-ink-2" aria-hidden />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={current ? "Cari menu" : "Cari proyek"} aria-label="Cari" className="min-w-0 flex-1 bg-transparent text-ink outline-none placeholder:text-ink-3" />
+        </label>
+
+        <nav aria-label={current ? "Menu proyek" : "Daftar proyek"} className="flex flex-col gap-[3px]">
+          <span className="truncate px-1 pb-1.5 text-[12px] font-medium text-ink-3">{current ? current.name : "Proyek"}</span>
+          {current
+            ? tabs.map((t) => (
+                <Link key={t.href} href={t.href} aria-current={t.active ? "page" : undefined} className={cx(ROW, "gap-2.5", t.active ? LIFT : HOVER)}>
+                  <t.icon size={16} weight={t.active ? "fill" : "regular"} className={cx("shrink-0", t.active ? "text-accent" : "text-ink-2")} aria-hidden />
+                  <span className="flex-1 truncate">{t.label}</span>
+                  {t.count !== undefined && <span className="rounded-full bg-white px-1.5 text-xs text-ink-2">{t.count}</span>}
+                </Link>
+              ))
+            : list.map((p) => (
+                <Link key={p.id} href={`/projects/${p.id}`} className={cx(ROW, "gap-2.5", HOVER)}>
+                  <FolderSimple size={16} className="shrink-0 text-ink-2" aria-hidden />
+                  <span className="flex-1 truncate">{p.name}</span>
+                </Link>
+              ))}
+          {(current ? tabs : list).length === 0 && <span className="px-1 py-1.5 text-[13px] text-ink-3">Tidak ditemukan</span>}
+        </nav>
+      </aside>}
+    </div>
   );
 }
-
