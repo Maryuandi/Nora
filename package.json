@@ -17,7 +17,8 @@
     "smoke:f02": "pnpm --filter web smoke:f02",
     "smoke:f03": "pnpm --filter web smoke:f03",
     "smoke:f04": "pnpm --filter web smoke:f04",
-    "smoke:f05": "pnpm --filter web smoke:f05"
+    "smoke:f05": "pnpm --filter web smoke:f05",
+    "smoke:f06": "pnpm --filter web smoke:f06"
   },
   "devDependencies": {
     "concurrently": "^10.0.6"

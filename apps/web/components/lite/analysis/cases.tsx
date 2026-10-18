@@ -8,7 +8,7 @@ import { formatDateTime, formatSeconds } from "@/lib/lite/format";
 import { cx } from "@/utils/cx";
 import { api, errorText } from "../api";
 
-interface CaseRow { caseUid: string; caseId: string; startTime: string; endTime: string; durationSeconds: number; eventCount: number; selectedWaitSeconds: number | null }
+interface CaseRow { caseUid: string; caseId: string; startTime: string; endTime: string; durationSeconds: number; eventCount: number; selectedWaitSeconds: number | null; supportValue?: number | null }
 interface Page { total: number; page: number; size: number; cases: CaseRow[] }
 
 const QUALITY: Record<string, string> = {
@@ -16,11 +16,17 @@ const QUALITY: Record<string, string> = {
   timestamp_invalid: "waktu tidak valid", required_missing: "field kosong", start_after_completion: "mulai > selesai", incomplete_case: "kasus tidak lengkap",
 };
 
-/** Cases behind a selection. `query` is the API query string (node=… or from=…&to=…), or a findings endpoint path. */
-export function CaseList({ projectId, endpoint, query, canSortByWait, defaultSort = "duration", onOpen, openUid, timezone }: {
-  projectId: string; timezone: string; endpoint: string; query: string; canSortByWait?: boolean; defaultSort?: string; onOpen: (uid: string) => void; openUid: string | null;
+export interface CaseSort { value: string; label: string }
+export const MAP_SORTS: CaseSort[] = [{ value: "duration", label: "Durasi kasus" }, { value: "events", label: "Jumlah event" }, { value: "start", label: "Waktu mulai" }];
+
+/** Cases behind a selection or a finding. `query` is appended to the endpoint; totals come from the server. */
+export function CaseList({ projectId, endpoint, query, sorts = MAP_SORTS, support, onOpen, openUid, timezone }: {
+  projectId: string; endpoint: string; query: string; sorts?: CaseSort[]; timezone: string;
+  /** extra column for the per-case support metric (selected-edge wait, repetitions, …) */
+  support?: { label: string; unit: "seconds" | "count" };
+  onOpen: (uid: string) => void; openUid: string | null;
 }) {
-  const [sort, setSort] = useState(canSortByWait ? "wait" : defaultSort);
+  const [sort, setSort] = useState(sorts[0]!.value);
   const [dir, setDir] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
   const [data, setData] = useState<Page | null>(null);
@@ -40,11 +46,7 @@ export function CaseList({ projectId, endpoint, query, canSortByWait, defaultSor
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-end gap-2">
         <p className="mr-auto text-sm text-ink-2">{data ? `${data.total.toLocaleString("id-ID")} kasus` : "Memuat…"}</p>
-        <NativeSelect aria-label="Urutkan" size="sm" className="w-48" value={sort} onChange={(e) => setSort(e.target.value)} options={[
-          ...(canSortByWait ? [{ value: "wait", label: "Tunggu transisi terpilih" }] : []),
-          ...(defaultSort === "repetitions" ? [{ value: "repetitions", label: "Jumlah pengulangan" }, { value: "additional", label: "Durasi tambahan" }] : []),
-          { value: "duration", label: "Durasi kasus" }, { value: "events", label: "Jumlah event" }, { value: "start", label: "Waktu mulai" },
-        ]} />
+        <NativeSelect aria-label="Urutkan" size="sm" className="w-52" value={sort} onChange={(e) => setSort(e.target.value)} options={sorts} />
         <NativeSelect aria-label="Arah" size="sm" className="w-32" value={dir} onChange={(e) => setDir(e.target.value as "asc" | "desc")} options={[{ value: "desc", label: "Menurun" }, { value: "asc", label: "Menaik" }]} />
       </div>
       {error && <p role="alert" className="text-sm text-error-primary">{error}</p>}
@@ -52,7 +54,7 @@ export function CaseList({ projectId, endpoint, query, canSortByWait, defaultSor
         <table className="w-full text-left text-sm">
           <thead className="bg-sidebar text-xs text-ink-3"><tr>
             <th className="px-3 py-1.5 font-medium">Kasus</th><th className="px-3 py-1.5 font-medium">Mulai</th><th className="px-3 py-1.5 font-medium">Durasi</th>
-            <th className="px-3 py-1.5 font-medium">Event</th>{canSortByWait && <th className="px-3 py-1.5 font-medium">Tunggu transisi</th>}
+            <th className="px-3 py-1.5 font-medium">Event</th>{support && <th className="px-3 py-1.5 font-medium">{support.label}</th>}
           </tr></thead>
           <tbody className="divide-y divide-line">
             {data?.cases.map((c) => (
@@ -61,7 +63,7 @@ export function CaseList({ projectId, endpoint, query, canSortByWait, defaultSor
                 <td className="px-3 py-1.5 whitespace-nowrap text-ink-2">{formatDateTime(c.startTime, timezone)}</td>
                 <td className="px-3 py-1.5">{formatSeconds(c.durationSeconds)}</td>
                 <td className="px-3 py-1.5">{c.eventCount}</td>
-                {canSortByWait && <td className="px-3 py-1.5">{formatSeconds(c.selectedWaitSeconds)}</td>}
+                {support && <td className="px-3 py-1.5">{support.unit === "seconds" ? formatSeconds(c.supportValue ?? c.selectedWaitSeconds) : (c.supportValue ?? "–")}</td>}
               </tr>
             ))}
           </tbody>

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import type { ProcessMapResult } from "@nora/contracts";
 import { formatInt, formatPct, formatSeconds } from "@/lib/lite/format";
 import { cx } from "@/utils/cx";
-import { CaseList, CaseTimeline } from "./cases";
+import { CaseList, CaseTimeline, MAP_SORTS } from "./cases";
 import { FREQ_GRADIENT, isTerminal, layoutMap, PERF_GRADIENT, simplify } from "./map-model";
 import { ProcessMap, type MapMode, type MapSelection } from "./process-map";
 
@@ -66,7 +66,8 @@ export function MapView({ projectId, runId, datasetId, map, timezone }: { projec
                   : selNode ? `${formatInt(selNode.caseCount)} kasus · ${formatInt(selNode.eventCount)} event · ${formatPct(selNode.caseShare)} kasus${selNode.serviceMedianSeconds != null ? ` · median service ${formatSeconds(selNode.serviceMedianSeconds)}` : ""}` : ""}
               </p>
             </div>
-            <CaseList projectId={projectId} endpoint={`/analyses/${runId}/cases`} query={query} canSortByWait={!!selEdge && !isTerminal(selEdge.from) && !isTerminal(selEdge.to)} onOpen={setOpenCase} openUid={openCase} timezone={timezone} />
+            <CaseList key={query} projectId={projectId} endpoint={`/analyses/${runId}/cases`} query={query} timezone={timezone} onOpen={setOpenCase} openUid={openCase}
+              {...(selEdge && !isTerminal(selEdge.from) && !isTerminal(selEdge.to) ? { sorts: [{ value: "wait", label: "Tunggu transisi terpilih" }, ...MAP_SORTS], support: { label: "Tunggu transisi", unit: "seconds" as const } } : {})} />
           </section>
           {openCase && <CaseTimeline projectId={projectId} datasetId={datasetId} caseUid={openCase} timezone={timezone} onClose={() => setOpenCase(null)} />}
         </div>
