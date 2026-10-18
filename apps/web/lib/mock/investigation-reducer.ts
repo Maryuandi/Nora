@@ -340,15 +340,15 @@ export function reduceInvestigation(
       if (!d) return fail("Keputusan tidak ditemukan");
       const c = ctx(state, d.investigationId, "investigation.view");
       if (typeof c === "string") return fail(c);
-      if (c.role !== "analis" && c.role !== "pemilik_proses") return fail("Peran Anda tidak diizinkan untuk aksi ini");
+      if (!canDecide(c.role, d.status)) return fail("Peran Anda tidak diizinkan menegaskan status ini");
       // Penanda hanya ada pada versi terbaru (keputusan baru selalu menutupnya).
       if (!state.flags.some((f) => f.decisionId === d.id && !f.clearedAt)) return fail("Keputusan ini tidak perlu ditinjau ulang");
       const confirmed: Decision = {
         ...d, id: id("dc"), version: d.version + 1, reason: "Ditegaskan setelah analisis baru",
-        byId: state.viewerId, byRole: c.role, at: now(), snapshot: snapshotFor(state, c.project.id, approvedNarrative(state, c.inv.id)),
+        byId: state.viewerId, byRole: c.role!, at: now(), snapshot: snapshotFor(state, c.project.id, approvedNarrative(state, c.inv.id)),
       };
       const target = state.links.find((l) => l.id === d.targetLinkId);
-      const label = `${c.inv.title}: ${target ? targetTitle(state, c.project.id, target.kind, target.targetId) : d.targetLinkId} ${DECISION_LABEL[d.status]} (${c.role})`;
+      const label = `${c.inv.title}: ${target ? targetTitle(state, c.project.id, target.kind, target.targetId) : d.targetLinkId} → ${DECISION_LABEL[d.status]} (${c.role})`;
       const next = { ...state, decisions: [...state.decisions, confirmed], flags: clearFlags(state, new Set([d.id])) };
       return { state: withAudit(next, { action: "keputusan.tegaskan", objectType: "Keputusan", objectLabel: label, projectId: c.project.id }), investigationId: c.inv.id, decisionId: confirmed.id };
     }
@@ -360,14 +360,18 @@ export function reduceInvestigation(
       if (!prev) return fail("Proyek ini belum punya analisis");
       const current = nextAnalysisState(prev);
       const active = new Set(state.flags.filter((f) => !f.clearedAt).map((f) => f.decisionId));
+      const refreshed = new Map<string, string[]>(); // decisionId -> ringkasan segar untuk penanda yang sudah aktif
       const flags: RevalidationFlag[] = [];
       const pings: Notification[] = [];
       // Workspace `selesai` adalah arsip; keputusannya tidak ditandai ulang.
       for (const inv of state.investigations.filter((i) => i.projectId === c.project.id && i.status !== "selesai")) {
-        const added = latestDecisions(state, inv.id)
-          .filter((d) => !active.has(d.id))
-          .map((d) => ({ id: id("flag"), decisionId: d.id, summary: detectRevalidation(d, current), at: now() }))
-          .filter((f) => f.summary.length > 0);
+        const added: RevalidationFlag[] = [];
+        for (const d of latestDecisions(state, inv.id)) {
+          const summary = detectRevalidation(d, current);
+          if (!summary.length) continue;
+          if (active.has(d.id)) refreshed.set(d.id, summary);
+          else added.push({ id: id("flag"), decisionId: d.id, summary, at: now() });
+        }
         if (!added.length) continue;
         flags.push(...added);
         pings.push(...inv.memberIds.filter((u) => u !== state.viewerId).map((userId) => ({
@@ -377,7 +381,8 @@ export function reduceInvestigation(
       }
       const next = {
         ...state, analysisStates: state.analysisStates.map((a) => (a === prev ? current : a)),
-        flags: [...state.flags, ...flags], notifications: [...state.notifications, ...pings],
+        flags: [...state.flags.map((f) => (!f.clearedAt && refreshed.has(f.decisionId) ? { ...f, summary: refreshed.get(f.decisionId)! } : f)), ...flags],
+        notifications: [...state.notifications, ...pings],
       };
       const label = `Dataset ${prev.datasetVersion} → ${current.datasetVersion}, ${flags.length} keputusan ditandai`;
       return { state: withAudit(next, { action: "analisis.simulasi", objectType: "Analisis", objectLabel: label, projectId: c.project.id }) };

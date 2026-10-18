@@ -577,6 +577,8 @@ describe("simulateNewAnalysis", () => {
     expect(r2.state.analysisStates[0].datasetVersion).toBe("ds-4");
     expect(r2.state.flags).toHaveLength(1);
     expect(r2.state.notifications).toHaveLength(r1.state.notifications.length);
+    // ringkasan penanda aktif disegarkan terhadap potret keputusan (ds-2) dan analisis terbaru
+    expect(flagsForProject(r2.state, P)[0].summary).toEqual(expect.arrayContaining(["Dataset ds-2 → ds-4", "P90 berubah dari 18,4 ke 26,5 hari kerja"]));
   });
   it("tanpa keputusan terbuka (inv-2 selesai) tidak membuat penanda", () => {
     const r = simulate(s0());
@@ -601,20 +603,38 @@ describe("confirmDecision", () => {
     expect(r.state).toBe(s);
     expect(reduce(s, { type: "confirmDecision", decisionId: "nope" }).state).toBe(s);
   });
-  it("dengan penanda: penanda ditutup, versi naik, status sama, potret kini, audit keputusan.tegaskan", () => {
+  it("dengan penanda: Sari menegaskan dipilih -> penanda ditutup, versi naik, status sama, potret kini, audit keputusan.tegaskan", () => {
+    const { s, decisionId } = chosen();
+    const sim = as(simulate(s).state, "u-sari");
+    const r = reduce(sim, { type: "confirmDecision", decisionId });
+    expect(r.error).toBeUndefined();
+    expect(r.state.flags[0]).toMatchObject({ decisionId, clearedBy: "u-sari", clearedAt: expect.any(String) });
+    expect(flagsForProject(r.state, P)).toEqual([]);
+    const d = r.state.decisions.find((x) => x.id === r.decisionId)!;
+    expect(d).toMatchObject({ version: 2, status: "dipilih", reason: "Ditegaskan setelah analisis baru", byId: "u-sari", byRole: "pemilik_proses" });
+    expect(d.snapshot).toEqual(snapshotFor(sim, P, "i-seed-42"));
+    expect(latestDecisions(r.state, "inv-1")).toEqual([d]);
+    const a = audits(sim, r.state);
+    expect(a.map((e) => e.action)).toEqual(["keputusan.tegaskan"]);
+    expect(a[0].objectLabel).toContain("→ Dipilih");
+    // versi lama tidak lagi punya penanda aktif
+    expect(reduce(r.state, { type: "confirmDecision", decisionId }).error).toBeDefined();
+  });
+  it("analis tidak boleh menegaskan dipilih", () => {
     const { s, decisionId } = chosen();
     const sim = simulate(s).state;
     const r = reduce(sim, { type: "confirmDecision", decisionId });
+    expect(r.error).toBeDefined();
+    expect(r.state).toBe(sim);
+  });
+  it("Dimas menegaskan usulan_uji_coba (analitis); Sari tidak boleh", () => {
+    const made = decide(ready(s0()));
+    const sim = simulate(made.state).state;
+    const sari = as(sim, "u-sari");
+    expect(reduce(sari, { type: "confirmDecision", decisionId: made.decisionId! }).state).toBe(sari);
+    const r = reduce(sim, { type: "confirmDecision", decisionId: made.decisionId! });
     expect(r.error).toBeUndefined();
-    expect(r.state.flags[0]).toMatchObject({ decisionId, clearedBy: "u-dimas", clearedAt: expect.any(String) });
-    expect(flagsForProject(r.state, P)).toEqual([]);
-    const d = r.state.decisions.find((x) => x.id === r.decisionId)!;
-    expect(d).toMatchObject({ version: 2, status: "dipilih", reason: "Ditegaskan setelah analisis baru", byId: "u-dimas", byRole: "analis" });
-    expect(d.snapshot).toEqual(snapshotFor(sim, P, "i-seed-42"));
-    expect(latestDecisions(r.state, "inv-1")).toEqual([d]);
-    expect(audits(sim, r.state).map((e) => e.action)).toEqual(["keputusan.tegaskan"]);
-    // versi lama tidak lagi punya penanda aktif
-    expect(reduce(r.state, { type: "confirmDecision", decisionId }).error).toBeDefined();
+    expect(r.state.decisions.find((x) => x.id === r.decisionId)).toMatchObject({ version: 2, status: "usulan_uji_coba", byId: "u-dimas", byRole: "analis" });
   });
   it("administrator ditolak", () => {
     const { s, decisionId } = chosen();
