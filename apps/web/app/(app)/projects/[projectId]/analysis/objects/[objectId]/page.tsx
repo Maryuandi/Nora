@@ -9,9 +9,9 @@ import { NotFoundPanel } from "@/components/not-found-panel";
 import { Card } from "@/components/nora/card";
 import { useAnalysis } from "@/components/project/analysis-filter";
 import { NoDataCard } from "@/components/project/filter-bar";
-import { formatRange, ObjectsBanner, ObjectsUnavailable } from "@/components/project/object-table";
+import { ObjectsBanner, ObjectsUnavailable } from "@/components/project/object-table";
 import { useProject } from "@/components/project/use-project";
-import { formatEventTime } from "@/lib/format";
+import { formatEventTime, formatRange } from "@/lib/format";
 import { filteredLogFor, groupCases, mergedTimeline, validateFilter, variantIdOf } from "@/lib/mock/analysis";
 
 // decodeURIComponent throws on malformed escapes such as "%E0%A4%A": treat those as an unknown id.

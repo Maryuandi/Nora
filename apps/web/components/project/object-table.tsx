@@ -7,15 +7,12 @@ import { Table } from "@/components/application/table/table";
 import { Button } from "@/components/base/buttons/button";
 import { Banner } from "@/components/nora/banner";
 import { Card } from "@/components/nora/card";
-import { formatEventTime } from "@/lib/format";
+import { formatRange } from "@/lib/format";
 import type { ObjectGroup } from "@/lib/mock/analysis";
 import { pageOf } from "@/lib/mock/eventlog";
 
 const cell = "px-6 text-sm whitespace-nowrap text-ink-2";
 
-/** "from - to" on the mapping's time zone. */
-export const formatRange = (fromMs: number, toMs: number, tz: string): string =>
-  `${formatEventTime(new Date(fromMs).toISOString(), tz)} - ${formatEventTime(new Date(toMs).toISOString(), tz)}`;
 
 export const ObjectsBanner = () => <Banner>Pengelompokan atribut: kasus yang berbagi nilai atribut yang sama, bukan analisis object-centric penuh</Banner>;
 

@@ -113,7 +113,7 @@ export function buildEventLog(snapshot: Snapshot, mapping: MappingVersion): Even
     const tie = path.length >= 3 && hash(`${snapshot.checksum}:${i}:tie`) % 50 === 0 ? 1 + (hash(`${snapshot.checksum}:${i}:tiej`) % (path.length - 2)) : -1;
     const events: LogEvent[] = path.map((activity, j) => {
       const bottleneck = j > 0 && path[j - 1] === stages[1] && activity === stages[2];
-      const tied = j === tie && !bottleneck; // the tied event adds no gap, so the later gaps keep their M05a size
+      const tied = j === tie && !bottleneck; // the tied event drops its own gap: later gaps keep their M05a size, but every later event in this case moves earlier
       if (j > 0 && !tied) {
         const gap = HOUR + (hash(`${snapshot.checksum}:${i}:${j}`) % (6 * DAY - HOUR + 1));
         t += bottleneck ? gap * 3 : gap; // intentional bottleneck: 2nd -> 3rd activity

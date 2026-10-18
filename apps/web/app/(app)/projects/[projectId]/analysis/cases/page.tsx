@@ -67,7 +67,7 @@ export default function CasesPage() {
           {cases.length === 0 ? (
             <p className="border-t border-line px-4 py-8 text-center text-sm text-ink-3">Tidak ada kasus untuk pilihan ini pada filter yang berlaku.</p>
           ) : (
-            <CaseTable key={`${selection?.kind}:${selection?.id}`} cases={cases} base={base} variantOf={variantOf} attrsAvailable={result.attrsAvailable} />
+            <CaseTable key={`${selection?.kind}:${selection?.id}`} cases={cases} base={base} variantOf={variantOf} attrsAvailable={result.attrsAvailable} timezone={result.mapping.timezone} />
           )}
         </Card>
       )}

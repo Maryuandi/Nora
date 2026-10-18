@@ -108,8 +108,10 @@ const PREVIEW = Array.from({ length: 12 }, (_, i) => [
 ]);
 
 // sn-1 also carries a vendor column (case_attr in the seed mapping) so M05b attribute filters are available on the seed.
-const SAP_COLUMNS = [...COLUMNS, { name: "vendor", samples: ["PT Sinar Jaya", "CV Mitra Abadi", "PT Bumi Logistik"] }];
-const SAP_PREVIEW = PREVIEW.map((r, i) => [...r, ["PT Sinar Jaya", "CV Mitra Abadi", "PT Bumi Logistik"][Math.floor(i / 4)]]);
+// Sample names are the first 3 of VENDORS in eventlog.ts (duplicated: eventlog.ts imports mapping/rules, so importing it here risks a cycle).
+const SAP_VENDORS = ["PT Sinar Jaya", "CV Mitra Abadi", "PT Nusantara Pratama"];
+const SAP_COLUMNS = [...COLUMNS, { name: "vendor", samples: SAP_VENDORS }];
+const SAP_PREVIEW = PREVIEW.map((r, i) => [...r, SAP_VENDORS[Math.floor(i / 4)]]);
 
 const snapshots: Snapshot[] = [
   { id: "sn-1", sourceId: "s-p2p-sap", projectId: "p-p2p", fileName: "sap_p2p_okt2026.csv", sizeBytes: 12_582_912, format: "csv", checksum: "9f3a1c7e0b42",

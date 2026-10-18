@@ -35,3 +35,7 @@ export const formatDuration = (ms: number): string => {
   if (hours < 24) return `${show(hours)} jam`;
   return `${show(compactNumber(ms / 86_400_000))} hari`;
 };
+
+/** "from - to" on the mapping's time zone; "-" when either bound is not a finite ms value. */
+export const formatRange = (fromMs: number, toMs: number, tz: string): string =>
+  Number.isFinite(fromMs) && Number.isFinite(toMs) ? `${formatEventTime(new Date(fromMs).toISOString(), tz)} - ${formatEventTime(new Date(toMs).toISOString(), tz)}` : "-";

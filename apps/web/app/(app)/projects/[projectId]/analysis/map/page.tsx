@@ -146,7 +146,7 @@ function MapContent() {
           <MapLegend mode={mode} hasStartTime={hasStartTime} />
         </div>
 
-        {panel && <CasePanel key={panel.key} title={panel.title} cases={panel.cases} note={panel.note} base={base} onClose={() => setSelection(null)} />}
+        {panel && <CasePanel key={panel.key} title={panel.title} cases={panel.cases} note={panel.note} base={base} onClose={() => setSelection(null)} timezone={result.mapping.timezone} />}
 
         <div className="grid gap-4 sm:grid-cols-2">
           {summary.map(({ title, edge: e, value }) => (

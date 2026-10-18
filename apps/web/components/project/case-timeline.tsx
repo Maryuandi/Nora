@@ -77,7 +77,7 @@ export function CaseTimeline({ kase, snapshot, mapping, hasStartTime, base, attr
             return (
               <li key={i} className="px-4 py-3">
                 <div className="flex min-w-0 items-start gap-3">
-                  <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full border border-line text-xs font-medium text-ink-2" aria-label={`Event ke-${i + 1}`}>{i + 1}</span>
+                  <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full border border-line text-xs font-medium text-ink-2"><span className="sr-only">Event ke-</span>{i + 1}</span>
                   <div className="min-w-0 flex-1">
                     <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
                       <span className="max-w-full truncate text-sm font-medium text-ink" title={e.activity}>{e.activity}</span>

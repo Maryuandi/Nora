@@ -45,7 +45,7 @@ function SaveForm({ onClose, projectId, pct }: { onClose: () => void; projectId:
       </>}>
       <Input size="sm" label="Nama" placeholder="Contoh: Vendor dengan siklus lambat" value={name} onChange={edit(setName)} isRequired autoFocus
         hint={`${name.trim().length}/80 karakter`} />
-      <TextArea label="Catatan" placeholder="Opsional" rows={3} value={note} onChange={edit(setNote)} hint={`${note.trim().length}/500 karakter. Tercatat di audit log.`} />
+      <TextArea label="Catatan" placeholder="Opsional" rows={3} value={note} onChange={edit(setNote)} hint={`${note.trim().length}/500 karakter. Catatan tersimpan bersama tampilan.`} />
       {error && <Banner tone="warning">{error}</Banner>}
     </NoraModal>
   );

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MOCK_TODAY } from "./mock/data";
-import { daysSince, formatBytes, formatDuration, formatEventTime, isStale } from "./format";
+import { daysSince, formatBytes, formatDuration, formatEventTime, formatRange, isStale } from "./format";
 
 const before = (days: number) => new Date(Date.parse(`${MOCK_TODAY}T00:00:00Z`) - days * 86_400_000).toISOString();
 
@@ -42,5 +42,13 @@ describe("formatEventTime", () => {
   it("invalid zone or date falls back instead of throwing", () => {
     expect(() => formatEventTime("2026-05-01T00:00:00Z", "Not/AZone")).not.toThrow();
     expect(formatEventTime("garbage", "UTC")).toBe("-");
+  });
+});
+
+describe("formatRange", () => {
+  it("returns - for non-finite bounds instead of throwing", () => {
+    expect(formatRange(NaN, 1, "UTC")).toBe("-");
+    expect(formatRange(Infinity, -Infinity, "UTC")).toBe("-");
+    expect(formatRange(0, 1000, "UTC")).toContain(" - ");
   });
 });

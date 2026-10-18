@@ -7,14 +7,14 @@ import { X } from "@phosphor-icons/react";
 import { Table } from "@/components/application/table/table";
 import { Button } from "@/components/base/buttons/button";
 import { Card } from "@/components/nora/card";
-import { formatDateTime, formatDuration } from "@/lib/format";
+import { formatDuration, formatEventTime } from "@/lib/format";
 import { pageOf, sortCases, type LogCase } from "@/lib/mock/eventlog";
 
 const PAGE_SIZE = 20;
 type SortKey = "durasi" | "event" | "mulai";
 
 /** Cases behind a selected map element. Mount with a `key` per selection so sort and page reset. */
-export function CasePanel({ title, cases, note, base, onClose }: { title: string; cases: LogCase[]; note?: string; base: string; onClose: () => void }) {
+export function CasePanel({ title, cases, note, base, onClose, timezone = "Asia/Jakarta" }: { title: string; cases: LogCase[]; note?: string; base: string; onClose: () => void; timezone?: string }) {
   const [sort, setSort] = useState<{ by: SortKey; dir: "asc" | "desc" }>({ by: "durasi", dir: "desc" });
   const [page, setPage] = useState(1);
   const sorted = useMemo(() => sortCases(cases, sort.by, sort.dir), [cases, sort]);
@@ -46,7 +46,7 @@ export function CasePanel({ title, cases, note, base, onClose }: { title: string
           {view.items.map((c) => (
             <Table.Row key={c.id} id={c.id}>
               <Table.Cell className="max-w-[320px] px-6 text-sm font-medium text-ink"><span title={c.id} className="block truncate">{c.id}</span></Table.Cell>
-              <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{formatDateTime(new Date(c.startMs).toISOString())}</Table.Cell>
+              <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{formatEventTime(new Date(c.startMs).toISOString(), timezone)}</Table.Cell>
               <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{formatDuration(c.durationMs)}</Table.Cell>
               <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{c.events.length}</Table.Cell>
               <Table.Cell className="px-6 text-sm whitespace-nowrap"><Link href={`${base}/analysis/cases/${encodeURIComponent(c.id)}`} className="text-accent hover:underline">Buka timeline</Link></Table.Cell>

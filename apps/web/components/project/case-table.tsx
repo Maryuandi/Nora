@@ -5,14 +5,14 @@ import Link from "next/link";
 import type { SortDescriptor } from "react-aria-components";
 import { Table } from "@/components/application/table/table";
 import { Button } from "@/components/base/buttons/button";
-import { formatDateTime, formatDuration } from "@/lib/format";
+import { formatDuration, formatEventTime } from "@/lib/format";
 import { pageOf, sortCases, type LogCase } from "@/lib/mock/eventlog";
 
 type SortKey = "durasi" | "event" | "mulai";
 const cell = "px-6 text-sm whitespace-nowrap text-ink-2";
 
 /** Sortable, paged case list. `attrsAvailable` false (no case_attr mapping) shows "-" for vendor and PO, never a link. Mount with a `key` per cases source so sort and page reset. Case values are plain text. */
-export function CaseTable({ cases, base, variantOf, size = 20, attrsAvailable = true }: { cases: LogCase[]; base: string; variantOf: (c: LogCase) => string; size?: number; attrsAvailable?: boolean }) {
+export function CaseTable({ cases, base, variantOf, size = 20, attrsAvailable = true, timezone = "Asia/Jakarta" }: { cases: LogCase[]; base: string; variantOf: (c: LogCase) => string; size?: number; attrsAvailable?: boolean; timezone?: string }) {
   const [sort, setSort] = useState<{ by: SortKey; dir: "asc" | "desc" }>({ by: "mulai", dir: "asc" });
   const [page, setPage] = useState(1);
   const sorted = useMemo(() => sortCases(cases, sort.by, sort.dir), [cases, sort]);
@@ -38,7 +38,7 @@ export function CaseTable({ cases, base, variantOf, size = 20, attrsAvailable = 
               <Table.Cell className="max-w-[240px] px-6 text-sm font-medium">
                 <Link href={`${base}/analysis/cases/${encodeURIComponent(c.id)}`} title={c.id} className="block truncate text-accent hover:underline">{c.id}</Link>
               </Table.Cell>
-              <Table.Cell className={cell}>{formatDateTime(new Date(c.startMs).toISOString())}</Table.Cell>
+              <Table.Cell className={cell}>{formatEventTime(new Date(c.startMs).toISOString(), timezone)}</Table.Cell>
               <Table.Cell className={cell}>{formatDuration(c.durationMs)}</Table.Cell>
               <Table.Cell className={cell}>{c.events.length}</Table.Cell>
               <Table.Cell className="max-w-[240px] px-6 text-sm text-ink-2">{attrsAvailable ? <span className="block truncate" title={c.attrs.vendor}>{c.attrs.vendor}</span> : "-"}</Table.Cell>

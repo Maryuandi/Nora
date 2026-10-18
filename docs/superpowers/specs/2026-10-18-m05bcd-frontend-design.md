@@ -30,7 +30,7 @@ Hasil analisis dipakai ulang berbasis hash (hanya ada satu hitungan klien yang d
 
 ## Perluasan event log tiruan (`lib/mock/eventlog.ts`)
 
-Tidak boleh mengubah angka M05a: atribut baru memakai hash seed terpisah dan tidak menggeser pengundian yang ada. Seluruh tes M05a harus tetap lulus tanpa perubahan angka.
+Jumlah kasus/node/edge dan pilihan jalur M05a tidak berubah: atribut baru memakai hash seed terpisah dan tidak menggeser pengundian yang ada. Pengecualian: seri waktu `ambigu` yang dipaksakan (~2% kasus) memperpendek kasus tersebut dan sedikit menggeser beberapa median/P90 edge serta pangsa M06 di hilir; tidak ada golden test yang mengunci angka ini.
 
 ```ts
 interface LogEvent { activity; activityRaw; time; resource;
