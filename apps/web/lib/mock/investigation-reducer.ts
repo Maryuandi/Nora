@@ -1,11 +1,11 @@
 // Reducer M11. Dipanggil lebih dulu oleh `reduce`; `null` berarti aksi bukan milik M11.
-import { INVESTIGATION_STATUS_LABEL, LINK_KIND_LABEL, canSetStatus, linkFreshness } from "./investigation";
+import { INVESTIGATION_STATUS_LABEL, LINK_KIND_LABEL, canSetStatus, extractMentions, linkFreshness } from "./investigation";
 import { id, now, withAudit } from "./mutate";
 import { acceptsData, can, type UiAction } from "./permissions";
 import type { MockAction, ReduceResult } from "./reducer";
 import type {
   DecisionStatus, HypothesisState, Investigation, InvestigationLink, InvestigationNote, InvestigationStatus, LinkKind,
-  MockState, Project, RejectReason, Role,
+  MockState, Notification, Project, RejectReason, Role,
 } from "./types";
 
 export type InvestigationAction =
@@ -48,6 +48,18 @@ function ctx(state: MockState, investigationId: string, perm: UiAction): InvCtx 
   if (!inv) return "Workspace tidak ditemukan";
   const c = projectCtx(state, inv.projectId, perm);
   return typeof c === "string" ? c : { ...c, inv };
+}
+
+const MAX_FILE_BYTES = 20 * 1024 * 1024;
+
+function attachmentError(a: NonNullable<InvestigationNote["attachment"]>): string | null {
+  if (a.type === "file") return (a.sizeBytes ?? 0) > MAX_FILE_BYTES ? "Berkas melebihi 20 MB" : null;
+  try {
+    const { protocol } = new URL(a.label);
+    return protocol === "http:" || protocol === "https:" ? null : "Tautan harus diawali http atau https";
+  } catch {
+    return "Tautan tidak valid";
+  }
 }
 
 const currentRuleVersion = (state: MockState, projectId: string, ruleKey: string): string | null => {
@@ -170,9 +182,86 @@ export function reduceInvestigation(
       return { state: withAudit(next, { action: "investigasi.status", objectType: "Investigasi", objectLabel: label, projectId: c.project.id }), investigationId: c.inv.id };
     }
 
-    // Diganti Task 5-9; jangan sampai tertelan diam-diam.
-    case "addNote": case "setHypothesisState": case "setQuestionState": case "addComment": case "resolveComment":
-    case "markNotificationsRead": case "reviewJev": case "reviewDraft": case "makeDecision": case "confirmDecision":
+    case "addNote": {
+      const c = ctx(state, action.investigationId, "note.add.field");
+      if (typeof c === "string") return fail(c);
+      const n = action.note;
+      if (c.role !== "analis" && n.kind !== "wawancara" && n.kind !== "bukti") return fail("Peran Anda hanya boleh mencatat wawancara dan bukti");
+      if (n.kind === "wawancara" && (!n.interviewee?.trim() || !n.interviewDate)) return fail("Narasumber dan tanggal wawancara wajib diisi");
+      if (n.kind === "bukti" && n.attachment) {
+        const e = attachmentError(n.attachment);
+        if (e) return fail(e);
+      }
+      const added: InvestigationNote = {
+        ...n, id: id("note"), investigationId: c.inv.id, createdBy: state.viewerId, createdAt: now(),
+        ...(n.kind === "hipotesis" ? { hypothesisState: "belum_diuji" as const, supportingLinkIds: [] } : {}),
+        ...(n.kind === "pertanyaan" ? { questionState: "terbuka" as const, assigneeId: n.assigneeId ?? state.viewerId } : {}),
+      };
+      return { state: withAudit({ ...state, notes: [...state.notes, added] }, { action: "investigasi.catat", objectType: "Investigasi", objectLabel: `${c.inv.title}: ${n.title}`, projectId: c.project.id }), investigationId: c.inv.id };
+    }
+
+    case "setHypothesisState": {
+      const note = state.notes.find((n) => n.id === action.noteId);
+      if (!note) return fail("Catatan tidak ditemukan");
+      const c = ctx(state, note.investigationId, "note.add");
+      if (typeof c === "string") return fail(c);
+      if (note.kind !== "hipotesis") return fail("Catatan ini bukan hipotesis");
+      const ids = [...new Set(action.supportingLinkIds)];
+      if (ids.some((l) => !state.links.some((x) => x.id === l && x.investigationId === c.inv.id))) return fail("Tautan pendukung bukan milik workspace ini");
+      if (action.state !== "belum_diuji" && ids.length === 0) return fail("Pilih minimal satu tautan pendukung");
+      const next = { ...state, notes: state.notes.map((n) => (n === note ? { ...n, hypothesisState: action.state, supportingLinkIds: ids } : n)) };
+      return { state: withAudit(next, { action: "investigasi.hipotesis", objectType: "Investigasi", objectLabel: `${c.inv.title}: ${note.title} → ${action.state}`, projectId: c.project.id }), investigationId: c.inv.id };
+    }
+
+    case "setQuestionState": {
+      const note = state.notes.find((n) => n.id === action.noteId);
+      if (!note) return fail("Catatan tidak ditemukan");
+      const c = ctx(state, note.investigationId, "note.add.field");
+      if (typeof c === "string") return fail(c);
+      if (note.kind !== "pertanyaan") return fail("Catatan ini bukan pertanyaan");
+      if (c.role !== "analis" && note.assigneeId !== state.viewerId) return fail("Hanya analis atau penanggung jawab yang dapat mengubah status pertanyaan");
+      const next = { ...state, notes: state.notes.map((n) => (n === note ? { ...n, questionState: action.state } : n)) };
+      return { state: withAudit(next, { action: "investigasi.pertanyaan", objectType: "Investigasi", objectLabel: `${c.inv.title}: ${note.title} → ${action.state}`, projectId: c.project.id }), investigationId: c.inv.id };
+    }
+
+    case "addComment": {
+      const c = ctx(state, action.investigationId, "comment.add");
+      if (typeof c === "string") return fail(c);
+      const body = action.body.trim();
+      if (!body) return fail("Isi komentar wajib diisi");
+      if (action.parentId && !state.comments.some((x) => x.id === action.parentId && x.investigationId === c.inv.id)) return fail("Komentar induk tidak ditemukan di workspace ini");
+      if (action.targetLinkId && !state.links.some((l) => l.id === action.targetLinkId && l.investigationId === c.inv.id)) return fail("Tautan tujuan bukan milik workspace ini");
+      const memberIds = new Set(state.memberships.filter((m) => m.projectId === c.project.id).map((m) => m.userId));
+      const mentions = extractMentions(body, state.users.filter((u) => memberIds.has(u.id)));
+      const author = state.users.find((u) => u.id === state.viewerId)?.name ?? "Seseorang";
+      const comment = {
+        id: id("cm"), investigationId: c.inv.id, targetLinkId: action.targetLinkId ?? null, parentId: action.parentId ?? null,
+        body, mentions, resolved: false, createdBy: state.viewerId, createdAt: now(),
+      };
+      const pings: Notification[] = mentions.filter((u) => u !== state.viewerId).map((userId) => ({
+        id: id("ntf"), userId, projectId: c.project.id, text: `${author} menyebut Anda di ${c.inv.title}`,
+        href: `/projects/${c.project.id}/investigations/${c.inv.id}`, read: false, at: now(),
+      }));
+      const next = { ...state, comments: [...state.comments, comment], notifications: [...state.notifications, ...pings] };
+      return { state: withAudit(next, { action: "komentar.tambah", objectType: "Investigasi", objectLabel: c.inv.title, projectId: c.project.id }), investigationId: c.inv.id };
+    }
+
+    case "resolveComment": {
+      const comment = state.comments.find((x) => x.id === action.commentId);
+      if (!comment) return fail("Komentar tidak ditemukan");
+      const c = ctx(state, comment.investigationId, "comment.add");
+      if (typeof c === "string") return fail(c);
+      if (comment.parentId) return fail("Hanya komentar utama yang dapat diselesaikan");
+      if (c.role !== "analis" && comment.createdBy !== state.viewerId) return fail("Hanya penulis atau analis yang dapat menyelesaikan komentar");
+      const next = { ...state, comments: state.comments.map((x) => (x === comment ? { ...x, resolved: action.resolved } : x)) };
+      return { state: withAudit(next, { action: "komentar.selesai", objectType: "Investigasi", objectLabel: c.inv.title, projectId: c.project.id }), investigationId: c.inv.id };
+    }
+
+    case "markNotificationsRead":
+      return { state: { ...state, notifications: state.notifications.map((n) => (n.userId === state.viewerId && !n.read ? { ...n, read: true } : n)) } };
+
+    // Diganti Task 6-9; jangan sampai tertelan diam-diam.
+    case "reviewJev": case "reviewDraft": case "makeDecision": case "confirmDecision":
     case "simulateNewAnalysis": case "createProposal":
       return fail("Belum didukung");
 

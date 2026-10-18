@@ -146,7 +146,197 @@ describe("penolakan umum", () => {
   });
   it("aksi M11 yang belum diimplementasi mengembalikan galat, bukan diam-diam", () => {
     const s = s0();
-    const r = reduce(s, { type: "markNotificationsRead" });
+    const r = reduce(s, { type: "createProposal", investigationId: "inv-1", ruleKey: "r-sla", note: "x" });
     expect(r).toEqual({ state: s, error: "Belum didukung" });
+  });
+});
+
+const MB20 = 20 * 1024 * 1024;
+const note = (over: Record<string, unknown>) => ({ kind: "bukti", title: "Catatan", body: "Isi", ...over }) as Extract<MockAction, { type: "addNote" }>["note"];
+const addNote = (s: MockState, n: Record<string, unknown>) => reduce(s, { type: "addNote", investigationId: "inv-1", note: note(n) });
+
+describe("addNote", () => {
+  it("wawancara wajib narasumber dan tanggal; sukses satu audit investigasi.catat", () => {
+    const s = s0();
+    expect(addNote(s, { kind: "wawancara", interviewDate: "2026-10-17" })).toEqual({ state: s, error: expect.any(String) });
+    expect(addNote(s, { kind: "wawancara", interviewee: "  ", interviewDate: "2026-10-17" }).state).toBe(s);
+    expect(addNote(s, { kind: "wawancara", interviewee: "Bu A" }).state).toBe(s);
+    const r = addNote(s, { kind: "wawancara", interviewee: "Bu A", interviewDate: "2026-10-17" });
+    expect(r.error).toBeUndefined();
+    expect(r.state.notes).toHaveLength(s.notes.length + 1);
+    expect(r.state.notes.at(-1)).toMatchObject({ investigationId: "inv-1", kind: "wawancara", createdBy: "u-dimas" });
+    expect(audits(s, r.state).map((e) => e.action)).toEqual(["investigasi.catat"]);
+  });
+  it("bukti berkas: tepat 20 MB sukses, +1 byte galat", () => {
+    const s = s0();
+    expect(addNote(s, { attachment: { type: "file", label: "a.pdf", sizeBytes: MB20 + 1 } }).state).toBe(s);
+    expect(addNote(s, { attachment: { type: "file", label: "a.pdf", sizeBytes: MB20 } }).error).toBeUndefined();
+  });
+  it("bukti tautan: hanya http(s)", () => {
+    const s = s0();
+    for (const label of ["javascript:alert(1)", "bukan url", "ftp://x.id/a"]) {
+      const r = addNote(s, { attachment: { type: "link", label } });
+      expect(r.error).toBeDefined();
+      expect(r.state).toBe(s);
+    }
+    expect(addNote(s, { attachment: { type: "link", label: "https://contoh.id/x" } }).error).toBeUndefined();
+  });
+  it("hipotesis mulai belum_diuji; pertanyaan terbuka", () => {
+    const r = addNote(s0(), { kind: "hipotesis", hypothesisState: "didukung", supportingLinkIds: ["ln-1-1"] });
+    expect(r.state.notes.at(-1)).toMatchObject({ hypothesisState: "belum_diuji", supportingLinkIds: [] });
+    expect(addNote(s0(), { kind: "pertanyaan" }).state.notes.at(-1)).toMatchObject({ questionState: "terbuka" });
+  });
+  it("pemilik proses: wawancara dan bukti sukses, hipotesis dan pertanyaan galat; administrator galat", () => {
+    const sari = as(s0(), "u-sari");
+    expect(addNote(sari, { kind: "wawancara", interviewee: "X", interviewDate: "2026-10-17" }).error).toBeUndefined();
+    expect(addNote(sari, { kind: "bukti" }).error).toBeUndefined();
+    for (const kind of ["hipotesis", "pertanyaan"]) {
+      const r = addNote(sari, { kind });
+      expect(r.error).toBeDefined();
+      expect(r.state).toBe(sari);
+    }
+    const rina = as(s0(), "u-rina");
+    expect(addNote(rina, { kind: "bukti" }).state).toBe(rina);
+  });
+  it("workspace tak ada -> galat", () => {
+    const s = s0();
+    expect(reduce(s, { type: "addNote", investigationId: "x", note: note({}) }).state).toBe(s);
+  });
+});
+
+describe("setHypothesisState", () => {
+  it("didukung tanpa tautan galat; dengan satu tautan sukses + audit", () => {
+    const s = s0();
+    const bad = reduce(s, { type: "setHypothesisState", noteId: "note-2", state: "didukung", supportingLinkIds: [] });
+    expect(bad).toEqual({ state: s, error: expect.any(String) });
+    const r = reduce(s, { type: "setHypothesisState", noteId: "note-2", state: "didukung", supportingLinkIds: ["ln-1-2"] });
+    expect(r.error).toBeUndefined();
+    expect(r.state.notes.find((n) => n.id === "note-2")).toMatchObject({ hypothesisState: "didukung", supportingLinkIds: ["ln-1-2"] });
+    expect(audits(s, r.state).map((e) => e.action)).toEqual(["investigasi.hipotesis"]);
+  });
+  it("tautan dari workspace lain galat; non-hipotesis galat; pemilik proses galat", () => {
+    const s = s0();
+    expect(reduce(s, { type: "setHypothesisState", noteId: "note-2", state: "dibantah", supportingLinkIds: ["ln-2-1"] }).state).toBe(s);
+    expect(reduce(s, { type: "setHypothesisState", noteId: "note-1", state: "didukung", supportingLinkIds: ["ln-1-2"] }).state).toBe(s);
+    const sari = as(s0(), "u-sari");
+    expect(reduce(sari, { type: "setHypothesisState", noteId: "note-2", state: "didukung", supportingLinkIds: ["ln-1-2"] }).state).toBe(sari);
+    expect(reduce(s, { type: "setHypothesisState", noteId: "nope", state: "belum_diuji", supportingLinkIds: [] }).error).toBeDefined();
+  });
+  it("kembali ke belum_diuji tanpa tautan boleh", () => {
+    expect(reduce(s0(), { type: "setHypothesisState", noteId: "note-2", state: "belum_diuji", supportingLinkIds: [] }).error).toBeUndefined();
+  });
+});
+
+describe("setQuestionState", () => {
+  it("analis sukses + audit; non-pertanyaan galat", () => {
+    const s = s0();
+    const r = reduce(s, { type: "setQuestionState", noteId: "note-3", state: "terjawab" });
+    expect(r.error).toBeUndefined();
+    expect(r.state.notes.find((n) => n.id === "note-3")!.questionState).toBe("terjawab");
+    expect(audits(s, r.state).map((e) => e.action)).toEqual(["investigasi.pertanyaan"]);
+    expect(reduce(s, { type: "setQuestionState", noteId: "note-2", state: "terjawab" }).state).toBe(s);
+  });
+  it("penanggung jawab pemilik proses sukses; pemilik proses non-penanggung jawab galat", () => {
+    const s = s0();
+    s.notes.find((n) => n.id === "note-3")!.assigneeId = "u-sari";
+    expect(reduce(as(s, "u-sari"), { type: "setQuestionState", noteId: "note-3", state: "terjawab" }).error).toBeUndefined();
+    const t = as(s0(), "u-sari");
+    const r = reduce(t, { type: "setQuestionState", noteId: "note-3", state: "terjawab" });
+    expect(r.error).toBeDefined();
+    expect(r.state).toBe(t);
+  });
+});
+
+describe("addComment", () => {
+  const comment = (s: MockState, body: string, over: Record<string, unknown> = {}) =>
+    reduce(s, { type: "addComment", investigationId: "inv-1", body, ...over } as MockAction);
+  it("isi kosong galat; sukses satu audit komentar.tambah", () => {
+    const s = s0();
+    expect(comment(s, "  ")).toEqual({ state: s, error: expect.any(String) });
+    const r = comment(s, "Catatan");
+    expect(r.error).toBeUndefined();
+    expect(r.state.comments.at(-1)).toMatchObject({ investigationId: "inv-1", body: "Catatan", parentId: null, targetLinkId: null, resolved: false, createdBy: "u-dimas" });
+    expect(audits(s, r.state).map((e) => e.action)).toEqual(["komentar.tambah"]);
+  });
+  it("parentId dari workspace lain atau tak ada galat; balasan satu workspace sukses", () => {
+    const s = s0();
+    s.comments.push({ id: "cm-x", investigationId: "inv-2", targetLinkId: null, parentId: null, body: "x", mentions: [], resolved: false, createdBy: "u-dimas", createdAt: "2026-10-16T07:00:00Z" });
+    expect(comment(s, "balas", { parentId: "cm-x" }).state).toBe(s);
+    expect(comment(s, "balas", { parentId: "nope" }).state).toBe(s);
+    expect(comment(s, "balas", { parentId: "cm-1" }).error).toBeUndefined();
+  });
+  it("targetLinkId dari workspace lain galat", () => {
+    const s = s0();
+    expect(comment(s, "x", { targetLinkId: "ln-2-1" }).state).toBe(s);
+    expect(comment(s, "x", { targetLinkId: "ln-1-2" }).error).toBeUndefined();
+  });
+  it("@Sari oleh Dimas -> satu notifikasi untuk u-sari", () => {
+    const s = s0();
+    const r = comment(s, "@Sari mohon cek");
+    const n = r.state.notifications.slice(s.notifications.length);
+    expect(n).toHaveLength(1);
+    expect(n[0]).toMatchObject({ userId: "u-sari", projectId: P, href: `/projects/${P}/investigations/inv-1`, read: false });
+    expect(n[0].text).toContain("Dimas Pratama");
+    expect(r.state.comments.at(-1)!.mentions).toEqual(["u-sari"]);
+  });
+  it("sebutan diri sendiri, tak dikenal, atau non-anggota proyek -> tanpa notifikasi", () => {
+    const s = s0();
+    for (const body of ["@Dimas ingat", "@tidakada halo", "@Lia halo", "@Budi halo"]) {
+      expect(comment(s, body).state.notifications).toHaveLength(s.notifications.length);
+    }
+  });
+  it("pemilik proses boleh; administrator galat", () => {
+    expect(comment(as(s0(), "u-sari"), "Setuju").error).toBeUndefined();
+    const rina = as(s0(), "u-rina");
+    expect(comment(rina, "x").state).toBe(rina);
+  });
+});
+
+describe("resolveComment", () => {
+  const resolve = (s: MockState, commentId: string, resolved = true) => reduce(s, { type: "resolveComment", commentId, resolved });
+  it("analis menyelesaikan akar + audit komentar.selesai", () => {
+    const s = s0();
+    const r = resolve(s, "cm-1");
+    expect(r.error).toBeUndefined();
+    expect(r.state.comments.find((c) => c.id === "cm-1")!.resolved).toBe(true);
+    expect(audits(s, r.state).map((e) => e.action)).toEqual(["komentar.selesai"]);
+    expect(resolve(r.state, "cm-1", false).state.comments.find((c) => c.id === "cm-1")!.resolved).toBe(false);
+  });
+  it("penulis (pemilik proses) boleh", () => {
+    expect(resolve(as(s0(), "u-sari"), "cm-1").error).toBeUndefined();
+  });
+  it("bukan penulis dan bukan analis galat", () => {
+    const s = s0();
+    s.comments.push({ ...s.comments[0], id: "cm-d", createdBy: "u-dimas" });
+    const sari = as(s, "u-sari");
+    const r = resolve(sari, "cm-d");
+    expect(r.error).toBeDefined();
+    expect(r.state).toBe(sari);
+  });
+  it("balasan galat; id tak ada galat", () => {
+    const s = s0();
+    const withReply = comment0(s);
+    expect(resolve(withReply, "cm-r").error).toBeDefined();
+    expect(resolve(s, "nope").state).toBe(s);
+  });
+});
+function comment0(s: MockState): MockState {
+  return { ...s, comments: [...s.comments, { ...s.comments[0], id: "cm-r", parentId: "cm-1", createdBy: "u-dimas" }] };
+}
+
+describe("markNotificationsRead", () => {
+  it("menandai semua milik viewer; tanpa audit; milik lain tetap", () => {
+    const s = s0();
+    s.notifications.push({ id: "ntf-s", userId: "u-sari", projectId: P, text: "t", href: "/x", read: false, at: "2026-10-16T07:00:00Z" });
+    const r = reduce(s, { type: "markNotificationsRead" });
+    expect(r.error).toBeUndefined();
+    expect(r.state.notifications.filter((n) => n.userId === "u-dimas").every((n) => n.read)).toBe(true);
+    expect(r.state.notifications.find((n) => n.id === "ntf-s")!.read).toBe(false);
+    expect(r.state.audit).toBe(s.audit);
+  });
+  it("tanpa notifikasi tetap sukses", () => {
+    const s = s0();
+    s.notifications = [];
+    expect(reduce(s, { type: "markNotificationsRead" }).error).toBeUndefined();
   });
 });
