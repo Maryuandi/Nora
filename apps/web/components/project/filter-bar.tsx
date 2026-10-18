@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FunnelSimple, X } from "@phosphor-icons/react";
+import Link from "next/link";
+import { Database, FunnelSimple, X } from "@phosphor-icons/react";
 import { Button } from "@/components/base/buttons/button";
 import { Checkbox } from "@/components/base/checkbox/checkbox";
 import { Input } from "@/components/base/input/input";
@@ -130,5 +131,19 @@ export function FilterBar({ attrsAvailable, activities }: { attrsAvailable: bool
         </Card>
       )}
     </div>
+  );
+}
+
+/** Shown by Analisis pages when the project has no mapped data yet. */
+export function NoDataCard({ base }: { base: string }) {
+  return (
+    <Card>
+      <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
+        <Database size={28} className="text-ink-3" aria-hidden />
+        <p className="text-sm font-medium">Belum ada data untuk dianalisis</p>
+        <p className="text-sm text-ink-3">Unggah data dan petakan kolomnya terlebih dahulu.</p>
+        <Link href={`${base}/sources`} className="text-sm font-medium text-accent hover:underline">Buka sumber data</Link>
+      </div>
+    </Card>
   );
 }

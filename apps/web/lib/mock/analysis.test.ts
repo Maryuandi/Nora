@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { initialState as s } from "./data";
 import { buildDfg, casesForNode, eventLogFor, type EventLog, type LogCase } from "./eventlog";
 import {
-  applyFilter, buildVariants, caseById, describeFilter, filteredLogFor, groupCases, isEmptyFilter, normalizeFilter, objectGroups, provenance,
+  applyFilter, buildVariants, caseById, casesForSelection, describeFilter, filteredLogFor, groupCases, isEmptyFilter, normalizeFilter, objectGroups, provenance,
   validateFilter, variantIdOf, variantsTo80, VENDORS, type FilterSpec,
 } from "./analysis";
 
@@ -303,5 +303,19 @@ describe("filteredLogFor", () => {
     expect(r.variants).toEqual([]);
     expect(r.dfg.totalCases).toBe(0);
     expect(r.full.cases.length).toBeGreaterThan(0);
+  });
+});
+
+describe("casesForSelection", () => {
+  const r = filteredLogFor(s, "p-p2p", { vendors: [VENDORS[1]] })!;
+  it("node / edge / variant counts equal the element's own number", () => {
+    expect(r.dfg.nodes.length).toBeGreaterThan(2);
+    for (const n of r.dfg.nodes) expect(casesForSelection(r.filtered, r.dfg, { kind: "node", id: n.id })).toHaveLength(n.caseCount);
+    for (const e of r.dfg.edges) expect(casesForSelection(r.filtered, r.dfg, { kind: "edge", id: e.id })).toHaveLength(e.caseCount);
+    for (const v of r.variants) expect(casesForSelection(r.filtered, r.dfg, { kind: "variant", id: v.id })).toHaveLength(v.caseCount);
+  });
+  it("unknown id gives [] and no selection gives every case", () => {
+    for (const kind of ["node", "edge", "variant"] as const) expect(casesForSelection(r.filtered, r.dfg, { kind, id: "nope" })).toEqual([]);
+    expect(casesForSelection(r.filtered, r.dfg, null)).toHaveLength(r.filtered.cases.length);
   });
 });

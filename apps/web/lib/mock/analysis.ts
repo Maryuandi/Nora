@@ -1,4 +1,4 @@
-import { buildDfg, eventLogFor, percentile, VENDORS, type Dfg, type EventLog, type LogCase, type LogEvent } from "./eventlog";
+import { buildDfg, casesForEdge, casesForNode, eventLogFor, percentile, VENDORS, type Dfg, type EventLog, type LogCase, type LogEvent } from "./eventlog";
 import { hash } from "./mapping";
 import type { MappingVersion, MockState, Snapshot } from "./types";
 
@@ -181,6 +181,17 @@ export function objectGroups(log: EventLog): ObjectGroup[] {
       variantIds: [...new Set(cases.map((c) => variantIdOf(c.events.map((e) => e.activity))))].sort(byText),
     }))
     .sort((a, b) => b.caseCount - a.caseCount || byText(a.id, b.id));
+}
+
+/** Cases behind a map node, map edge or variant of the (already filtered) log; unknown ids give []. null = every case. */
+export function casesForSelection(filtered: EventLog, dfg: Dfg, sel: { kind: "node" | "edge" | "variant"; id: string } | null): LogCase[] {
+  if (!sel) return filtered.cases;
+  if (sel.kind === "node") return dfg.nodes.some((n) => n.id === sel.id) ? casesForNode(filtered, sel.id) : [];
+  if (sel.kind === "edge") {
+    const e = dfg.edges.find((x) => x.id === sel.id);
+    return e ? casesForEdge(filtered, e.from, e.to) : [];
+  }
+  return filtered.cases.filter((c) => variantIdOf(c.events.map((e) => e.activity)) === sel.id);
 }
 
 export const groupCases = (log: EventLog, po: string): LogCase[] => log.cases.filter((c) => c.objects.po === po);
