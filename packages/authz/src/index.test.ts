@@ -6,7 +6,7 @@ const P2 = "22222222-2222-4222-8222-222222222222";
 const U1 = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 function db(rows: Record<string, { role: string; status: string }>): MembershipLookup {
-  return { query: async (_sql, params) => ({ rows: (rows[`${params[0]}:${params[1]}`] ? [rows[`${params[0]}:${params[1]}`]] : []) as never[] }) };
+  return async (userId, projectId) => rows[`${userId}:${projectId}`] ?? null;
 }
 
 describe("authorize", () => {

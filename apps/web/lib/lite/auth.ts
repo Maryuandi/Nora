@@ -2,9 +2,12 @@ import "server-only";
 import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import { cookies } from "next/headers";
-import type { Queryable } from "@nora/db";
-import { db } from "./db";
-import { HttpError } from "./http";
+import type { Db } from "@nora/db";
+import type { z } from "zod";
+import { audit } from "./audit";
+import { db, withTx } from "./db";
+import { conflict, HttpError } from "./http";
+import type { ActivateInput, LoginInput, SetupInput } from "./schemas";
 
 const scrypt = promisify(scryptCb) as (pw: string, salt: Buffer, len: number, opts: { N: number; r: number; p: number }) => Promise<Buffer>;
 
@@ -41,10 +44,10 @@ export async function verifyPassword(password: string, stored: string | null): P
 export const newToken = () => randomBytes(32).toString("base64url");
 export const tokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
 
-export async function createSession(q: Queryable, userId: string): Promise<{ token: string; expiresAt: Date }> {
+export async function createSession(q: Db, userId: string): Promise<{ token: string; expiresAt: Date }> {
   const token = newToken();
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 86_400_000);
-  await q.query("INSERT INTO sessions (user_id, token_hash, expires_at) VALUES ($1, $2, $3)", [userId, tokenHash(token), expiresAt]);
+  await q.session.create({ data: { userId, tokenHash: tokenHash(token), expiresAt } });
   return { token, expiresAt };
 }
 
@@ -57,13 +60,12 @@ export const clearSessionCookie = () => `${SESSION_COOKIE}=; Path=/; HttpOnly; S
 
 async function viewerForToken(token: string | undefined): Promise<Viewer | null> {
   if (!token) return null;
-  const { rows } = await db().query<Viewer>(
-    `SELECT u.id, u.email, u.name, u.global_role AS "globalRole"
-       FROM sessions s JOIN users u ON u.id = s.user_id
-      WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > now() AND u.status = 'active'`,
-    [tokenHash(token)],
-  );
-  return rows[0] ?? null;
+  const s = await db().session.findFirst({
+    where: { tokenHash: tokenHash(token), revokedAt: null, expiresAt: { gt: new Date() }, user: { status: "active" } },
+    select: { user: { select: { id: true, email: true, name: true, globalRole: true } } },
+  });
+  // global_role is CHECK-constrained to these two values.
+  return s ? { ...s.user, globalRole: s.user.globalRole as Viewer["globalRole"] } : null;
 }
 
 function tokenFromRequest(req: Request): string | undefined {
@@ -80,19 +82,51 @@ export async function currentViewer(): Promise<Viewer | null> {
   return viewerForToken((await cookies()).get(SESSION_COOKIE)?.value);
 }
 
-/** For route handlers: 401 without a valid session. */
-export async function requireViewer(req: Request): Promise<Viewer> {
-  const viewer = await viewerForToken(tokenFromRequest(req));
-  if (!viewer) throw new HttpError(401, "unauthenticated", "Sesi tidak valid; silakan masuk kembali");
-  return viewer;
-}
+/** For the tRPC context; null without a valid session. */
+export const viewerFromRequest = (req: Request): Promise<Viewer | null> => viewerForToken(tokenFromRequest(req));
 
 export async function revokeSession(req: Request): Promise<void> {
   const token = tokenFromRequest(req);
-  if (token) await db().query("UPDATE sessions SET revoked_at = now() WHERE token_hash = $1", [tokenHash(token)]);
+  if (token) await db().session.updateMany({ where: { tokenHash: tokenHash(token) }, data: { revokedAt: new Date() } });
 }
 
 export async function hasAnyUser(): Promise<boolean> {
-  const { rows } = await db().query("SELECT 1 FROM users LIMIT 1");
-  return rows.length > 0;
+  return !!(await db().user.findFirst({ select: { id: true } }));
+}
+
+/** Creates the first administrator; refused once any account exists. */
+export async function setupAdmin(input: z.infer<typeof SetupInput>, correlationId: string) {
+  const passwordHash = await hashPassword(input.password);
+  return withTx(async (tx) => {
+    // Table lock: two concurrent setups must not both see an empty users table.
+    await tx.$executeRaw`LOCK TABLE users IN EXCLUSIVE MODE`;
+    if (await tx.user.findFirst({ select: { id: true } })) throw conflict("Penyiapan awal sudah dilakukan");
+    const { id } = await tx.user.create({ data: { email: input.email, name: input.name, passwordHash, globalRole: "admin", status: "active" }, select: { id: true } });
+    await audit(tx, { projectId: null, actorId: id, action: "setup.admin", objectType: "user", objectId: id, correlationId });
+    return createSession(tx, id);
+  });
+}
+
+export async function login(input: z.infer<typeof LoginInput>) {
+  const user = await db().user.findFirst({ where: { email: input.email, status: "active" }, select: { id: true, passwordHash: true } });
+  // One generic message: never reveal whether the email or the password was wrong.
+  const ok = await verifyPassword(input.password, user?.passwordHash ?? null);
+  if (!ok || !user) throw new HttpError(401, "invalid_credentials", "Email atau kata sandi salah");
+  return createSession(db(), user.id);
+}
+
+/** Single-use: the token is marked used in the same transaction that sets the password. */
+export async function activate(input: z.infer<typeof ActivateInput>, correlationId: string) {
+  const passwordHash = await hashPassword(input.password);
+  return withTx(async (tx) => {
+    const [t] = await tx.activationToken.updateManyAndReturn({
+      where: { tokenHash: tokenHash(input.token), usedAt: null, expiresAt: { gt: new Date() } },
+      data: { usedAt: new Date() },
+      select: { userId: true },
+    });
+    if (!t) throw new HttpError(410, "token_invalid", "Tautan aktivasi tidak berlaku atau sudah dipakai");
+    await tx.user.updateMany({ where: { id: t.userId, status: "invited" }, data: { name: input.name, passwordHash, status: "active", updatedAt: new Date() } });
+    await audit(tx, { projectId: null, actorId: t.userId, action: "user.activate", objectType: "user", objectId: t.userId, correlationId });
+    return createSession(tx, t.userId);
+  });
 }

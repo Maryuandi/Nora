@@ -5,19 +5,23 @@
   "type": "module",
   "main": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./migrate": "./src/migrate.ts"
+    ".": "./src/index.ts"
   },
   "scripts": {
-    "migrate": "tsx --env-file-if-exists=../../.env scripts/migrate.ts",
+    "postinstall": "prisma generate",
+    "generate": "prisma generate",
+    "migrate": "prisma migrate deploy",
+    "migrate:dev": "prisma migrate dev",
+    "reset": "prisma migrate reset --force",
     "expire-contracts": "tsx --env-file-if-exists=../../.env scripts/expire-contracts.ts"
   },
   "dependencies": {
-    "pg": "^8.23.1"
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
-    "@types/pg": "^8.23.1",
+    "prisma": "7.10.1",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }

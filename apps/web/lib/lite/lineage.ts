@@ -1,5 +1,7 @@
 import "server-only";
 import type { Viewer } from "./auth";
+import type { MappingConfig } from "@nora/contracts";
+import { jsonAs } from "@nora/db";
 import { db } from "./db";
 import { getFinding } from "./findings";
 
@@ -30,61 +32,69 @@ export async function findingLineage(viewer: Viewer, projectId: string, findingI
   const f = await getFinding(viewer, projectId, findingId);
   const base = `/lite/projects/${projectId}`;
   const q = db();
-  const run = (await q.query(`SELECT id, created_at, completed_at, algorithm_version, filter_spec, monitoring_config_id FROM analysis_runs WHERE id = $1`, [f.analysisRunId])).rows[0];
-  const ds = (await q.query(
-    `SELECT d.id, d.name, d.version, d.status, d.content_hash, d.published_at, d.mapping_version_id, m.version AS mapping_version, m.config, m.created_at AS mapping_at,
-            s.id AS snapshot_id, s.file_name, s.sha256, s.created_at AS snapshot_at, so.id AS source_id, so.name AS source_name
-       FROM dataset_versions d JOIN mapping_versions m ON m.id = d.mapping_version_id JOIN source_snapshots s ON s.id = d.snapshot_id JOIN sources so ON so.id = d.source_id
-      WHERE d.id = $1`, [f.datasetVersionId],
-  )).rows[0];
-  const pkg = (await q.query(`SELECT id, name, version, status, hash, activated_at FROM context_packages WHERE id = $1`, [f.contextPackageId])).rows[0];
-  const refs = (await q.query<{ ref_type: string; ref_id: string; ref_key: string; ref_version: number }>(
-    `SELECT ref_type, ref_id, ref_key, ref_version FROM context_package_refs WHERE package_id = $1 ORDER BY ref_type, ref_key`, [pkg.id],
-  )).rows;
-  const docOf = async (table: string, id: string) => (await q.query<{ id: string; title: string; reference: string; version: string; source_reference: string }>(
-    `SELECT d.id, d.title, d.reference, d.version, x.source_reference FROM ${table} x LEFT JOIN context_documents d ON d.id = x.source_document_id WHERE x.id = $1`, [id],
-  )).rows[0];
+  const run = await q.analysisRun.findUniqueOrThrow({ where: { id: f.analysisRunId }, select: { id: true, completedAt: true, algorithmVersion: true, filterSpec: true } });
+  const ds = await q.datasetVersion.findUniqueOrThrow({
+    where: { id: f.datasetVersionId },
+    select: {
+      id: true, name: true, version: true, status: true, contentHash: true, publishedAt: true, mappingVersionId: true, snapshotId: true, sourceId: true,
+      mappingVersion: { select: { version: true, config: true, createdAt: true } }, snapshot: { select: { fileName: true, sha256: true, createdAt: true } }, source: { select: { name: true } },
+    },
+  });
+  const pkg = await q.contextPackage.findUniqueOrThrow({ where: { id: f.contextPackageId }, select: { id: true, name: true, version: true, status: true, hash: true, activatedAt: true } });
+  const refs = await q.contextPackageRef.findMany({ where: { packageId: pkg.id }, orderBy: [{ refType: "asc" }, { refKey: "asc" }], select: { refType: true, refId: true, refKey: true, refVersion: true } });
+  const DOC = { sourceReference: true, sourceDocument: { select: { id: true, title: true, reference: true, version: true } } } as const;
+  const docOf = (type: string, id: string) => {
+    switch (type) {
+      case "rule": return q.rule.findUnique({ where: { id }, select: DOC });
+      case "process_boundary": return q.processBoundary.findUnique({ where: { id }, select: DOC });
+      case "rework_definition": return q.reworkDefinition.findUnique({ where: { id }, select: DOC });
+      case "bpmn_model": return q.bpmnModel.findUnique({ where: { id }, select: DOC });
+      default: return null;
+    }
+  };
+  const iso = (d: Date | null) => d?.toISOString() ?? null;
+  const config = jsonAs<Partial<MappingConfig>>(ds.mappingVersion.config);
 
   const contextChildren: LineageNode[] = [];
   for (const r of refs) {
-    if (!["rule", "process_boundary", "rework_definition", "bpmn_model", "bpmn_mapping"].includes(r.ref_type)) continue;
-    const table = { rule: "rules", process_boundary: "process_boundaries", rework_definition: "rework_definitions", bpmn_model: "bpmn_models", bpmn_mapping: null }[r.ref_type];
-    const doc = table ? await docOf(table, r.ref_id) : undefined;
-    const ruleIsSubject = r.ref_type === "rule" && f.subject.ruleId === r.ref_id;
+    if (!["rule", "process_boundary", "rework_definition", "bpmn_model", "bpmn_mapping"].includes(r.refType)) continue;
+    const rec = await docOf(r.refType, r.refId);
+    const doc = rec?.sourceDocument;
+    const ruleIsSubject = r.refType === "rule" && f.subject.ruleId === r.refId;
     contextChildren.push({
-      id: `${r.ref_type}:${r.ref_id}`, type: r.ref_type, label: `${LABEL[r.ref_type] ?? r.ref_type} ${r.ref_key}`, version: r.ref_version,
-      relation: ruleIsSubject ? "EVALUATED_AGAINST" : "CITES", category: "lineage", creator: "human", recordId: r.ref_id, href: `${base}/prepare/context`,
+      id: `${r.refType}:${r.refId}`, type: r.refType, label: `${LABEL[r.refType] ?? r.refType} ${r.refKey}`, version: r.refVersion,
+      relation: ruleIsSubject ? "EVALUATED_AGAINST" : "CITES", category: "lineage", creator: "human", recordId: r.refId, href: `${base}/prepare/context`,
       children: doc?.id ? [{ id: `document:${doc.id}`, type: "document", label: doc.title, detail: doc.reference, version: doc.version, relation: "CITES", category: "lineage", creator: "human", recordId: doc.id, href: `${base}/prepare/context`, children: [] }]
-        : doc?.source_reference ? [{ id: `ref:${r.ref_id}`, type: "source_reference", label: doc.source_reference, relation: "CITES", category: "lineage", creator: "human", children: [] }] : [],
+        : rec?.sourceReference ? [{ id: `ref:${r.refId}`, type: "source_reference", label: rec.sourceReference, relation: "CITES", category: "lineage", creator: "human", children: [] }] : [],
     });
   }
 
-  const repair = (ds.config.repairRules ?? []) as { checks: string[] }[];
+  const repair = config.repairRules ?? [];
   return {
     id: `finding:${f.id}`, type: "finding", label: f.title, detail: f.summary, status: f.severityLabel, creator: "code", recordId: f.id, at: f.createdAt, href: `${base}/findings/${f.id}`, children: [
       {
-        id: `analysis:${run.id}`, type: "analysis", label: "Analysis run", detail: `${run.algorithm_version}`, relation: "DERIVED_FROM", category: "lineage", creator: "code", recordId: run.id,
-        at: run.completed_at, href: `${base}/analysis?run=${run.id}`, children: [
-          { id: `metric:${f.metricKey}:${f.metricVersion}`, type: "metric_definition", label: f.metricName ?? f.metricKey, detail: f.formula, version: f.metricVersion, relation: "COMPUTED_WITH", category: "lineage", creator: "code", children: [] },
-          { id: `filter:${run.id}`, type: "filter", label: "Filter analisis", detail: JSON.stringify(run.filter_spec), relation: "COMPUTED_WITH", category: "lineage", creator: "human", children: [] },
+        id: `analysis:${run.id}`, type: "analysis", label: "Analysis run", detail: run.algorithmVersion, relation: "DERIVED_FROM", category: "lineage", creator: "code", recordId: run.id,
+        at: iso(run.completedAt), href: `${base}/analysis?run=${run.id}`, children: [
+          { id: `metric:${f.metricKey}:${f.metricVersion}`, type: "metric_definition", label: f.metricName ?? f.metricKey, detail: f.formula ?? undefined, version: f.metricVersion, relation: "COMPUTED_WITH", category: "lineage", creator: "code", children: [] },
+          { id: `filter:${run.id}`, type: "filter", label: "Filter analisis", detail: JSON.stringify(run.filterSpec), relation: "COMPUTED_WITH", category: "lineage", creator: "human", children: [] },
           {
-            id: `dataset:${ds.id}`, type: "dataset_version", label: ds.name, detail: `hash ${ds.content_hash.slice(0, 12)}`, version: ds.version, status: ds.status, superseded: ds.status === "superseded",
-            relation: "DERIVED_FROM", category: "lineage", creator: "code", recordId: ds.id, at: ds.published_at, href: `${base}/prepare/datasets/${ds.id}`, children: [
+            id: `dataset:${ds.id}`, type: "dataset_version", label: ds.name, detail: `hash ${ds.contentHash.slice(0, 12)}`, version: ds.version, status: ds.status, superseded: ds.status === "superseded",
+            relation: "DERIVED_FROM", category: "lineage", creator: "code", recordId: ds.id, at: iso(ds.publishedAt), href: `${base}/prepare/datasets/${ds.id}`, children: [
               {
-                id: `mapping:${ds.mapping_version_id}`, type: "mapping_version", label: `Mapping v${ds.mapping_version}`, detail: `${Object.keys(ds.config.labelMap ?? {}).length} label · ${repair.length ? `aturan perbaikan: ${repair.flatMap((r) => r.checks).join(", ")}` : "tanpa aturan perbaikan"}`,
-                version: ds.mapping_version, relation: "USES_MAPPING", category: "lineage", creator: "human", recordId: ds.mapping_version_id, at: ds.mapping_at, href: `${base}/prepare/sources/${ds.source_id}?mapping=${ds.mapping_version_id}`, children: [],
+                id: `mapping:${ds.mappingVersionId}`, type: "mapping_version", label: `Mapping v${ds.mappingVersion.version}`, detail: `${Object.keys(config.labelMap ?? {}).length} label · ${repair.length ? `aturan perbaikan: ${repair.flatMap((r) => r.checks).join(", ")}` : "tanpa aturan perbaikan"}`,
+                version: ds.mappingVersion.version, relation: "USES_MAPPING", category: "lineage", creator: "human", recordId: ds.mappingVersionId, at: iso(ds.mappingVersion.createdAt), href: `${base}/prepare/sources/${ds.sourceId}?mapping=${ds.mappingVersionId}`, children: [],
               },
               {
-                id: `snapshot:${ds.snapshot_id}`, type: "snapshot", label: ds.file_name, detail: `sha256 ${String(ds.sha256).slice(0, 12)}`, relation: "DERIVED_FROM", category: "lineage", creator: "human",
-                recordId: ds.snapshot_id, at: ds.snapshot_at, href: `${base}/prepare/sources/${ds.source_id}?snapshot=${ds.snapshot_id}`, children: [
-                  { id: `source:${ds.source_id}`, type: "source", label: ds.source_name, relation: "DERIVED_FROM", category: "lineage", creator: "human", recordId: ds.source_id, href: `${base}/prepare/sources/${ds.source_id}`, children: [] },
+                id: `snapshot:${ds.snapshotId}`, type: "snapshot", label: ds.snapshot.fileName, detail: `sha256 ${String(ds.snapshot.sha256).slice(0, 12)}`, relation: "DERIVED_FROM", category: "lineage", creator: "human",
+                recordId: ds.snapshotId, at: iso(ds.snapshot.createdAt), href: `${base}/prepare/sources/${ds.sourceId}?snapshot=${ds.snapshotId}`, children: [
+                  { id: `source:${ds.sourceId}`, type: "source", label: ds.source.name, relation: "DERIVED_FROM", category: "lineage", creator: "human", recordId: ds.sourceId, href: `${base}/prepare/sources/${ds.sourceId}`, children: [] },
                 ],
               },
             ],
           },
           {
             id: `context:${pkg.id}`, type: "context_package", label: pkg.name, detail: `hash ${pkg.hash.slice(0, 12)}`, version: pkg.version, status: pkg.status, superseded: pkg.status === "superseded",
-            relation: "EVALUATED_AGAINST", category: "lineage", creator: "human", recordId: pkg.id, at: pkg.activated_at, href: `${base}/prepare/context`, children: contextChildren,
+            relation: "EVALUATED_AGAINST", category: "lineage", creator: "human", recordId: pkg.id, at: iso(pkg.activatedAt), href: `${base}/prepare/context`, children: contextChildren,
           },
         ],
       },

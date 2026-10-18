@@ -1,11 +1,13 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import type { PreviewRuleResult, RuleParams, RulePayload } from "@nora/contracts";
 import { Button } from "@/components/base/buttons/button";
 import { Input } from "@/components/base/input/input";
 import { NativeSelect } from "@/components/base/select/select-native";
 import { TextArea } from "@/components/base/textarea/textarea";
+import { useTRPC } from "@/lib/trpc/client";
 import { ErrorLine, ItemStatus, LabelSelect, ReadyButton, useContextApi, type Item } from "./shared";
 
 const TYPE_LABEL: Record<RuleParams["type"], string> = {
@@ -37,6 +39,7 @@ function PreviewResult({ r }: { r: PreviewRuleResult }) {
 
 export function RulesPanel({ projectId, items, labels, documents, readOnly, hasDataset }: { projectId: string; items: Item[]; labels: string[]; documents: { id: string; title: string }[]; readOnly: boolean; hasDataset: boolean }) {
   const ctx = useContextApi(projectId);
+  const previewRule = useMutation(useTRPC().context.previewRule.mutationOptions());
   const [previews, setPreviews] = useState<Record<string, PreviewRuleResult>>({});
   const [type, setType] = useState<RuleParams["type"]>("sla_duration");
   const [name, setName] = useState("");
@@ -62,7 +65,7 @@ export function RulesPanel({ projectId, items, labels, documents, readOnly, hasD
   const valid = name.trim() && (type === "sla_duration" ? Number(hours) > 0 : a.trim() && (!needsB || b.trim()));
 
   async function preview(id: string) {
-    const r = await ctx.call<PreviewRuleResult>(`preview-${id}`, `/context/rules/${id}/preview`, { body: {} }, false);
+    const r = await ctx.call(`preview-${id}`, () => previewRule.mutateAsync({ projectId, ruleId: id }), false);
     if (r) setPreviews((p) => ({ ...p, [id]: r }));
   }
 
@@ -112,7 +115,7 @@ export function RulesPanel({ projectId, items, labels, documents, readOnly, hasD
             {draftPreview && <PreviewResult r={draftPreview} />}
             <ErrorLine text={ctx.error} />
             <div className="flex justify-end gap-2">
-              {hasDataset && <Button size="xs" color="secondary" isDisabled={!valid} isLoading={ctx.busy === "preview-draft"} onClick={async () => { const r = await ctx.call<PreviewRuleResult>("preview-draft", "/context/rules/draft/preview", { body: { rule: draft() } }, false); if (r) setDraftPreview(r); }}>Pratinjau pada dataset</Button>}
+              {hasDataset && <Button size="xs" color="secondary" isDisabled={!valid} isLoading={ctx.busy === "preview-draft"} onClick={async () => { const r = await ctx.call("preview-draft", () => previewRule.mutateAsync({ projectId, ruleId: "draft", rule: draft() }), false); if (r) setDraftPreview(r); }}>Pratinjau pada dataset</Button>}
               <Button size="xs" color="primary" isDisabled={!valid} isLoading={ctx.busy === "save-rule"} onClick={async () => {
                 if (await ctx.save("rule", { key: name, payload: draft(), sourceReference: sourceRef, sourceDocumentId: docId || null })) { setName(""); setA(""); setB(""); setDraftPreview(null); }
               }}>Simpan aturan</Button>
@@ -126,6 +129,7 @@ export function RulesPanel({ projectId, items, labels, documents, readOnly, hasD
 
 export function DocumentsPanel({ projectId, documents, readOnly }: { projectId: string; documents: { id: string; title: string; reference: string; version: string; excerpt: string }[]; readOnly: boolean }) {
   const ctx = useContextApi(projectId);
+  const createDocument = useMutation(useTRPC().context.createDocument.mutationOptions());
   const [title, setTitle] = useState("");
   const [reference, setReference] = useState("");
   const [version, setVersion] = useState("1");
@@ -153,7 +157,7 @@ export function DocumentsPanel({ projectId, documents, readOnly }: { projectId: 
           <ErrorLine text={ctx.error} />
           <div className="flex justify-end">
             <Button size="xs" color="secondary" isDisabled={!title.trim()} isLoading={ctx.busy === "doc"} onClick={async () => {
-              if (await ctx.call("doc", "/context/documents", { body: { title, reference, version, excerpt } })) { setTitle(""); setReference(""); setExcerpt(""); }
+              if (await ctx.call("doc", () => createDocument.mutateAsync({ projectId, title, reference, version, excerpt }))) { setTitle(""); setReference(""); setExcerpt(""); }
             }}>Simpan dokumen</Button>
           </div>
         </div>

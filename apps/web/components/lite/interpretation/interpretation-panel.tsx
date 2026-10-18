@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/base/buttons/button";
 import { NativeSelect } from "@/components/base/select/select-native";
 import { TextArea } from "@/components/base/textarea/textarea";
@@ -8,7 +9,8 @@ import { Tooltip, TooltipTrigger } from "@/components/base/tooltip/tooltip";
 import { NoraModal } from "@/components/nora/modal";
 import { formatMetric } from "@nora/contracts";
 import { StatePill } from "../badges";
-import { api, errorText } from "../api";
+import { useTRPC } from "@/lib/trpc/client";
+import { attempt, errorText, toApiError } from "../api";
 import { AUDIENCE_LABEL, CHECK_LABEL, CLAIM_TYPE, INTERPRETATION_STATUS, SECTION_LABEL } from "./labels";
 
 type Target = "finding" | "assessment" | "candidate_comparison";
@@ -90,45 +92,48 @@ function Violations({ list }: { list: Violation[] }) {
 }
 
 export function InterpretationPanel({ projectId, targetType, targetId, canRequest, canReview }: { projectId: string; targetType: Target; targetId: string; canRequest: boolean; canReview: boolean }) {
-  const [history, setHistory] = useState<Summary[] | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [detail, setDetail] = useState<Detail | null>(null);
+  const [picked, setSelected] = useState<string | null>(null);
   const [audience, setAudience] = useState("analyst");
-  const [error, setError] = useState<string | null>(null);
+  const [actionError, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [modal, setModal] = useState<"accept" | "flag" | null>(null);
   const [text, setText] = useState("");
 
-  const loadHistory = useCallback(async (pick?: string) => {
-    const r = await api<{ interpretations: Summary[] }>(`/projects/${projectId}/interpretations?targetId=${targetId}`);
-    if (!r.ok) return setError(errorText(r.error));
-    setHistory(r.data.interpretations);
-    setSelected((cur) => pick ?? cur ?? r.data.interpretations[0]?.id ?? null);
-  }, [projectId, targetId]);
-  const loadDetail = useCallback(async (id: string) => {
-    const r = await api<Detail>(`/projects/${projectId}/interpretations/${id}`);
-    if (r.ok) setDetail(r.data); else setError(errorText(r.error));
-  }, [projectId]);
-  useEffect(() => { loadHistory(); }, [loadHistory]);
-  useEffect(() => { if (selected) loadDetail(selected); }, [selected, loadDetail]);
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const historyQ = useQuery(trpc.interpretations.list.queryOptions({ projectId, targetId }));
+  const history: Summary[] | null = historyQ.data?.interpretations ?? null;
+  const selected = picked ?? history?.[0]?.id ?? null;
+  // Polls while the selected draft is being generated or checked.
+  const detailQ = useQuery({
+    ...trpc.interpretations.get.queryOptions(selected ? { projectId, interpretationId: selected } : skipToken),
+    refetchInterval: (q) => (q.state.data && IN_FLIGHT.includes(q.state.data.status) ? 2000 : false),
+  });
+  const detail: Detail | undefined = detailQ.data;
   const pending = !!detail && IN_FLIGHT.includes(detail.status);
+  const queryError = historyQ.error ?? detailQ.error;
+  const error = actionError ?? (queryError ? errorText(toApiError(queryError)) : null);
+  // The history list shows each draft's status; refresh it whenever the selected one moves on.
+  const detailStatus = detail?.status;
   useEffect(() => {
-    if (!pending || !selected) return;
-    const t = setInterval(() => { loadDetail(selected); loadHistory(); }, 2000);
-    return () => clearInterval(t);
-  }, [pending, selected, loadDetail, loadHistory]);
+    if (detailStatus) queryClient.invalidateQueries({ queryKey: trpc.interpretations.list.queryKey({ projectId, targetId }) });
+  }, [detailStatus, queryClient, trpc, projectId, targetId]);
 
-  async function act(path: string, body: unknown, after?: (data: { id: string }) => void) {
+  const requestDraft = useMutation(trpc.interpretations.request.mutationOptions());
+  const regenerate = useMutation(trpc.interpretations.regenerate.mutationOptions());
+  const accept = useMutation(trpc.interpretations.accept.mutationOptions());
+  const flag = useMutation(trpc.interpretations.flag.mutationOptions());
+
+  async function act(call: () => Promise<{ id: string }>) {
     setBusy(true);
     setError(null);
-    const r = await api<{ id: string }>(`/projects/${projectId}${path}`, { body });
+    const r = await attempt(call());
     setBusy(false);
     if (!r.ok) return setError(r.error.details?.reason ?? errorText(r.error));
     setModal(null);
     setText("");
-    after?.(r.data);
-    await loadHistory(r.data.id);
-    await loadDetail(r.data.id);
+    setSelected(r.data.id);
+    await queryClient.invalidateQueries({ queryKey: trpc.interpretations.pathKey() });
   }
 
   if (!history) return <p role="status" className="text-sm text-ink-3">Memuat interpretasi…</p>;
@@ -141,7 +146,7 @@ export function InterpretationPanel({ projectId, targetType, targetId, canReques
         {canRequest && (
           <div className="ml-auto flex items-end gap-2">
             <NativeSelect label="Pembaca" size="sm" value={audience} onChange={(e) => setAudience(e.target.value)} options={Object.entries(AUDIENCE_LABEL).map(([value, label]) => ({ value, label }))} />
-            <Button size="sm" color="secondary" isLoading={busy} onClick={() => act("/interpretations", { targetType, targetId, audience })}>Buat draft</Button>
+            <Button size="sm" color="secondary" isLoading={busy} onClick={() => act(() => requestDraft.mutateAsync({ projectId, request: { targetType, targetId, audience } }))}>Buat draft</Button>
           </div>
         )}
       </div>
@@ -167,7 +172,7 @@ export function InterpretationPanel({ projectId, targetType, targetId, canReques
             {canReview && (
               <div className="ml-auto flex gap-2">
                 {detail.status === "passed" && <Button size="xs" color="primary" onClick={() => setModal("accept")}>Terima sebagai ringkasan</Button>}
-                {!IN_FLIGHT.includes(detail.status) && canRequest && <Button size="xs" color="secondary" isLoading={busy} onClick={() => act(`/interpretations/${detail.id}/regenerate`, {})}>Buat ulang</Button>}
+                {!IN_FLIGHT.includes(detail.status) && canRequest && <Button size="xs" color="secondary" isLoading={busy} onClick={() => act(() => regenerate.mutateAsync({ projectId, interpretationId: detail.id }))}>Buat ulang</Button>}
                 {(detail.status === "passed" || detail.status === "accepted") && <Button size="xs" color="secondary" onClick={() => setModal("flag")}>Tandai masalah</Button>}
               </div>
             )}
@@ -199,7 +204,7 @@ export function InterpretationPanel({ projectId, targetType, targetId, canReques
         description={modal === "accept" ? "Draft model asli dan laporan pemeriksaan tetap tersimpan; penerimaan dicatat sebagai versi baru." : "Jelaskan apa yang salah. Draft tidak dihapus."}
         footer={<><Button size="xs" color="secondary" onClick={() => setModal(null)}>Batal</Button>
           <Button size="xs" color="primary" isLoading={busy} isDisabled={modal === "flag" && text.trim().length < 3}
-            onClick={() => detail && act(`/interpretations/${detail.id}/${modal}`, modal === "accept" ? { note: text } : { reason: text })}>Simpan</Button></>}>
+            onClick={() => detail && act(() => modal === "accept" ? accept.mutateAsync({ projectId, interpretationId: detail.id, note: text }) : flag.mutateAsync({ projectId, interpretationId: detail.id, reason: text }))}>Simpan</Button></>}>
         <TextArea label={modal === "accept" ? "Catatan (opsional)" : "Alasan"} rows={3} value={text} onChange={setText} isRequired={modal === "flag"} />
       </NoraModal>
     </div>

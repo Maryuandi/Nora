@@ -1,0 +1,1569 @@
+generator client {
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["partialIndexes", "postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  extensions = [citext]
+}
+
+model ActivationToken {
+  tokenHash     String    @id @map("token_hash")
+  userId        String    @map("user_id") @db.Uuid
+  createdBy     String?   @map("created_by") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt     DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt        DateTime? @map("used_at") @db.Timestamptz(6)
+  createdByUser User?     @relation("activation_tokens_created_byTousers", fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user          User      @relation("activation_tokens_user_idTousers", fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("activation_tokens")
+}
+
+model AnalysisCaseEdge {
+  runId        String      @map("run_id") @db.Uuid
+  caseUid      String      @map("case_uid")
+  fromActivity String      @map("from_activity")
+  toActivity   String      @map("to_activity")
+  occurrences  Int
+  totalWaitS   Float       @map("total_wait_s")
+  maxWaitS     Float       @map("max_wait_s")
+  run          AnalysisRun @relation(fields: [runId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([runId, fromActivity, toActivity, caseUid])
+  @@map("analysis_case_edges")
+}
+
+model AnalysisCaseNode {
+  runId       String      @map("run_id") @db.Uuid
+  caseUid     String      @map("case_uid")
+  activity    String
+  occurrences Int
+  run         AnalysisRun @relation(fields: [runId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([runId, activity, caseUid])
+  @@map("analysis_case_nodes")
+}
+
+model AnalysisCase {
+  runId         String      @map("run_id") @db.Uuid
+  projectId     String      @map("project_id") @db.Uuid
+  caseUid       String      @map("case_uid")
+  caseId        String      @map("case_id")
+  startTime     DateTime?   @map("start_time") @db.Timestamptz(6)
+  endTime       DateTime?   @map("end_time") @db.Timestamptz(6)
+  durationS     Float?      @map("duration_s")
+  eventCount    Int         @map("event_count")
+  firstActivity String?     @map("first_activity")
+  lastActivity  String?     @map("last_activity")
+  variantHash   String      @map("variant_hash")
+  rowStart      BigInt      @map("row_start")
+  rowEnd        BigInt      @map("row_end")
+  project       Project     @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  run           AnalysisRun @relation(fields: [runId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([runId, caseUid])
+  @@map("analysis_cases")
+}
+
+model AnalysisMetricSeries {
+  runId           String      @map("run_id") @db.Uuid
+  bucket          DateTime    @db.Date
+  started         Int
+  completed       Int?
+  medianDurationS Float?      @map("median_duration_s")
+  run             AnalysisRun @relation(fields: [runId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([runId, bucket])
+  @@map("analysis_metric_series")
+}
+
+model AnalysisMetric {
+  runId            String           @map("run_id") @db.Uuid
+  projectId        String           @map("project_id") @db.Uuid
+  metricKey        String           @map("metric_key")
+  metricVersion    Int              @map("metric_version")
+  value            Float?
+  unit             String
+  available        Boolean
+  reason           String?
+  smallSample      Boolean          @map("small_sample")
+  population       Json
+  metricDefinition MetricDefinition @relation(fields: [metricKey, metricVersion], references: [key, version], onDelete: NoAction, onUpdate: NoAction)
+  project          Project          @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  run              AnalysisRun      @relation(fields: [runId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([runId, metricKey])
+  @@map("analysis_metrics")
+}
+
+model AnalysisRun {
+  id                      String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId               String                 @map("project_id") @db.Uuid
+  datasetVersionId        String                 @map("dataset_version_id") @db.Uuid
+  contextPackageId        String                 @map("context_package_id") @db.Uuid
+  type                    String                 @default("process")
+  filterSpec              Json                   @map("filter_spec")
+  algorithmVersion        String                 @map("algorithm_version")
+  analysisKey             String                 @map("analysis_key")
+  status                  String                 @default("queued")
+  artifactPrefix          String                 @map("artifact_prefix")
+  requestedBy             String?                @map("requested_by") @db.Uuid
+  errorMessage            String?                @map("error_message")
+  coverage                Json?
+  warnings                Json                   @default("[]")
+  projectStatusChanged    Boolean                @default(false) @map("project_status_changed")
+  createdAt               DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  startedAt               DateTime?              @map("started_at") @db.Timestamptz(6)
+  resultReadyAt           DateTime?              @map("result_ready_at") @db.Timestamptz(6)
+  completedAt             DateTime?              @map("completed_at") @db.Timestamptz(6)
+  monitoringConfigId      String?                @map("monitoring_config_id") @db.Uuid
+  monitoringConfig        Json?                  @map("monitoring_config")
+  monitoringStatus        String                 @default("pending") @map("monitoring_status")
+  monitoringError         String?                @map("monitoring_error")
+  analysisCaseEdges       AnalysisCaseEdge[]
+  analysisCaseNodes       AnalysisCaseNode[]
+  analysisCases           AnalysisCase[]
+  analysisMetricSeries    AnalysisMetricSeries[]
+  analysisMetrics         AnalysisMetric[]
+  contextPackage          ContextPackage         @relation(fields: [contextPackageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  datasetVersion          DatasetVersion         @relation(fields: [datasetVersionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  monitoringConfigVersion MonitoringConfig?      @relation(fields: [monitoringConfigId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project                 Project                @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  requestedByUser         User?                  @relation(fields: [requestedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  conformanceResult       ConformanceResult?
+  findings                Finding[]
+  processEdges            ProcessEdge[]
+  processNodes            ProcessNode[]
+  reworkResult            ReworkResult?
+  ruleEvaluations         RuleEvaluation[]
+  transitionMetrics       TransitionMetric[]
+  variants                Variant[]
+
+  @@index([projectId, analysisKey], map: "analysis_runs_key_idx")
+  @@index([projectId, createdAt(sort: Desc)], map: "analysis_runs_project_idx")
+  @@map("analysis_runs")
+}
+
+model AnalystCandidate {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId        String   @map("project_id") @db.Uuid
+  findingId        String   @map("finding_id") @db.Uuid
+  version          Int      @default(1)
+  payload          Json
+  addressedProblem String   @map("addressed_problem")
+  sourceReason     String   @map("source_reason")
+  createdBy        String?  @map("created_by") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdByUser    User?    @relation(fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  finding          Finding  @relation(fields: [findingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("analyst_candidates")
+}
+
+model AssessmentCorrection {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId     String        @map("project_id") @db.Uuid
+  assessmentId  String        @map("assessment_id") @db.Uuid
+  kind          String
+  conclusion    String?
+  criteria      Json?
+  reason        String
+  goldCandidate Boolean       @default(false) @map("gold_candidate")
+  createdBy     String?       @map("created_by") @db.Uuid
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  assessment    Assessment    @relation(fields: [assessmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdByUser User?         @relation(fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project       Project       @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  goldSetItems  GoldSetItem[]
+
+  @@map("assessment_corrections")
+}
+
+model AssessmentCriterionResult {
+  assessmentId String     @map("assessment_id") @db.Uuid
+  criterionKey String     @map("criterion_key")
+  weight       Float
+  score        Int?
+  normalized   Float?
+  probability  Float?
+  distribution Json?
+  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([assessmentId, criterionKey])
+  @@map("assessment_criterion_results")
+}
+
+model AssessmentRun {
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId        String          @map("project_id") @db.Uuid
+  findingId        String          @map("finding_id") @db.Uuid
+  trigger          String
+  requestedBy      String?         @map("requested_by") @db.Uuid
+  status           String          @default("queued")
+  evidenceBundleId String?         @map("evidence_bundle_id") @db.Uuid
+  errorMessage     String?         @map("error_message")
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt      DateTime?       @map("completed_at") @db.Timestamptz(6)
+  evidenceBundle   EvidenceBundle? @relation(fields: [evidenceBundleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  finding          Finding         @relation(fields: [findingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project          Project         @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  requestedByUser  User?           @relation(fields: [requestedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  assessments      Assessment[]
+
+  @@map("assessment_runs")
+}
+
+model Assessment {
+  id                         String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId                  String                      @map("project_id") @db.Uuid
+  assessmentRunId            String                      @map("assessment_run_id") @db.Uuid
+  findingId                  String                      @map("finding_id") @db.Uuid
+  candidateLinkId            String                      @map("candidate_link_id") @db.Uuid
+  evidenceBundleId           String?                     @map("evidence_bundle_id") @db.Uuid
+  questionSpecs              Json                        @map("question_specs")
+  rubricId                   String?                     @map("rubric_id") @db.Uuid
+  rubricVersion              Int?                        @map("rubric_version")
+  adapter                    String
+  model                      String?
+  modelVersion               String?                     @map("model_version")
+  idempotencyKey             String                      @map("idempotency_key")
+  status                     String                      @default("queued")
+  sufficiencyProbability     Float?                      @map("sufficiency_probability")
+  conclusion                 String?
+  distribution               Json?
+  topProbability             Float?                      @map("top_probability")
+  margin                     Float?
+  totalScore                 Float?                      @map("total_score")
+  missingCriteria            Json                        @default("[]") @map("missing_criteria")
+  contextMaybeStale          Boolean                     @default(false) @map("context_maybe_stale")
+  contextLimited             Boolean                     @default(false) @map("context_limited")
+  errorMessage               String?                     @map("error_message")
+  createdAt                  DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt                DateTime?                   @map("completed_at") @db.Timestamptz(6)
+  assessmentCorrections      AssessmentCorrection[]
+  assessmentCriterionResults AssessmentCriterionResult[]
+  assessmentRun              AssessmentRun               @relation(fields: [assessmentRunId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  candidateLink              CandidateLink               @relation(fields: [candidateLinkId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  evidenceBundle             EvidenceBundle?             @relation(fields: [evidenceBundleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  finding                    Finding                     @relation(fields: [findingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project                    Project                     @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rubric                     Rubric?                     @relation(fields: [rubricId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  candidateValidations       CandidateValidation[]
+  goldSetItem                GoldSetItem?
+
+  @@index([projectId, findingId, createdAt(sort: Desc)], map: "assessments_finding_idx")
+  @@index([projectId, idempotencyKey], map: "assessments_key_idx")
+  @@map("assessments")
+}
+
+model AuditEvent {
+  id            BigInt   @id @default(autoincrement())
+  projectId     String?  @map("project_id") @db.Uuid
+  actorId       String?  @map("actor_id") @db.Uuid
+  action        String
+  objectType    String   @map("object_type")
+  objectId      String?  @map("object_id")
+  result        String
+  correlationId String   @map("correlation_id")
+  metadataJson  Json     @default("{}") @map("metadata_json")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  actor         User?    @relation(fields: [actorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project       Project? @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([projectId, createdAt(sort: Desc)], map: "audit_events_project_idx")
+  @@map("audit_events")
+}
+
+model BpmnMapping {
+  id                   String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId            String              @map("project_id") @db.Uuid
+  bpmnModelId          String              @map("bpmn_model_id") @db.Uuid
+  version              Int
+  mapping              Json
+  labelSourceDatasetId String?             @map("label_source_dataset_id") @db.Uuid
+  conflicts            Json                @default("[]")
+  unmappedTasks        Json                @default("[]") @map("unmapped_tasks")
+  unmappedActivities   Json                @default("[]") @map("unmapped_activities")
+  createdBy            String?             @map("created_by") @db.Uuid
+  createdAt            DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  bpmnModel            BpmnModel           @relation(fields: [bpmnModelId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdByUser        User?               @relation(fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  labelSourceDataset   DatasetVersion?     @relation(fields: [labelSourceDatasetId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project              Project             @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  conformanceResults   ConformanceResult[]
+  contextPackages      ContextPackage[]
+
+  @@unique([bpmnModelId, version])
+  @@map("bpmn_mappings")
+}
+
+model BpmnModel {
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId          String              @map("project_id") @db.Uuid
+  itemKey            String              @map("item_key")
+  version            Int
+  name               String
+  fileName           String              @map("file_name")
+  objectKey          String              @map("object_key")
+  sha256             String
+  status             String              @default("draft")
+  validationStatus   String              @default("pending") @map("validation_status")
+  readable           Boolean             @default(false)
+  validationError    String?             @map("validation_error")
+  tasks              Json                @default("[]")
+  elementCount       Int?                @map("element_count")
+  pm4pySummary       Json?               @map("pm4py_summary")
+  sourceDocumentId   String?             @map("source_document_id") @db.Uuid
+  sourceReference    String              @default("") @map("source_reference")
+  createdBy          String?             @map("created_by") @db.Uuid
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  approvedBy         String?             @map("approved_by") @db.Uuid
+  approvedAt         DateTime?           @map("approved_at") @db.Timestamptz(6)
+  bpmnMappings       BpmnMapping[]
+  approvedByUser     User?               @relation("bpmn_models_approved_byTousers", fields: [approvedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdByUser      User?               @relation("bpmn_models_created_byTousers", fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project            Project             @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sourceDocument     ContextDocument?    @relation(fields: [sourceDocumentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  conformanceResults ConformanceResult[]
+  contextPackages    ContextPackage[]
+
+  @@unique([projectId, itemKey, version])
+  @@map("bpmn_models")
+}
+
+model Calendar {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId        String           @map("project_id") @db.Uuid
+  itemKey          String           @map("item_key")
+  version          Int
+  status           String           @default("draft")
+  payload          Json
+  sourceDocumentId String?          @map("source_document_id") @db.Uuid
+  sourceReference  String           @default("") @map("source_reference")
+  createdBy        String?          @map("created_by") @db.Uuid
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  reviewedBy       String?          @map("reviewed_by") @db.Uuid
+  reviewedAt       DateTime?        @map("reviewed_at") @db.Timestamptz(6)
+  approvedBy       String?          @map("approved_by") @db.Uuid
+  approvedAt       DateTime?        @map("approved_at") @db.Timestamptz(6)
+  approvedByUser   User?            @relation("calendars_approved_byTousers", fields: [approvedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdByUser    User?            @relation("calendars_created_byTousers", fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project          Project          @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reviewedByUser   User?            @relation("calendars_reviewed_byTousers", fields: [reviewedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sourceDocument   ContextDocument? @relation(fields: [sourceDocumentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  contextPackages  ContextPackage[]
+
+  @@unique([projectId, itemKey, version])
+  @@index([projectId, status], map: "calendars_project_idx")
+  @@map("calendars")
+}
+
+model CandidateComparison {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId        String   @map("project_id") @db.Uuid
+  findingId        String   @map("finding_id") @db.Uuid
+  hash             String
+  candidateLinkIds String[] @map("candidate_link_ids") @db.Uuid
+  validationIds    String[] @map("validation_ids") @db.Uuid
+  assessmentIds    String[] @map("assessment_ids") @db.Uuid
+  scoreIds         String[] @map("score_ids") @db.Uuid
+  bundleIds        String[] @map("bundle_ids") @db.Uuid
+  payload          Json
+  requestedBy      String?  @map("requested_by") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  finding          Finding  @relation(fields: [findingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  requestedByUser  User?    @relation(fields: [requestedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([projectId, hash])
+  @@map("candidate_comparisons")
+}
+
+model CandidateLink {
+  id                   String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId            String                @map("project_id") @db.Uuid
+  findingId            String                @map("finding_id") @db.Uuid
+  contextPackageId     String                @map("context_package_id") @db.Uuid
+  candidateType        String                @map("candidate_type")
+  candidateId          String                @map("candidate_id") @db.Uuid
+  candidateKey         String                @map("candidate_key")
+  candidateVersion     Int                   @map("candidate_version")
+  origin               String
+  preconditionStatus   String                @map("precondition_status")
+  preconditionChecks   Json                  @map("precondition_checks")
+  latestStatus         String?               @map("latest_status")
+  createdAt            DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  assessments          Assessment[]
+  contextPackage       ContextPackage        @relation(fields: [contextPackageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  finding              Finding               @relation(fields: [findingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project              Project               @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  candidateValidations CandidateValidation[]
+
+  @@unique([findingId, candidateId])
+  @@index([projectId, findingId], map: "candidate_links_finding_idx")
+  @@map("candidate_links")
+}
+
+model CandidateScore {
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId     String              @map("project_id") @db.Uuid
+  validationId  String              @map("validation_id") @db.Uuid
+  policyId      String?             @map("policy_id") @db.Uuid
+  policyVersion Int                 @map("policy_version")
+  weights       Json
+  components    Json
+  missing       Json
+  partial       Boolean
+  score         Float?
+  rank          Int?
+  createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  policy        PriorityPolicy?     @relation(fields: [policyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project       Project             @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  validation    CandidateValidation @relation(fields: [validationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([validationId, createdAt(sort: Desc)], map: "candidate_scores_validation_idx")
+  @@map("candidate_scores")
+}
+
+model CandidateSet {
+  id                   String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId            String                @map("project_id") @db.Uuid
+  findingId            String                @map("finding_id") @db.Uuid
+  contextPackageId     String                @map("context_package_id") @db.Uuid
+  status               String                @default("queued")
+  requestedBy          String?               @map("requested_by") @db.Uuid
+  errorMessage         String?               @map("error_message")
+  createdAt            DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt          DateTime?             @map("completed_at") @db.Timestamptz(6)
+  contextPackage       ContextPackage        @relation(fields: [contextPackageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  finding              Finding               @relation(fields: [findingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project              Project               @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  requestedByUser      User?                 @relation(fields: [requestedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  candidateValidations CandidateValidation[]
+
+  @@index([projectId, findingId, createdAt(sort: Desc)], map: "candidate_sets_finding_idx")
+  @@map("candidate_sets")
+}
+
+model CandidateValidation {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId        String            @map("project_id") @db.Uuid
+  candidateSetId   String            @map("candidate_set_id") @db.Uuid
+  candidateLinkId  String            @map("candidate_link_id") @db.Uuid
+  status           String
+  datasetVersionId String            @map("dataset_version_id") @db.Uuid
+  contextPackageId String            @map("context_package_id") @db.Uuid
+  assessmentId     String?           @map("assessment_id") @db.Uuid
+  evidenceBundleId String?           @map("evidence_bundle_id") @db.Uuid
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  candidateScores  CandidateScore[]
+  assessment       Assessment?       @relation(fields: [assessmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  candidateLink    CandidateLink     @relation(fields: [candidateLinkId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  candidateSet     CandidateSet      @relation(fields: [candidateSetId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  contextPackage   ContextPackage    @relation(fields: [contextPackageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  datasetVersion   DatasetVersion    @relation(fields: [datasetVersionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  evidenceBundle   EvidenceBundle?   @relation(fields: [evidenceBundleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project          Project           @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  validationChecks ValidationCheck[]
+
+  @@index([candidateLinkId, createdAt(sort: Desc)], map: "candidate_validations_link_idx")
+  @@map("candidate_validations")
+}
+
+model CapabilityMatrix {
+  datasetVersionId String         @id @map("dataset_version_id") @db.Uuid
+  projectId        String         @map("project_id") @db.Uuid
+  capabilities     Json
+  datasetVersion   DatasetVersion @relation(fields: [datasetVersionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project          Project        @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("capability_matrix")
+}
+
+model CheckReport {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  interpretationId String         @map("interpretation_id") @db.Uuid
+  attempt          Int
+  checkerVersion   String         @map("checker_version")
+  ok               Boolean
+  violations       Json
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  interpretation   Interpretation @relation(fields: [interpretationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([interpretationId, attempt])
+  @@map("check_reports")
+}
+
+model Client {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  sector    String    @default("")
+  contact   String    @default("")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  projects  Project[]
+
+  @@map("clients")
+}
+
+model ConformanceResult {
+  runId          String       @id @map("run_id") @db.Uuid
+  projectId      String       @map("project_id") @db.Uuid
+  status         String
+  reason         String?
+  bpmnModelId    String?      @map("bpmn_model_id") @db.Uuid
+  bpmnMappingId  String?      @map("bpmn_mapping_id") @db.Uuid
+  mappingVersion Int?         @map("mapping_version")
+  fitness        Float?
+  variants       Json         @default("[]")
+  mismatches     Json         @default("[]")
+  bpmnMapping    BpmnMapping? @relation(fields: [bpmnMappingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  bpmnModel      BpmnModel?   @relation(fields: [bpmnModelId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project        Project      @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  run            AnalysisRun  @relation(fields: [runId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("conformance_results")
+}
+
+model ContextDocument {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId         String             @map("project_id") @db.Uuid
+  title             String
+  reference         String             @default("")
+  version           String             @default("1")
+  excerpt           String             @default("")
+  status            String             @default("approved")
+  createdBy         String?            @map("created_by") @db.Uuid
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  bpmnModels        BpmnModel[]
+  calendars         Calendar[]
+  createdByUser     User?              @relation(fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project           Project            @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  hypotheses        Hypothesis[]
+  interventions     Intervention[]
+  processBoundaries ProcessBoundary[]
+  reworkDefinitions ReworkDefinition[]
+  rubrics           Rubric[]
+  rules             Rule[]
+
+  @@index([projectId], map: "context_documents_project_idx")
+  @@map("context_documents")
+}
+
+model ContextPackageRef {
+  packageId  String         @map("package_id") @db.Uuid
+  refType    String         @map("ref_type")
+  refId      String         @map("ref_id") @db.Uuid
+  refKey     String         @map("ref_key")
+  refVersion Int            @map("ref_version")
+  package    ContextPackage @relation(fields: [packageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([packageId, refType, refId])
+  @@map("context_package_refs")
+}
+
+model ContextPackage {
+  id                   String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId            String                @map("project_id") @db.Uuid
+  version              Int
+  name                 String
+  status               String                @default("ready")
+  hash                 String
+  processBoundaryId    String                @map("process_boundary_id") @db.Uuid
+  reworkDefinitionId   String?               @map("rework_definition_id") @db.Uuid
+  calendarId           String?               @map("calendar_id") @db.Uuid
+  bpmnModelId          String?               @map("bpmn_model_id") @db.Uuid
+  bpmnMappingId        String?               @map("bpmn_mapping_id") @db.Uuid
+  rubricId             String?               @map("rubric_id") @db.Uuid
+  conformanceAvailable Boolean               @default(false) @map("conformance_available")
+  createdBy            String?               @map("created_by") @db.Uuid
+  createdAt            DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  activatedBy          String?               @map("activated_by") @db.Uuid
+  activatedAt          DateTime?             @map("activated_at") @db.Timestamptz(6)
+  analysisRuns         AnalysisRun[]
+  candidateLinks       CandidateLink[]
+  candidateSets        CandidateSet[]
+  candidateValidations CandidateValidation[]
+  contextPackageRefs   ContextPackageRef[]
+  activatedByUser      User?                 @relation("context_packages_activated_byTousers", fields: [activatedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  bpmnMapping          BpmnMapping?          @relation(fields: [bpmnMappingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  bpmnModel            BpmnModel?            @relation(fields: [bpmnModelId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  calendar             Calendar?             @relation(fields: [calendarId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdByUser        User?                 @relation("context_packages_created_byTousers", fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  processBoundary      ProcessBoundary       @relation(fields: [processBoundaryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project              Project               @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reworkDefinition     ReworkDefinition?     @relation(fields: [reworkDefinitionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rubric               Rubric?               @relation(fields: [rubricId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  findings             Finding[]
+
+  @@unique([projectId, version])
+  @@index([projectId, status], map: "context_packages_project_idx")
+  @@map("context_packages")
+}
+
+model DatasetVersion {
+  id                   String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId            String                @map("project_id") @db.Uuid
+  sourceId             String                @map("source_id") @db.Uuid
+  snapshotId           String                @map("snapshot_id") @db.Uuid
+  mappingVersionId     String                @map("mapping_version_id") @db.Uuid
+  name                 String
+  version              Int
+  status               String                @default("draft")
+  qualityStatus        String?               @map("quality_status")
+  contentHash          String                @map("content_hash")
+  algorithmVersion     String                @map("algorithm_version")
+  eventCount           BigInt?               @map("event_count")
+  caseCount            BigInt?               @map("case_count")
+  excludedEventCount   BigInt?               @map("excluded_event_count")
+  activityLabels       Json?                 @map("activity_labels")
+  periodStart          DateTime?             @map("period_start") @db.Timestamptz(6)
+  periodEnd            DateTime?             @map("period_end") @db.Timestamptz(6)
+  eventsKey            String                @map("events_key")
+  casesKey             String                @map("cases_key")
+  reportKey            String                @map("report_key")
+  errorMessage         String?               @map("error_message")
+  createdBy            String?               @map("created_by") @db.Uuid
+  createdAt            DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  processedAt          DateTime?             @map("processed_at") @db.Timestamptz(6)
+  publishedAt          DateTime?             @map("published_at") @db.Timestamptz(6)
+  publishedBy          String?               @map("published_by") @db.Uuid
+  analysisRuns         AnalysisRun[]
+  bpmnMappings         BpmnMapping[]
+  candidateValidations CandidateValidation[]
+  capabilityMatrix     CapabilityMatrix?
+  createdByUser        User?                 @relation("dataset_versions_created_byTousers", fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  mappingVersion       MappingVersion        @relation(fields: [mappingVersionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project              Project               @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  publishedByUser      User?                 @relation("dataset_versions_published_byTousers", fields: [publishedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  snapshot             SourceSnapshot        @relation(fields: [snapshotId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  source               Source                @relation(fields: [sourceId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  findings             Finding[]
+  qualityFindings      QualityFinding[]
+
+  @@unique([sourceId, version])
+  @@index([projectId, status, publishedAt(sort: Desc)], map: "dataset_versions_project_idx")
+  @@map("dataset_versions")
+}
+
+model EvaluationRun {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId     String   @map("project_id") @db.Uuid
+  metrics       Json
+  createdBy     String?  @map("created_by") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdByUser User?    @relation(fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("evaluation_runs")
+}
+
+model EvidenceBundleItem {
+  bundleId        String         @map("bundle_id") @db.Uuid
+  ordinal         Int
+  itemType        String         @map("item_type")
+  itemId          String         @map("item_id")
+  itemVersion     String?        @map("item_version")
+  relationPath    String         @map("relation_path")
+  priority        Int
+  included        Boolean
+  exclusionReason String?        @map("exclusion_reason")
+  estimatedTokens Int            @map("estimated_tokens")
+  contentRef      String?        @map("content_ref")
+  bundle          EvidenceBundle @relation(fields: [bundleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([bundleId, ordinal])
+  @@map("evidence_bundle_items")
+}
+
+model EvidenceBundle {
+  id                   String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId            String                @map("project_id") @db.Uuid
+  targetType           String                @map("target_type")
+  targetId             String                @map("target_id") @db.Uuid
+  purpose              String
+  requestedBy          String?               @map("requested_by") @db.Uuid
+  graphSequence        BigInt                @map("graph_sequence")
+  hash                 String
+  status               String                @default("ready")
+  contextLimited       Boolean               @map("context_limited")
+  contextMaybeStale    Boolean               @map("context_maybe_stale")
+  objectKey            String                @map("object_key")
+  maxItems             Int                   @map("max_items")
+  maxEstimatedTokens   Int                   @map("max_estimated_tokens")
+  createdAt            DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  assessmentRuns       AssessmentRun[]
+  assessments          Assessment[]
+  candidateValidations CandidateValidation[]
+  evidenceBundleItems  EvidenceBundleItem[]
+  project              Project               @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  requestedByUser      User?                 @relation(fields: [requestedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  interpretations      Interpretation[]
+
+  @@unique([projectId, hash])
+  @@index([projectId, targetId, createdAt(sort: Desc)], map: "evidence_bundles_target_idx")
+  @@map("evidence_bundles")
+}
+
+model FindingCase {
+  findingId     String  @map("finding_id") @db.Uuid
+  projectId     String  @map("project_id") @db.Uuid
+  caseUid       String  @map("case_uid")
+  caseId        String  @map("case_id")
+  rank          Int
+  supportMetric String  @map("support_metric")
+  supportValue  Float?  @map("support_value")
+  finding       Finding @relation(fields: [findingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project       Project @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([findingId, caseUid])
+  @@index([findingId, rank], map: "finding_cases_rank_idx")
+  @@map("finding_cases")
+}
+
+model Finding {
+  id                   String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId            String                @map("project_id") @db.Uuid
+  analysisRunId        String                @map("analysis_run_id") @db.Uuid
+  type                 String
+  title                String
+  summary              String
+  metricKey            String                @map("metric_key")
+  metricVersion        Int                   @map("metric_version")
+  metrics              Json
+  population           Json
+  thresholds           Json
+  subject              Json
+  severityScore        Int                   @map("severity_score")
+  severityLabel        String                @map("severity_label")
+  datasetVersionId     String                @map("dataset_version_id") @db.Uuid
+  contextPackageId     String                @map("context_package_id") @db.Uuid
+  createdAt            DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  analystCandidates    AnalystCandidate[]
+  assessmentRuns       AssessmentRun[]
+  assessments          Assessment[]
+  candidateComparisons CandidateComparison[]
+  candidateLinks       CandidateLink[]
+  candidateSets        CandidateSet[]
+  findingCases         FindingCase[]
+  analysisRun          AnalysisRun           @relation(fields: [analysisRunId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  contextPackage       ContextPackage        @relation(fields: [contextPackageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  datasetVersion       DatasetVersion        @relation(fields: [datasetVersionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project              Project               @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  interpretations      Interpretation[]
+
+  @@index([projectId, analysisRunId], map: "findings_project_idx")
+  @@map("findings")
+}
+
+model GoldSetItem {
+  id           String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId    String               @map("project_id") @db.Uuid
+  assessmentId String               @unique @map("assessment_id") @db.Uuid
+  correctionId String               @map("correction_id") @db.Uuid
+  label        String
+  createdAt    DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  assessment   Assessment           @relation(fields: [assessmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  correction   AssessmentCorrection @relation(fields: [correctionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project      Project              @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("gold_set_items")
+}
+
+model GraphProjectionState {
+  projectId          String    @id @map("project_id") @db.Uuid
+  lastSequence       BigInt    @default(0) @map("last_sequence")
+  lastProjectedAt    DateTime? @map("last_projected_at") @db.Timestamptz(6)
+  rebuildRequestedAt DateTime? @map("rebuild_requested_at") @db.Timestamptz(6)
+  rebuiltAt          DateTime? @map("rebuilt_at") @db.Timestamptz(6)
+  project            Project   @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("graph_projection_state")
+}
+
+model Hypothesis {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId        String           @map("project_id") @db.Uuid
+  itemKey          String           @map("item_key")
+  version          Int
+  status           String           @default("draft")
+  payload          Json
+  sourceDocumentId String?          @map("source_document_id") @db.Uuid
+  sourceReference  String           @default("") @map("source_reference")
+  createdBy        String?          @map("created_by") @db.Uuid
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  reviewedBy       String?          @map("reviewed_by") @db.Uuid
+  reviewedAt       DateTime?        @map("reviewed_at") @db.Timestamptz(6)
+  approvedBy       String?          @map("approved_by") @db.Uuid
+  approvedAt       DateTime?        @map("approved_at") @db.Timestamptz(6)
+  approvedByUser   User?            @relation("hypotheses_approved_byTousers", fields: [approvedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdByUser    User?            @relation("hypotheses_created_byTousers", fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project          Project          @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reviewedByUser   User?            @relation("hypotheses_reviewed_byTousers", fields: [reviewedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sourceDocument   ContextDocument? @relation(fields: [sourceDocumentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([projectId, itemKey, version])
+  @@index([projectId, status], map: "hypotheses_project_idx")
+  @@map("hypotheses")
+}
+
+model IngestErrorSample {
+  id         BigInt         @id @default(autoincrement())
+  projectId  String         @map("project_id") @db.Uuid
+  snapshotId String         @map("snapshot_id") @db.Uuid
+  rowNumber  BigInt?        @map("row_number")
+  message    String
+  project    Project        @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  snapshot   SourceSnapshot @relation(fields: [snapshotId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([snapshotId], map: "ingest_error_samples_snapshot_idx")
+  @@map("ingest_error_samples")
+}
+
+model InterpretationAttempt {
+  interpretationId String         @map("interpretation_id") @db.Uuid
+  attempt          Int
+  requestId        String?        @map("request_id")
+  model            String?
+  finishReason     String?        @map("finish_reason")
+  latencyMs        Int?           @map("latency_ms")
+  inputTokens      Int?           @map("input_tokens")
+  outputTokens     Int?           @map("output_tokens")
+  rawKey           String         @map("raw_key")
+  ok               Boolean
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  interpretation   Interpretation @relation(fields: [interpretationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([interpretationId, attempt])
+  @@map("interpretation_attempts")
+}
+
+model InterpretationClaim {
+  interpretationId String         @map("interpretation_id") @db.Uuid
+  ordinal          Int
+  sectionKey       String         @map("section_key")
+  claimType        String         @map("claim_type")
+  textTemplate     String         @map("text_template")
+  text             String
+  citations        Json
+  metrics          Json
+  candidateId      String?        @map("candidate_id")
+  interpretation   Interpretation @relation(fields: [interpretationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([interpretationId, ordinal])
+  @@map("interpretation_claims")
+}
+
+model InterpretationVersion {
+  interpretationId String         @map("interpretation_id") @db.Uuid
+  version          Int
+  kind             String
+  content          Json
+  createdBy        String?        @map("created_by") @db.Uuid
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdByUser    User?          @relation(fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  interpretation   Interpretation @relation(fields: [interpretationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([interpretationId, version])
+  @@map("interpretation_versions")
+}
+
+model Interpretation {
+  id                             String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId                      String                  @map("project_id") @db.Uuid
+  targetType                     String                  @map("target_type")
+  targetId                       String                  @map("target_id") @db.Uuid
+  findingId                      String?                 @map("finding_id") @db.Uuid
+  audience                       String
+  status                         String                  @default("queued")
+  evidenceBundleId               String?                 @map("evidence_bundle_id") @db.Uuid
+  promptTemplateId               String?                 @map("prompt_template_id") @db.Uuid
+  templateVersion                Int?                    @map("template_version")
+  provider                       String?
+  model                          String?
+  modelVersion                   String?                 @map("model_version")
+  parameters                     Json?
+  checkerVersion                 String?                 @map("checker_version")
+  interpretationKey              String?                 @map("interpretation_key")
+  nonce                          String?
+  regeneratedFrom                String?                 @map("regenerated_from") @db.Uuid
+  reusedFrom                     String?                 @map("reused_from") @db.Uuid
+  attempts                       Int                     @default(0)
+  output                         Json?
+  offered                        Json?
+  rendered                       Json?
+  checkReport                    Json?                   @map("check_report")
+  inputTokens                    Int?                    @map("input_tokens")
+  outputTokens                   Int?                    @map("output_tokens")
+  cost                           Float?
+  errorMessage                   String?                 @map("error_message")
+  requestedBy                    String?                 @map("requested_by") @db.Uuid
+  acceptedBy                     String?                 @map("accepted_by") @db.Uuid
+  acceptedAt                     DateTime?               @map("accepted_at") @db.Timestamptz(6)
+  flaggedBy                      String?                 @map("flagged_by") @db.Uuid
+  flaggedAt                      DateTime?               @map("flagged_at") @db.Timestamptz(6)
+  flagReason                     String?                 @map("flag_reason")
+  createdAt                      DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt                    DateTime?               @map("completed_at") @db.Timestamptz(6)
+  checkReports                   CheckReport[]
+  interpretationAttempts         InterpretationAttempt[]
+  interpretationClaims           InterpretationClaim[]
+  interpretationVersions         InterpretationVersion[]
+  acceptedByUser                 User?                   @relation("interpretations_accepted_byTousers", fields: [acceptedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  evidenceBundle                 EvidenceBundle?         @relation(fields: [evidenceBundleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  finding                        Finding?                @relation(fields: [findingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  flaggedByUser                  User?                   @relation("interpretations_flagged_byTousers", fields: [flaggedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project                        Project                 @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  promptTemplate                 PromptTemplate?         @relation(fields: [promptTemplateId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  regeneratedFromInterpretation  Interpretation?         @relation("interpretations_regenerated_fromTointerpretations", fields: [regeneratedFrom], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  interpretationsRegeneratedFrom Interpretation[]        @relation("interpretations_regenerated_fromTointerpretations")
+  requestedByUser                User?                   @relation("interpretations_requested_byTousers", fields: [requestedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reusedFromInterpretation       Interpretation?         @relation("interpretations_reused_fromTointerpretations", fields: [reusedFrom], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  interpretationsReusedFrom      Interpretation[]        @relation("interpretations_reused_fromTointerpretations")
+
+  @@index([projectId, interpretationKey], map: "interpretations_key_idx")
+  @@index([projectId, targetId, createdAt(sort: Desc)], map: "interpretations_target_idx")
+  @@map("interpretations")
+}
+
+model Intervention {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId        String           @map("project_id") @db.Uuid
+  itemKey          String           @map("item_key")
+  version          Int
+  status           String           @default("draft")
+  payload          Json
+  sourceDocumentId String?          @map("source_document_id") @db.Uuid
+  sourceReference  String           @default("") @map("source_reference")
+  createdBy        String?          @map("created_by") @db.Uuid
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  reviewedBy       String?          @map("reviewed_by") @db.Uuid
+  reviewedAt       DateTime?        @map("reviewed_at") @db.Timestamptz(6)
+  approvedBy       String?          @map("approved_by") @db.Uuid
+  approvedAt       DateTime?        @map("approved_at") @db.Timestamptz(6)
+  approvedByUser   User?            @relation("interventions_approved_byTousers", fields: [approvedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdByUser    User?            @relation("interventions_created_byTousers", fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project          Project          @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reviewedByUser   User?            @relation("interventions_reviewed_byTousers", fields: [reviewedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sourceDocument   ContextDocument? @relation(fields: [sourceDocumentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([projectId, itemKey, version])
+  @@index([projectId, status], map: "interventions_project_idx")
+  @@map("interventions")
+}
+
+model MappingVersion {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId       String           @map("project_id") @db.Uuid
+  sourceId        String           @map("source_id") @db.Uuid
+  version         Int
+  config          Json
+  note            String           @default("")
+  createdBy       String?          @map("created_by") @db.Uuid
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  datasetVersions DatasetVersion[]
+  createdByUser   User?            @relation(fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  source          Source           @relation(fields: [sourceId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([sourceId, version])
+  @@map("mapping_versions")
+}
+
+model Membership {
+  projectId   String   @map("project_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  role        String
+  addedBy     String?  @map("added_by") @db.Uuid
+  addedAt     DateTime @default(now()) @map("added_at") @db.Timestamptz(6)
+  addedByUser User?    @relation("memberships_added_byTousers", fields: [addedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user        User     @relation("memberships_user_idTousers", fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([projectId, userId])
+  @@index([userId, projectId], map: "memberships_user_project_idx")
+  @@map("memberships")
+}
+
+model MetricDefinition {
+  key                   String
+  version               Int
+  name                  String
+  description           String
+  formula               String
+  population            String
+  unit                  String
+  implementationVersion String           @map("implementation_version")
+  referenceTest         String           @map("reference_test")
+  analysisMetrics       AnalysisMetric[]
+
+  @@id([key, version])
+  @@map("metric_definitions")
+}
+
+model ModelUsageEvent {
+  id           BigInt   @id @default(autoincrement())
+  projectId    String   @map("project_id") @db.Uuid
+  kind         String
+  provider     String
+  model        String?
+  modelVersion String?  @map("model_version")
+  requestId    String?  @map("request_id")
+  operation    String
+  latencyMs    Int?     @map("latency_ms")
+  inputTokens  Int?     @map("input_tokens")
+  outputTokens Int?     @map("output_tokens")
+  cost         Float?
+  rawKey       String?  @map("raw_key")
+  subjectId    String?  @map("subject_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([projectId, kind, createdAt], map: "model_usage_project_idx")
+  @@map("model_usage_events")
+}
+
+model MonitoringConfig {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId     String        @map("project_id") @db.Uuid
+  version       Int
+  config        Json
+  createdBy     String?       @map("created_by") @db.Uuid
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  analysisRuns  AnalysisRun[]
+  createdByUser User?         @relation(fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project       Project       @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([projectId, version])
+  @@map("monitoring_configs")
+}
+
+model OutboxEvent {
+  sequence        BigInt    @id @default(autoincrement())
+  contractVersion Int       @default(1) @map("contract_version")
+  projectId       String    @map("project_id") @db.Uuid
+  aggregateType   String    @map("aggregate_type")
+  aggregateId     String    @map("aggregate_id") @db.Uuid
+  eventType       String    @map("event_type")
+  occurredAt      DateTime  @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  payload         Json      @default("{}")
+  projectedAt     DateTime? @map("projected_at") @db.Timestamptz(6)
+  attempts        Int       @default(0)
+  lastError       String?   @map("last_error")
+  deadLetter      Boolean   @default(false) @map("dead_letter")
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([projectId, sequence], map: "outbox_pending_idx", where: raw("((projected_at IS NULL) AND (NOT dead_letter))"))
+  @@map("outbox_events")
+}
+
+model PriorityPolicy {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId       String           @map("project_id") @db.Uuid
+  version         Int
+  weights         Json
+  createdBy       String?          @map("created_by") @db.Uuid
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  candidateScores CandidateScore[]
+  createdByUser   User?            @relation(fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([projectId, version])
+  @@map("priority_policies")
+}
+
+model ProcessBoundary {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId        String           @map("project_id") @db.Uuid
+  itemKey          String           @map("item_key")
+  version          Int
+  status           String           @default("draft")
+  payload          Json
+  sourceDocumentId String?          @map("source_document_id") @db.Uuid
+  sourceReference  String           @default("") @map("source_reference")
+  createdBy        String?          @map("created_by") @db.Uuid
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  reviewedBy       String?          @map("reviewed_by") @db.Uuid
+  reviewedAt       DateTime?        @map("reviewed_at") @db.Timestamptz(6)
+  approvedBy       String?          @map("approved_by") @db.Uuid
+  approvedAt       DateTime?        @map("approved_at") @db.Timestamptz(6)
+  contextPackages  ContextPackage[]
+  approvedByUser   User?            @relation("process_boundaries_approved_byTousers", fields: [approvedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdByUser    User?            @relation("process_boundaries_created_byTousers", fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project          Project          @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reviewedByUser   User?            @relation("process_boundaries_reviewed_byTousers", fields: [reviewedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sourceDocument   ContextDocument? @relation(fields: [sourceDocumentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([projectId, itemKey, version])
+  @@index([projectId, status], map: "process_boundaries_project_idx")
+  @@map("process_boundaries")
+}
+
+model ProcessEdge {
+  runId             String      @map("run_id") @db.Uuid
+  projectId         String      @map("project_id") @db.Uuid
+  fromActivity      String      @map("from_activity")
+  toActivity        String      @map("to_activity")
+  occurrenceCount   BigInt      @map("occurrence_count")
+  caseCount         BigInt      @map("case_count")
+  medianWaitS       Float       @map("median_wait_s")
+  p90WaitS          Float       @map("p90_wait_s")
+  totalWaitS        Float       @map("total_wait_s")
+  contributionShare Float       @map("contribution_share")
+  project           Project     @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  run               AnalysisRun @relation(fields: [runId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([runId, fromActivity, toActivity])
+  @@map("process_edges")
+}
+
+model ProcessNode {
+  runId          String      @map("run_id") @db.Uuid
+  projectId      String      @map("project_id") @db.Uuid
+  activity       String
+  eventCount     BigInt      @map("event_count")
+  caseCount      BigInt      @map("case_count")
+  caseShare      Float       @map("case_share")
+  startCount     BigInt      @map("start_count")
+  endCount       BigInt      @map("end_count")
+  boundaryStart  Boolean     @map("boundary_start")
+  boundaryEnd    Boolean     @map("boundary_end")
+  serviceMedianS Float?      @map("service_median_s")
+  project        Project     @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  run            AnalysisRun @relation(fields: [runId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([runId, activity])
+  @@map("process_nodes")
+}
+
+model Project {
+  id                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clientId              String                 @map("client_id") @db.Uuid
+  name                  String
+  description           String                 @default("")
+  processName           String                 @map("process_name")
+  timezone              String                 @default("Asia/Jakarta")
+  contractStart         DateTime               @map("contract_start") @db.Date
+  contractEnd           DateTime               @map("contract_end") @db.Date
+  retentionPolicy       String                 @map("retention_policy")
+  status                String                 @default("draft")
+  statusChangedAt       DateTime               @default(now()) @map("status_changed_at") @db.Timestamptz(6)
+  lastActivityAt        DateTime               @default(now()) @map("last_activity_at") @db.Timestamptz(6)
+  createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime               @default(now()) @map("updated_at") @db.Timestamptz(6)
+  analysisCases         AnalysisCase[]
+  analysisMetrics       AnalysisMetric[]
+  analysisRuns          AnalysisRun[]
+  analystCandidates     AnalystCandidate[]
+  assessmentCorrections AssessmentCorrection[]
+  assessmentRuns        AssessmentRun[]
+  assessments           Assessment[]
+  auditEvents           AuditEvent[]
+  bpmnMappings          BpmnMapping[]
+  bpmnModels            BpmnModel[]
+  calendars             Calendar[]
+  candidateComparisons  CandidateComparison[]
+  candidateLinks        CandidateLink[]
+  candidateScores       CandidateScore[]
+  candidateSets         CandidateSet[]
+  candidateValidations  CandidateValidation[]
+  capabilityMatrix      CapabilityMatrix[]
+  conformanceResults    ConformanceResult[]
+  contextDocuments      ContextDocument[]
+  contextPackages       ContextPackage[]
+  datasetVersions       DatasetVersion[]
+  evaluationRuns        EvaluationRun[]
+  evidenceBundles       EvidenceBundle[]
+  findingCases          FindingCase[]
+  findings              Finding[]
+  goldSetItems          GoldSetItem[]
+  graphProjectionState  GraphProjectionState?
+  hypotheses            Hypothesis[]
+  ingestErrorSamples    IngestErrorSample[]
+  interpretations       Interpretation[]
+  interventions         Intervention[]
+  mappingVersions       MappingVersion[]
+  memberships           Membership[]
+  modelUsageEvents      ModelUsageEvent[]
+  monitoringConfigs     MonitoringConfig[]
+  outboxEvents          OutboxEvent[]
+  priorityPolicies      PriorityPolicy[]
+  processBoundaries     ProcessBoundary[]
+  processEdges          ProcessEdge[]
+  processNodes          ProcessNode[]
+  client                Client                 @relation(fields: [clientId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  promptTemplates       PromptTemplate[]
+  qualityFindings       QualityFinding[]
+  questionSpecs         QuestionSpec[]
+  reworkDefinitions     ReworkDefinition[]
+  reworkResults         ReworkResult[]
+  rubrics               Rubric[]
+  ruleEvaluations       RuleEvaluation[]
+  rules                 Rule[]
+  sourceSnapshots       SourceSnapshot[]
+  sources               Source[]
+  transitionMetrics     TransitionMetric[]
+  variants              Variant[]
+
+  @@map("projects")
+}
+
+model PromptTemplate {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId       String           @map("project_id") @db.Uuid
+  targetType      String           @map("target_type")
+  audience        String
+  version         Int
+  body            Json
+  status          String           @default("active")
+  createdBy       String?          @map("created_by") @db.Uuid
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  interpretations Interpretation[]
+  createdByUser   User?            @relation(fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([projectId, targetType, audience, version])
+  @@map("prompt_templates")
+}
+
+model QualityFinding {
+  id                 BigInt         @id @default(autoincrement())
+  projectId          String         @map("project_id") @db.Uuid
+  datasetVersionId   String         @map("dataset_version_id") @db.Uuid
+  checkKey           String         @map("check_key")
+  severity           String
+  eventCount         BigInt         @map("event_count")
+  caseCount          BigInt         @map("case_count")
+  eventShare         Float          @map("event_share")
+  caseShare          Float          @map("case_share")
+  excludedEventCount BigInt         @default(0) @map("excluded_event_count")
+  samples            Json
+  datasetVersion     DatasetVersion @relation(fields: [datasetVersionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project            Project        @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([datasetVersionId], map: "quality_findings_dataset_idx")
+  @@map("quality_findings")
+}
+
+model QuestionSpec {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId     String   @map("project_id") @db.Uuid
+  task          String
+  primitive     String
+  version       Int
+  spec          Json
+  status        String   @default("active")
+  createdBy     String?  @map("created_by") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdByUser User?    @relation(fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([projectId, task, version])
+  @@map("question_specs")
+}
+
+model ReworkDefinition {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId        String           @map("project_id") @db.Uuid
+  itemKey          String           @map("item_key")
+  version          Int
+  status           String           @default("draft")
+  payload          Json
+  sourceDocumentId String?          @map("source_document_id") @db.Uuid
+  sourceReference  String           @default("") @map("source_reference")
+  createdBy        String?          @map("created_by") @db.Uuid
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  reviewedBy       String?          @map("reviewed_by") @db.Uuid
+  reviewedAt       DateTime?        @map("reviewed_at") @db.Timestamptz(6)
+  approvedBy       String?          @map("approved_by") @db.Uuid
+  approvedAt       DateTime?        @map("approved_at") @db.Timestamptz(6)
+  contextPackages  ContextPackage[]
+  approvedByUser   User?            @relation("rework_definitions_approved_byTousers", fields: [approvedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdByUser    User?            @relation("rework_definitions_created_byTousers", fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project          Project          @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reviewedByUser   User?            @relation("rework_definitions_reviewed_byTousers", fields: [reviewedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sourceDocument   ContextDocument? @relation(fields: [sourceDocumentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([projectId, itemKey, version])
+  @@index([projectId, status], map: "rework_definitions_project_idx")
+  @@map("rework_definitions")
+}
+
+model ReworkResult {
+  runId     String      @id @map("run_id") @db.Uuid
+  projectId String      @map("project_id") @db.Uuid
+  result    Json
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  run       AnalysisRun @relation(fields: [runId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("rework_results")
+}
+
+model Rubric {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId        String           @map("project_id") @db.Uuid
+  itemKey          String           @map("item_key")
+  version          Int
+  status           String           @default("draft")
+  payload          Json
+  sourceDocumentId String?          @map("source_document_id") @db.Uuid
+  sourceReference  String           @default("") @map("source_reference")
+  createdBy        String?          @map("created_by") @db.Uuid
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  reviewedBy       String?          @map("reviewed_by") @db.Uuid
+  reviewedAt       DateTime?        @map("reviewed_at") @db.Timestamptz(6)
+  approvedBy       String?          @map("approved_by") @db.Uuid
+  approvedAt       DateTime?        @map("approved_at") @db.Timestamptz(6)
+  assessments      Assessment[]
+  contextPackages  ContextPackage[]
+  approvedByUser   User?            @relation("rubrics_approved_byTousers", fields: [approvedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdByUser    User?            @relation("rubrics_created_byTousers", fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project          Project          @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reviewedByUser   User?            @relation("rubrics_reviewed_byTousers", fields: [reviewedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sourceDocument   ContextDocument? @relation(fields: [sourceDocumentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([projectId, itemKey, version])
+  @@index([projectId, status], map: "rubrics_project_idx")
+  @@map("rubrics")
+}
+
+model RuleEvaluation {
+  runId        String      @map("run_id") @db.Uuid
+  projectId    String      @map("project_id") @db.Uuid
+  ruleId       String      @map("rule_id") @db.Uuid
+  ruleKey      String      @map("rule_key")
+  ruleVersion  Int         @map("rule_version")
+  name         String
+  compliant    Int
+  nonCompliant Int         @map("non_compliant")
+  notEvaluable Int         @map("not_evaluable")
+  reasons      Json
+  project      Project     @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rule         Rule        @relation(fields: [ruleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  run          AnalysisRun @relation(fields: [runId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([runId, ruleId])
+  @@map("rule_evaluations")
+}
+
+model Rule {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId        String           @map("project_id") @db.Uuid
+  itemKey          String           @map("item_key")
+  version          Int
+  status           String           @default("draft")
+  payload          Json
+  sourceDocumentId String?          @map("source_document_id") @db.Uuid
+  sourceReference  String           @default("") @map("source_reference")
+  createdBy        String?          @map("created_by") @db.Uuid
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  reviewedBy       String?          @map("reviewed_by") @db.Uuid
+  reviewedAt       DateTime?        @map("reviewed_at") @db.Timestamptz(6)
+  approvedBy       String?          @map("approved_by") @db.Uuid
+  approvedAt       DateTime?        @map("approved_at") @db.Timestamptz(6)
+  ruleEvaluations  RuleEvaluation[]
+  approvedByUser   User?            @relation("rules_approved_byTousers", fields: [approvedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdByUser    User?            @relation("rules_created_byTousers", fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project          Project          @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reviewedByUser   User?            @relation("rules_reviewed_byTousers", fields: [reviewedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sourceDocument   ContextDocument? @relation(fields: [sourceDocumentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([projectId, itemKey, version])
+  @@index([projectId, status], map: "rules_project_idx")
+  @@map("rules")
+}
+
+model Session {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+  user      User      @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([userId], map: "sessions_user_idx")
+  @@map("sessions")
+}
+
+model SourceSnapshot {
+  id                       String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId                String              @map("project_id") @db.Uuid
+  sourceId                 String              @map("source_id") @db.Uuid
+  status                   String              @default("awaiting_upload")
+  fileName                 String              @map("file_name")
+  declaredSize             BigInt              @map("declared_size")
+  rawKey                   String              @unique @map("raw_key")
+  stagingKey               String?             @map("staging_key")
+  reportKey                String?             @map("report_key")
+  sizeBytes                BigInt?             @map("size_bytes")
+  sha256                   String?
+  format                   String?
+  encoding                 String?
+  delimiter                String?
+  rowCount                 BigInt?             @map("row_count")
+  invalidRowCount          BigInt?             @map("invalid_row_count")
+  columns                  Json?
+  preview                  Json?
+  suggestedMapping         Json?               @map("suggested_mapping")
+  reviewReasons            Json?               @map("review_reasons")
+  errorCode                String?             @map("error_code")
+  errorMessage             String?             @map("error_message")
+  reusedFrom               String?             @map("reused_from") @db.Uuid
+  projectStatusChanged     Boolean             @default(false) @map("project_status_changed")
+  createdBy                String?             @map("created_by") @db.Uuid
+  createdAt                DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  uploadCompletedAt        DateTime?           @map("upload_completed_at") @db.Timestamptz(6)
+  updatedAt                DateTime            @default(now()) @map("updated_at") @db.Timestamptz(6)
+  datasetVersions          DatasetVersion[]
+  ingestErrorSamples       IngestErrorSample[]
+  createdByUser            User?               @relation(fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project                  Project             @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reusedFromSourceSnapshot SourceSnapshot?     @relation("source_snapshotsTosource_snapshots", fields: [reusedFrom], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reusedBy                 SourceSnapshot[]    @relation("source_snapshotsTosource_snapshots")
+  source                   Source              @relation(fields: [sourceId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([sourceId, sha256], map: "source_snapshots_checksum_idx", where: raw("(sha256 IS NOT NULL)"))
+  @@index([sourceId, createdAt(sort: Desc)], map: "source_snapshots_source_idx")
+  @@map("source_snapshots")
+}
+
+model Source {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId       String           @map("project_id") @db.Uuid
+  name            String
+  kind            String           @default("file")
+  createdBy       String?          @map("created_by") @db.Uuid
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  datasetVersions DatasetVersion[]
+  mappingVersions MappingVersion[]
+  sourceSnapshots SourceSnapshot[]
+  createdByUser   User?            @relation(fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("sources")
+}
+
+model TransitionMetric {
+  runId             String      @map("run_id") @db.Uuid
+  projectId         String      @map("project_id") @db.Uuid
+  fromActivity      String      @map("from_activity")
+  toActivity        String      @map("to_activity")
+  rank              Int
+  occurrences       BigInt
+  caseCount         BigInt      @map("case_count")
+  medianWaitS       Float?      @map("median_wait_s")
+  p90WaitS          Float?      @map("p90_wait_s")
+  totalWaitS        Float?      @map("total_wait_s")
+  contributionShare Float       @map("contribution_share")
+  affectedCaseShare Float       @map("affected_case_share")
+  delayExcess       Float       @map("delay_excess")
+  severity          Int
+  isBottleneck      Boolean     @map("is_bottleneck")
+  project           Project     @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  run               AnalysisRun @relation(fields: [runId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([runId, fromActivity, toActivity])
+  @@map("transition_metrics")
+}
+
+model User {
+  id                          String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                       String                  @unique @db.Citext
+  name                        String
+  passwordHash                String?                 @map("password_hash")
+  globalRole                  String                  @default("member") @map("global_role")
+  status                      String                  @default("invited")
+  createdAt                   DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                   DateTime                @default(now()) @map("updated_at") @db.Timestamptz(6)
+  activationTokensCreatedBy   ActivationToken[]       @relation("activation_tokens_created_byTousers")
+  activationTokens            ActivationToken[]       @relation("activation_tokens_user_idTousers")
+  analysisRuns                AnalysisRun[]
+  analystCandidates           AnalystCandidate[]
+  assessmentCorrections       AssessmentCorrection[]
+  assessmentRuns              AssessmentRun[]
+  auditEvents                 AuditEvent[]
+  bpmnMappings                BpmnMapping[]
+  bpmnModelsApprovedBy        BpmnModel[]             @relation("bpmn_models_approved_byTousers")
+  bpmnModelsCreatedBy         BpmnModel[]             @relation("bpmn_models_created_byTousers")
+  calendarsApprovedBy         Calendar[]              @relation("calendars_approved_byTousers")
+  calendarsCreatedBy          Calendar[]              @relation("calendars_created_byTousers")
+  calendarsReviewedBy         Calendar[]              @relation("calendars_reviewed_byTousers")
+  candidateComparisons        CandidateComparison[]
+  candidateSets               CandidateSet[]
+  contextDocuments            ContextDocument[]
+  contextPackagesActivatedBy  ContextPackage[]        @relation("context_packages_activated_byTousers")
+  contextPackagesCreatedBy    ContextPackage[]        @relation("context_packages_created_byTousers")
+  datasetVersionsCreatedBy    DatasetVersion[]        @relation("dataset_versions_created_byTousers")
+  datasetVersionsPublishedBy  DatasetVersion[]        @relation("dataset_versions_published_byTousers")
+  evaluationRuns              EvaluationRun[]
+  evidenceBundles             EvidenceBundle[]
+  hypothesesApprovedBy        Hypothesis[]            @relation("hypotheses_approved_byTousers")
+  hypothesesCreatedBy         Hypothesis[]            @relation("hypotheses_created_byTousers")
+  hypothesesReviewedBy        Hypothesis[]            @relation("hypotheses_reviewed_byTousers")
+  interpretationVersions      InterpretationVersion[]
+  interpretationsAcceptedBy   Interpretation[]        @relation("interpretations_accepted_byTousers")
+  interpretationsFlaggedBy    Interpretation[]        @relation("interpretations_flagged_byTousers")
+  interpretationsRequestedBy  Interpretation[]        @relation("interpretations_requested_byTousers")
+  interventionsApprovedBy     Intervention[]          @relation("interventions_approved_byTousers")
+  interventionsCreatedBy      Intervention[]          @relation("interventions_created_byTousers")
+  interventionsReviewedBy     Intervention[]          @relation("interventions_reviewed_byTousers")
+  mappingVersions             MappingVersion[]
+  membershipsAddedBy          Membership[]            @relation("memberships_added_byTousers")
+  memberships                 Membership[]            @relation("memberships_user_idTousers")
+  monitoringConfigs           MonitoringConfig[]
+  priorityPolicies            PriorityPolicy[]
+  processBoundariesApprovedBy ProcessBoundary[]       @relation("process_boundaries_approved_byTousers")
+  processBoundariesCreatedBy  ProcessBoundary[]       @relation("process_boundaries_created_byTousers")
+  processBoundariesReviewedBy ProcessBoundary[]       @relation("process_boundaries_reviewed_byTousers")
+  promptTemplates             PromptTemplate[]
+  questionSpecs               QuestionSpec[]
+  reworkDefinitionsApprovedBy ReworkDefinition[]      @relation("rework_definitions_approved_byTousers")
+  reworkDefinitionsCreatedBy  ReworkDefinition[]      @relation("rework_definitions_created_byTousers")
+  reworkDefinitionsReviewedBy ReworkDefinition[]      @relation("rework_definitions_reviewed_byTousers")
+  rubricsApprovedBy           Rubric[]                @relation("rubrics_approved_byTousers")
+  rubricsCreatedBy            Rubric[]                @relation("rubrics_created_byTousers")
+  rubricsReviewedBy           Rubric[]                @relation("rubrics_reviewed_byTousers")
+  rulesApprovedBy             Rule[]                  @relation("rules_approved_byTousers")
+  rulesCreatedBy              Rule[]                  @relation("rules_created_byTousers")
+  rulesReviewedBy             Rule[]                  @relation("rules_reviewed_byTousers")
+  sessions                    Session[]
+  sourceSnapshots             SourceSnapshot[]
+  sources                     Source[]
+
+  @@map("users")
+}
+
+model ValidationCheck {
+  validationId  String              @map("validation_id") @db.Uuid
+  checkKey      String              @map("check_key")
+  status        String
+  failureStatus String?             @map("failure_status")
+  reason        String
+  details       Json                @default("{}")
+  validation    CandidateValidation @relation(fields: [validationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([validationId, checkKey])
+  @@map("validation_checks")
+}
+
+model Variant {
+  runId           String      @map("run_id") @db.Uuid
+  projectId       String      @map("project_id") @db.Uuid
+  rank            Int
+  sequenceHash    String      @map("sequence_hash")
+  sequence        Json
+  caseCount       BigInt      @map("case_count")
+  share           Float
+  cumulativeShare Float       @map("cumulative_share")
+  medianDurationS Float       @map("median_duration_s")
+  project         Project     @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  run             AnalysisRun @relation(fields: [runId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([runId, sequenceHash])
+  @@map("variants")
+}

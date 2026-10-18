@@ -60,7 +60,7 @@ export default async function FindingDetailPage({ params }: { params: Promise<{ 
   const f = await orNotFound(getFinding(viewer, projectId, findingId));
   const hypotheses = await relatedHypotheses(projectId, f);
   const base = `/lite/projects/${projectId}`;
-  const metricDef = { name: f.metricName, key: f.metricKey, version: f.metricVersion, formula: f.formula, description: f.metricDescription, definitionPopulation: f.metricPopulation,
+  const metricDef = { name: f.metricName ?? f.metricKey, key: f.metricKey, version: f.metricVersion, formula: f.formula ?? "", description: f.metricDescription ?? "", definitionPopulation: f.metricPopulation ?? "",
     population: { cases: f.population.cases, periodStart: f.population.periodStart, periodEnd: f.population.periodEnd, basis: null } };
   const cov = f.runCoverage;
 

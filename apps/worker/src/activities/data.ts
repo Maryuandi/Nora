@@ -1,9 +1,9 @@
 import { ApplicationFailure } from "@temporalio/activity";
-import { authorize, AuthzError, assertProjectKey } from "@nora/authz";
-import { withTx } from "@nora/db";
+import { AuthzError, assertProjectKey } from "@nora/authz";
+import { day, dbJson, jsonAs } from "@nora/db";
 import { BuildDatasetInput, BuildDatasetReport, IngestReport, IngestSnapshotInput, MappingConfig, MAX_UPLOAD_BYTES } from "@nora/contracts";
 import { getJson, head, sha256 } from "@nora/storage";
-import { audit, db } from "../db.ts";
+import { audit, authorizeUser, db, withTx } from "../db.ts";
 
 export interface JobRef {
   projectId: string;
@@ -14,7 +14,7 @@ export interface JobRef {
 /** Re-checks membership and project status inside the worker: a revoked or suspended project stops new work. */
 async function authorizeJob(job: JobRef, action: "data.write") {
   try {
-    await authorize(db(), job.requestedBy, action, job.projectId);
+    await authorizeUser(job.requestedBy, action, job.projectId);
   } catch (err) {
     if (err instanceof AuthzError) throw ApplicationFailure.nonRetryable(`authorization failed: ${err.code}`, "Unauthorized");
     throw err;
@@ -22,10 +22,10 @@ async function authorizeJob(job: JobRef, action: "data.write") {
 }
 
 async function failSnapshot(snapshotId: string, projectId: string, code: string, message: string) {
-  await db().query(
-    "UPDATE source_snapshots SET status = 'failed', error_code = $3, error_message = $4, updated_at = now() WHERE id = $1 AND project_id = $2 AND status IN ('awaiting_upload', 'validating')",
-    [snapshotId, projectId, code, message],
-  );
+  await db().sourceSnapshot.updateMany({
+    where: { id: snapshotId, projectId, status: { in: ["awaiting_upload", "validating"] } },
+    data: { status: "failed", errorCode: code, errorMessage: message, updatedAt: new Date() },
+  });
 }
 
 export type VerifyResult = { kind: "ingest"; input: IngestSnapshotInput } | { kind: "reused" } | { kind: "rejected" };
@@ -37,14 +37,12 @@ export async function verifySnapshot(job: JobRef & { snapshotId: string }): Prom
     await failSnapshot(job.snapshotId, job.projectId, "unauthorized", "Proyek tidak aktif atau akses pengunggah dicabut.");
     return { kind: "rejected" };
   }
-  const snap = (await db().query<{ source_id: string; raw_key: string; file_name: string; status: string }>(
-    "SELECT source_id, raw_key, file_name, status FROM source_snapshots WHERE id = $1 AND project_id = $2", [job.snapshotId, job.projectId],
-  )).rows[0];
+  const snap = await db().sourceSnapshot.findFirst({ where: { id: job.snapshotId, projectId: job.projectId }, select: { sourceId: true, rawKey: true, fileName: true, status: true } });
   if (!snap) throw ApplicationFailure.nonRetryable("snapshot not found in project", "NotFound");
   if (snap.status !== "validating") return { kind: "rejected" };
-  assertProjectKey(job.projectId, snap.raw_key);
+  assertProjectKey(job.projectId, snap.rawKey);
 
-  const meta = await head(job.projectId, snap.raw_key);
+  const meta = await head(job.projectId, snap.rawKey);
   if (!meta) {
     await failSnapshot(job.snapshotId, job.projectId, "missing_upload", "File belum diunggah ke object storage.");
     return { kind: "rejected" };
@@ -53,24 +51,24 @@ export async function verifySnapshot(job: JobRef & { snapshotId: string }): Prom
     await failSnapshot(job.snapshotId, job.projectId, "too_large", "File melebihi batas 2 GiB.");
     return { kind: "rejected" };
   }
-  const sum = await sha256(job.projectId, snap.raw_key);
-  await db().query("UPDATE source_snapshots SET sha256 = $3, size_bytes = $4, updated_at = now() WHERE id = $1 AND project_id = $2", [job.snapshotId, job.projectId, sum.sha256, sum.size]);
+  const sum = await sha256(job.projectId, snap.rawKey);
+  await db().sourceSnapshot.updateMany({ where: { id: job.snapshotId, projectId: job.projectId }, data: { sha256: sum.sha256, sizeBytes: BigInt(sum.size), updatedAt: new Date() } });
 
   // Same bytes on the same source: reuse the earlier staging result instead of parsing again.
-  const reused = await withTx(db(), async (tx) => {
-    const prev = (await tx.query(
-      `SELECT id FROM source_snapshots WHERE source_id = $1 AND project_id = $2 AND sha256 = $3 AND id <> $4
-          AND status IN ('ready_for_mapping', 'needs_review') AND staging_key IS NOT NULL ORDER BY created_at LIMIT 1`,
-      [snap.source_id, job.projectId, sum.sha256, job.snapshotId],
-    )).rows[0] as { id: string } | undefined;
+  const reused = await withTx(async (tx) => {
+    const prev = await tx.sourceSnapshot.findFirst({
+      where: { sourceId: snap.sourceId, projectId: job.projectId, sha256: sum.sha256, id: { not: job.snapshotId }, status: { in: ["ready_for_mapping", "needs_review"] }, stagingKey: { not: null } },
+      orderBy: { createdAt: "asc" },
+    });
     if (!prev) return false;
-    await tx.query(
-      `UPDATE source_snapshots s SET status = p.status, staging_key = p.staging_key, report_key = p.report_key, format = p.format, encoding = p.encoding,
-              delimiter = p.delimiter, row_count = p.row_count, invalid_row_count = p.invalid_row_count, columns = p.columns, preview = p.preview,
-              suggested_mapping = p.suggested_mapping, review_reasons = p.review_reasons, reused_from = p.id, updated_at = now()
-         FROM source_snapshots p WHERE s.id = $1 AND p.id = $2`,
-      [job.snapshotId, prev.id],
-    );
+    await tx.sourceSnapshot.update({
+      where: { id: job.snapshotId },
+      data: {
+        status: prev.status, stagingKey: prev.stagingKey, reportKey: prev.reportKey, format: prev.format, encoding: prev.encoding, delimiter: prev.delimiter,
+        rowCount: prev.rowCount, invalidRowCount: prev.invalidRowCount, columns: dbJson(prev.columns), preview: dbJson(prev.preview),
+        suggestedMapping: dbJson(prev.suggestedMapping), reviewReasons: dbJson(prev.reviewReasons), reusedFrom: prev.id, updatedAt: new Date(),
+      },
+    });
     await audit(tx, { projectId: job.projectId, actorId: job.requestedBy, action: "snapshot.reuse", objectType: "snapshot", objectId: job.snapshotId, correlationId: job.correlationId, metadata: { reusedFrom: prev.id, sha256: sum.sha256 } });
     return true;
   });
@@ -80,29 +78,36 @@ export async function verifySnapshot(job: JobRef & { snapshotId: string }): Prom
   return {
     kind: "ingest",
     input: IngestSnapshotInput.parse({
-      projectId: job.projectId, snapshotId: job.snapshotId, rawKey: snap.raw_key,
-      stagingKey: `${base}/parsed.parquet`, reportKey: `${base}/ingest.json`, fileName: snap.file_name, maxBytes: MAX_UPLOAD_BYTES,
+      projectId: job.projectId, snapshotId: job.snapshotId, rawKey: snap.rawKey,
+      stagingKey: `${base}/parsed.parquet`, reportKey: `${base}/ingest.json`, fileName: snap.fileName, maxBytes: MAX_UPLOAD_BYTES,
     }),
   };
 }
 
+/** Whether the project's status changed after an upload/run started (shown as a warning on the result). */
+const statusChangedSince = async (projectId: string, since: Date | null) => {
+  const p = await db().project.findUniqueOrThrow({ where: { id: projectId }, select: { statusChangedAt: true } });
+  return !!since && p.statusChangedAt > since;
+};
+
 export async function saveIngestReport(job: JobRef & { snapshotId: string; stagingKey: string; reportKey: string }): Promise<string> {
   const report = IngestReport.parse(await getJson(job.projectId, job.reportKey));
-  await withTx(db(), async (tx) => {
-    await tx.query(
-      `UPDATE source_snapshots s SET status = $3, staging_key = $4, report_key = $5, format = $6, encoding = $7, delimiter = $8, row_count = $9,
-              invalid_row_count = $10, columns = $11, preview = $12, suggested_mapping = $13, review_reasons = $14, error_code = $15, error_message = $16,
-              project_status_changed = coalesce((SELECT p.status_changed_at > s.upload_completed_at FROM projects p WHERE p.id = s.project_id), false),
-              updated_at = now()
-        WHERE s.id = $1 AND s.project_id = $2`,
-      [job.snapshotId, job.projectId, report.status, report.status === "failed" ? null : job.stagingKey, job.reportKey, report.format, report.encoding, report.delimiter,
-        report.rowCount, report.invalidRowCount, JSON.stringify(report.columns), JSON.stringify(report.preview), JSON.stringify(report.suggestedMapping),
-        JSON.stringify(report.reviewReasons), report.errorCode, report.errorMessage],
-    );
-    await tx.query("DELETE FROM ingest_error_samples WHERE snapshot_id = $1", [job.snapshotId]);
-    for (const s of report.errorSamples) {
-      await tx.query("INSERT INTO ingest_error_samples (project_id, snapshot_id, row_number, message) VALUES ($1, $2, $3, $4)", [job.projectId, job.snapshotId, s.row, s.message]);
-    }
+  const snap = await db().sourceSnapshot.findFirst({ where: { id: job.snapshotId, projectId: job.projectId }, select: { uploadCompletedAt: true } });
+  const projectStatusChanged = snap ? await statusChangedSince(job.projectId, snap.uploadCompletedAt) : false;
+  await withTx(async (tx) => {
+    await tx.sourceSnapshot.updateMany({
+      where: { id: job.snapshotId, projectId: job.projectId },
+      data: {
+        status: report.status, stagingKey: report.status === "failed" ? null : job.stagingKey, reportKey: job.reportKey, format: report.format, encoding: report.encoding,
+        delimiter: report.delimiter, rowCount: report.rowCount == null ? null : BigInt(report.rowCount), invalidRowCount: report.invalidRowCount == null ? null : BigInt(report.invalidRowCount),
+        columns: dbJson(report.columns), preview: dbJson(report.preview), suggestedMapping: dbJson(report.suggestedMapping), reviewReasons: dbJson(report.reviewReasons),
+        errorCode: report.errorCode, errorMessage: report.errorMessage, projectStatusChanged, updatedAt: new Date(),
+      },
+    });
+    await tx.ingestErrorSample.deleteMany({ where: { snapshotId: job.snapshotId } });
+    await tx.ingestErrorSample.createMany({
+      data: report.errorSamples.map((s) => ({ projectId: job.projectId, snapshotId: job.snapshotId, rowNumber: s.row == null ? null : BigInt(s.row), message: s.message })),
+    });
     await audit(tx, { projectId: job.projectId, actorId: job.requestedBy, action: "snapshot.ingest", objectType: "snapshot", objectId: job.snapshotId, result: report.status === "failed" ? "failed" : "success", correlationId: job.correlationId, metadata: { status: report.status, format: report.format, rows: report.rowCount } });
   });
   return report.status;
@@ -119,70 +124,70 @@ export async function loadDatasetBuild(job: JobRef & { datasetVersionId: string 
   try {
     await authorizeJob(job, "data.write");
   } catch {
-    await db().query("UPDATE dataset_versions SET status = 'failed', error_message = 'Proyek tidak aktif atau akses dicabut' WHERE id = $1 AND project_id = $2 AND status IN ('draft', 'processing')", [job.datasetVersionId, job.projectId]);
+    await db().datasetVersion.updateMany({
+      where: { id: job.datasetVersionId, projectId: job.projectId, status: { in: ["draft", "processing"] } }, data: { status: "failed", errorMessage: "Proyek tidak aktif atau akses dicabut" },
+    });
     return null;
   }
-  const row = (await db().query(
-    `SELECT d.id, d.source_id, d.snapshot_id, d.mapping_version_id, d.events_key, d.cases_key, d.report_key, d.status,
-            s.staging_key, s.status AS snapshot_status, m.config, p.contract_start, p.contract_end
-       FROM dataset_versions d JOIN source_snapshots s ON s.id = d.snapshot_id JOIN mapping_versions m ON m.id = d.mapping_version_id
-       JOIN projects p ON p.id = d.project_id
-      WHERE d.id = $1 AND d.project_id = $2`,
-    [job.datasetVersionId, job.projectId],
-  )).rows[0];
+  const row = await db().datasetVersion.findFirst({
+    where: { id: job.datasetVersionId, projectId: job.projectId },
+    select: {
+      id: true, sourceId: true, snapshotId: true, mappingVersionId: true, eventsKey: true, casesKey: true, reportKey: true, status: true,
+      snapshot: { select: { stagingKey: true, status: true } }, mappingVersion: { select: { config: true } }, project: { select: { contractStart: true, contractEnd: true } },
+    },
+  });
   if (!row) throw ApplicationFailure.nonRetryable("dataset not found in project", "NotFound");
   if (row.status !== "processing" && row.status !== "draft") return null;
-  if (row.snapshot_status !== "ready_for_mapping" || !row.staging_key) throw ApplicationFailure.nonRetryable("snapshot is not ready for mapping", "SnapshotNotReady");
-  await db().query("UPDATE dataset_versions SET status = 'processing' WHERE id = $1 AND status = 'draft'", [job.datasetVersionId]);
+  if (row.snapshot.status !== "ready_for_mapping" || !row.snapshot.stagingKey) throw ApplicationFailure.nonRetryable("snapshot is not ready for mapping", "SnapshotNotReady");
+  await db().datasetVersion.updateMany({ where: { id: job.datasetVersionId, status: "draft" }, data: { status: "processing" } });
   return BuildDatasetInput.parse({
-    projectId: job.projectId, datasetVersionId: row.id, sourceId: row.source_id, snapshotId: row.snapshot_id, mappingVersionId: row.mapping_version_id,
-    stagingKey: row.staging_key, eventsKey: row.events_key, casesKey: row.cases_key, reportKey: row.report_key, config: MappingConfig.parse(row.config),
-    projectPeriod: { start: row.contract_start, end: row.contract_end },
+    projectId: job.projectId, datasetVersionId: row.id, sourceId: row.sourceId, snapshotId: row.snapshotId, mappingVersionId: row.mappingVersionId,
+    stagingKey: row.snapshot.stagingKey, eventsKey: row.eventsKey, casesKey: row.casesKey, reportKey: row.reportKey, config: MappingConfig.parse(row.mappingVersion.config),
+    projectPeriod: { start: day(row.project.contractStart), end: day(row.project.contractEnd) },
     processBoundary: await activeProcessBoundary(job.projectId),
   });
 }
 
-/** F03 supplies the boundary once a context package is active; until then incomplete-case checks stay off. */
+/** The active context package supplies the boundary; until one is active, incomplete-case checks stay off. */
 async function activeProcessBoundary(projectId: string): Promise<{ startActivities: string[]; endActivities: string[] } | null> {
-  const exists = (await db().query("SELECT to_regclass('context_packages') IS NOT NULL AS ok")).rows[0]?.ok;
-  if (!exists) return null;
-  const row = (await db().query(
-    `SELECT b.payload->'startActivities' AS start_activities, b.payload->'endActivities' AS end_activities FROM context_packages c JOIN process_boundaries b ON b.id = c.process_boundary_id
-      WHERE c.project_id = $1 AND c.status = 'active' ORDER BY c.activated_at DESC LIMIT 1`,
-    [projectId],
-  )).rows[0];
-  return row ? { startActivities: row.start_activities, endActivities: row.end_activities } : null;
+  const pkg = await db().contextPackage.findFirst({ where: { projectId, status: "active" }, orderBy: { activatedAt: "desc" }, select: { processBoundary: { select: { payload: true } } } });
+  if (!pkg) return null;
+  const b = jsonAs<{ startActivities: string[]; endActivities: string[] }>(pkg.processBoundary.payload);
+  return { startActivities: b.startActivities, endActivities: b.endActivities };
 }
 
 export async function saveDatasetReport(job: JobRef & { datasetVersionId: string; reportKey: string }): Promise<string> {
   const report = BuildDatasetReport.parse(await getJson(job.projectId, job.reportKey));
-  await withTx(db(), async (tx) => {
-    await tx.query(
-      `UPDATE dataset_versions SET status = 'quality_review', quality_status = $3, event_count = $4, case_count = $5, excluded_event_count = $6,
-              activity_labels = $7, period_start = $8, period_end = $9, processed_at = now(), error_message = NULL
-        WHERE id = $1 AND project_id = $2 AND status = 'processing'`,
-      [job.datasetVersionId, job.projectId, report.qualityStatus, report.eventCount, report.caseCount, report.excludedEventCount,
-        JSON.stringify(report.activityLabels), report.periodStart, report.periodEnd],
-    );
-    await tx.query("DELETE FROM quality_findings WHERE dataset_version_id = $1", [job.datasetVersionId]);
-    for (const f of report.findings) {
-      await tx.query(
-        `INSERT INTO quality_findings (project_id, dataset_version_id, check_key, severity, event_count, case_count, event_share, case_share, excluded_event_count, samples)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-        [job.projectId, job.datasetVersionId, f.check, f.severity, f.eventCount, f.caseCount, f.eventShare, f.caseShare, f.excludedEventCount, JSON.stringify(f.samples)],
-      );
-    }
-    await tx.query(
-      `INSERT INTO capability_matrix (dataset_version_id, project_id, capabilities) VALUES ($1, $2, $3)
-       ON CONFLICT (dataset_version_id) DO UPDATE SET capabilities = EXCLUDED.capabilities`,
-      [job.datasetVersionId, job.projectId, JSON.stringify(report.capabilities)],
-    );
+  const date = (s: string | null) => (s ? new Date(s) : null);
+  await withTx(async (tx) => {
+    await tx.datasetVersion.updateMany({
+      where: { id: job.datasetVersionId, projectId: job.projectId, status: "processing" },
+      data: {
+        status: "quality_review", qualityStatus: report.qualityStatus, eventCount: BigInt(report.eventCount), caseCount: BigInt(report.caseCount),
+        excludedEventCount: BigInt(report.excludedEventCount), activityLabels: report.activityLabels, periodStart: date(report.periodStart), periodEnd: date(report.periodEnd),
+        processedAt: new Date(), errorMessage: null,
+      },
+    });
+    await tx.qualityFinding.deleteMany({ where: { datasetVersionId: job.datasetVersionId } });
+    await tx.qualityFinding.createMany({
+      data: report.findings.map((f) => ({
+        projectId: job.projectId, datasetVersionId: job.datasetVersionId, checkKey: f.check, severity: f.severity, eventCount: BigInt(f.eventCount), caseCount: BigInt(f.caseCount),
+        eventShare: f.eventShare, caseShare: f.caseShare, excludedEventCount: BigInt(f.excludedEventCount), samples: f.samples,
+      })),
+    });
+    await tx.capabilityMatrix.upsert({
+      where: { datasetVersionId: job.datasetVersionId },
+      create: { datasetVersionId: job.datasetVersionId, projectId: job.projectId, capabilities: report.capabilities },
+      update: { capabilities: report.capabilities },
+    });
     await audit(tx, { projectId: job.projectId, actorId: job.requestedBy, action: "dataset.process", objectType: "dataset_version", objectId: job.datasetVersionId, correlationId: job.correlationId, metadata: { quality: report.qualityStatus, events: report.eventCount } });
   });
   return report.qualityStatus;
 }
 
 export async function markDatasetFailed(job: JobRef & { datasetVersionId: string; message: string }): Promise<void> {
-  await db().query("UPDATE dataset_versions SET status = 'failed', error_message = $3 WHERE id = $1 AND project_id = $2 AND status IN ('draft', 'processing')", [job.datasetVersionId, job.projectId, job.message.slice(0, 500)]);
+  await db().datasetVersion.updateMany({
+    where: { id: job.datasetVersionId, projectId: job.projectId, status: { in: ["draft", "processing"] } }, data: { status: "failed", errorMessage: job.message.slice(0, 500) },
+  });
   await audit(db(), { projectId: job.projectId, actorId: job.requestedBy, action: "dataset.process", objectType: "dataset_version", objectId: job.datasetVersionId, result: "failed", correlationId: job.correlationId, metadata: { message: job.message.slice(0, 500) } });
 }

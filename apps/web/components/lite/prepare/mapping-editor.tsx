@@ -1,5 +1,6 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import type { MappingConfig, PreviewMappingResult } from "@nora/contracts";
@@ -7,7 +8,8 @@ import { Button } from "@/components/base/buttons/button";
 import { Input } from "@/components/base/input/input";
 import { NativeSelect } from "@/components/base/select/select-native";
 import { cx } from "@/utils/cx";
-import { api, errorText } from "../api";
+import { useTRPC } from "@/lib/trpc/client";
+import { attempt, errorText } from "../api";
 
 type Columns = MappingConfig["columns"];
 const NONE = "";
@@ -54,6 +56,10 @@ function initialConfig(p: MappingEditorProps): MappingConfig {
 
 export function MappingEditor(p: MappingEditorProps) {
   const router = useRouter();
+  const trpc = useTRPC();
+  const previewMapping = useMutation(trpc.mappings.preview.mutationOptions());
+  const createMapping = useMutation(trpc.mappings.create.mutationOptions());
+  const prepareDataset = useMutation(trpc.datasets.prepare.mutationOptions());
   const [cfg, setCfg] = useState<MappingConfig>(() => initialConfig(p));
   const [preview, setPreview] = useState<PreviewMappingResult | null>(null);
   const [labels, setLabels] = useState<Record<string, string>>(() => ({ ...cfg.labelMap }));
@@ -84,7 +90,7 @@ export function MappingEditor(p: MappingEditorProps) {
   async function runPreview() {
     setBusy("preview");
     setError(null);
-    const res = await api<PreviewMappingResult>(`/projects/${p.projectId}/mappings/draft/preview`, { body: { snapshotId: p.snapshotId, config: finalConfig() } });
+    const res = await attempt(previewMapping.mutateAsync({ projectId: p.projectId, mappingId: "draft", snapshotId: p.snapshotId, config: finalConfig() }));
     setBusy(null);
     if (!res.ok) return setError(errorText(res.error));
     setPreview(res.data);
@@ -93,9 +99,9 @@ export function MappingEditor(p: MappingEditorProps) {
   async function saveAndProcess() {
     setBusy("save");
     setError(null);
-    const m = await api<{ id: string }>(`/projects/${p.projectId}/mappings`, { body: { sourceId: p.sourceId, config: finalConfig() } });
+    const m = await attempt(createMapping.mutateAsync({ projectId: p.projectId, sourceId: p.sourceId, config: finalConfig() }));
     if (!m.ok) { setBusy(null); return setError(errorText(m.error)); }
-    const d = await api<{ id: string }>(`/projects/${p.projectId}/datasets`, { body: { snapshotId: p.snapshotId, mappingVersionId: m.data.id } });
+    const d = await attempt(prepareDataset.mutateAsync({ projectId: p.projectId, snapshotId: p.snapshotId, mappingVersionId: m.data.id }));
     setBusy(null);
     if (!d.ok) return setError(errorText(d.error));
     router.push(`/lite/projects/${p.projectId}/prepare/datasets/${d.data.id}`);

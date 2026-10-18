@@ -48,7 +48,7 @@ export default async function ComparePage({ params, searchParams }: { params: Pr
               {cmp.candidates.map((c) => (
                 <th key={c.linkId} className="px-3 py-2 align-top">
                   <p className="font-semibold">{c.action}</p>
-                  <p className="mt-1 flex flex-wrap gap-1"><StatePill tone={VALIDATION[c.status]?.tone ?? "neutral"}>{VALIDATION[c.status]?.label ?? c.status}</StatePill>{c.stale && <StatePill tone="warning">usang</StatePill>}</p>
+                  <p className="mt-1 flex flex-wrap gap-1"><StatePill tone={VALIDATION[c.status ?? ""]?.tone ?? "neutral"}>{VALIDATION[c.status ?? ""]?.label ?? c.status}</StatePill>{c.stale && <StatePill tone="warning">usang</StatePill>}</p>
                   <p className="mt-1 text-xs font-normal text-ink-3">{c.origin === "catalog" ? `Dari katalog · ${c.candidateKey} v${c.candidateVersion}` : c.origin}</p>
                 </th>
               ))}

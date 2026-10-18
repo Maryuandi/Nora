@@ -1,10 +1,12 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { cx } from "@/utils/cx";
 import { formatDateTime } from "@/lib/lite/format";
-import { api, errorText } from "../api";
+import { useTRPC } from "@/lib/trpc/client";
+import { errorText, toApiError } from "../api";
 import { CaseList, CaseTimeline, type CaseSort } from "../analysis/cases";
 
 export function FindingCases({ projectId, findingId, datasetId, type, timezone }: { projectId: string; findingId: string; datasetId: string; type: string; timezone: string }) {
@@ -16,7 +18,7 @@ export function FindingCases({ projectId, findingId, datasetId, type, timezone }
   const support = type === "bottleneck_indication" ? { label: "Tunggu transisi", unit: "seconds" as const } : type === "high_rework" ? { label: "Pengulangan", unit: "count" as const } : undefined;
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-      <CaseList projectId={projectId} endpoint={`/findings/${findingId}/cases`} query="" sorts={sorts} support={support} onOpen={setOpen} openUid={open} timezone={timezone} />
+      <CaseList projectId={projectId} source={{ findingId }} sorts={sorts} support={support} onOpen={setOpen} openUid={open} timezone={timezone} />
       {open && <CaseTimeline projectId={projectId} datasetId={datasetId} caseUid={open} timezone={timezone} onClose={() => setOpen(null)} />}
     </div>
   );
@@ -54,11 +56,9 @@ function Node({ n, depth, timezone }: { n: LineageNode; depth: number; timezone:
 
 /** Lineage tree by default; loads on its own so a slow or failing panel never blocks the finding. */
 export function LineagePanel({ projectId, findingId, timezone }: { projectId: string; findingId: string; timezone: string }) {
-  const [tree, setTree] = useState<LineageNode | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    api<{ tree: LineageNode }>(`/projects/${projectId}/findings/${findingId}/lineage`).then((r) => (r.ok ? setTree(r.data.tree) : setError(errorText(r.error))));
-  }, [projectId, findingId]);
+  const q = useQuery(useTRPC().findings.lineage.queryOptions({ projectId, findingId }));
+  const tree: LineageNode | undefined = q.data?.tree;
+  const error = q.error ? errorText(toApiError(q.error)) : null;
   if (error) return <p role="alert" className="text-sm text-error-primary">Jejak bukti gagal dimuat: {error}</p>;
   if (!tree) return <p className="text-sm text-ink-3" role="status">Memuat jejak bukti…</p>;
   return (

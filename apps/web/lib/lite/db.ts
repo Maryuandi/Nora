@@ -1,14 +1,11 @@
 import "server-only";
-import { createPool, withTx as runTx, type Tx } from "@nora/db";
-import type pg from "pg";
+import { createPrisma, type PrismaClient, type Tx } from "@nora/db";
 
-// One pool per server process; dev HMR re-evaluates modules, so keep it on globalThis.
-const g = globalThis as unknown as { __noraLitePool?: pg.Pool };
+// One client per server process; dev HMR re-evaluates modules, so keep it on globalThis.
+const g = globalThis as typeof globalThis & { __noraPrisma?: PrismaClient };
 
-export function db(): pg.Pool {
-  g.__noraLitePool ??= createPool();
-  return g.__noraLitePool;
-}
+export const db = (): PrismaClient => (g.__noraPrisma ??= createPrisma());
 
-export const withTx = <T>(fn: (tx: Tx) => Promise<T>) => runTx(db(), fn);
+/** Runs fn in one transaction: an audit write that fails rolls the mutation back with it. */
+export const withTx = <T>(fn: (tx: Tx) => Promise<T>) => db().$transaction(fn);
 export type { Tx };

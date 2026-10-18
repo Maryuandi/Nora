@@ -1,5 +1,6 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { Fragment, useState } from "react";
 import { Button } from "@/components/base/buttons/button";
@@ -9,7 +10,8 @@ import { TextArea } from "@/components/base/textarea/textarea";
 import { cx } from "@/utils/cx";
 import { StatePill } from "../badges";
 import { RELEVANCE_LABEL, VALIDATION } from "./labels";
-import { api, errorText } from "../api";
+import { useTRPC } from "@/lib/trpc/client";
+import { attempt, errorText } from "../api";
 import { AutoRefresh } from "../auto-refresh";
 
 const CHECK_LABEL: Record<string, string> = {
@@ -19,7 +21,7 @@ const CHECK_LABEL: Record<string, string> = {
 const COMPONENT_LABEL: Record<string, string> = { relevance: "Relevansi", problemMagnitude: "Besaran masalah", evidenceConfidence: "Keyakinan bukti", effort: "Effort", risk: "Risiko" };
 
 export interface CandidateRow {
-  id: string; candidateType: string; candidateKey: string; candidateVersion: number; origin: string; action: string; status: string | null; stale: boolean;
+  id: string; candidateType: string; candidateKey: string; candidateVersion: number; origin: string; action: string | null; status: string | null; stale: boolean | null;
   score: number | null; rank: number | null; partial: boolean | null; missing: string[] | null; components: Record<string, { value: number | null; source: string | null }> | null;
   policyVersion: number | null; checks: { key: string; status: string; failureStatus: string | null; reason: string }[]; conclusion: string | null; correctedConclusion: string | null; totalScore: number | null;
   evidenceBundleId: string | null; assessmentId: string | null; validatedAt: string | null;
@@ -36,11 +38,12 @@ export function CandidateBoard({ projectId, findingId, candidates, set, catalogS
   const [error, setError] = useState<string | null>(null);
   const running = set?.status === "queued" || set?.status === "validating";
   const shown = all ? candidates : candidates.filter((c) => c.status === "validated" || c.status === "needs_review");
+  const refreshMutation = useMutation(useTRPC().recommendations.refresh.mutationOptions());
   const toggle = (id: string) => setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : s.length >= 4 ? s : [...s, id]));
 
   async function refresh() {
     setBusy(true);
-    const r = await api(`/projects/${projectId}/findings/${findingId}/recommendations/refresh`, { body: {} });
+    const r = await attempt(refreshMutation.mutateAsync({ projectId, findingId }));
     setBusy(false);
     if (!r.ok) return setError(errorText(r.error));
     router.refresh();
@@ -123,6 +126,7 @@ export function AnalystCandidateForm({ projectId, findingId }: { projectId: stri
   const [f, setF] = useState({ description: "", addressedProblem: "", successMetric: "", sourceReason: "", ownerRole: "", effort: "", risk: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [msg, setMsg] = useState<string | null>(null);
+  const addCandidate = useMutation(useTRPC().recommendations.addCandidate.mutationOptions());
   const set = (k: keyof typeof f) => (v: string) => setF({ ...f, [k]: v });
   const scale = [{ value: "", label: "Tidak diketahui" }, ...[1, 2, 3, 4, 5].map((n) => ({ value: String(n), label: String(n) }))];
   return (
@@ -141,7 +145,7 @@ export function AnalystCandidateForm({ projectId, findingId }: { projectId: stri
         <div className="flex items-center justify-end gap-2">
           {msg && <p role="status" className="mr-auto text-sm text-ink-2">{msg}</p>}
           <Button size="xs" color="primary" onClick={async () => {
-            const r = await api(`/projects/${projectId}/candidates`, { body: { ...f, findingId, effort: f.effort ? Number(f.effort) : null, risk: f.risk ? Number(f.risk) : null } });
+            const r = await attempt(addCandidate.mutateAsync({ projectId, candidate: { ...f, findingId, effort: f.effort ? Number(f.effort) : null, risk: f.risk ? Number(f.risk) : null } }));
             if (!r.ok) { setErrors(r.error.details ?? {}); setMsg(r.error.details ? null : errorText(r.error)); return; }
             setErrors({});
             setMsg("Kandidat tersimpan. Jalankan validasi ulang untuk menilainya.");
@@ -157,6 +161,7 @@ export function AnalystCandidateForm({ projectId, findingId }: { projectId: stri
 export function PolicyEditor({ projectId, weights, version, canWrite }: { projectId: string; weights: Record<string, number>; version: number; canWrite: boolean }) {
   const [w, setW] = useState(Object.fromEntries(Object.entries(weights).map(([k, v]) => [k, String(v)])));
   const [msg, setMsg] = useState<string | null>(null);
+  const savePolicy = useMutation(useTRPC().recommendations.savePolicy.mutationOptions());
   return (
     <details className="rounded-lg border border-line bg-white px-5 py-3 shadow-card">
       <summary className="cursor-pointer text-sm font-semibold">Advanced: kebijakan prioritas (v{version})</summary>
@@ -168,7 +173,7 @@ export function PolicyEditor({ projectId, weights, version, canWrite }: { projec
         <div className="flex items-center justify-end gap-2">
           {msg && <p role="status" className="mr-auto text-sm text-ink-2">{msg}</p>}
           {canWrite && <Button size="xs" color="secondary" onClick={async () => {
-            const r = await api<{ version: number }>(`/projects/${projectId}/priority-policy`, { method: "PUT", body: Object.fromEntries(Object.entries(w).map(([k, v]) => [k, Number(v)])) });
+            const r = await attempt(savePolicy.mutateAsync({ projectId, weights: Object.fromEntries(Object.entries(w).map(([k, v]) => [k, Number(v)])) }));
             setMsg(r.ok ? `Kebijakan v${r.data.version} tersimpan; validasi ulang untuk menghitung skor baru.` : errorText(r.error));
           }}>Simpan kebijakan</Button>}
         </div>

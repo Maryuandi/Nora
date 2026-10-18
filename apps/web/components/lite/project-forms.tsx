@@ -1,5 +1,6 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/base/buttons/button";
@@ -8,7 +9,8 @@ import { NativeSelect } from "@/components/base/select/select-native";
 import { TextArea } from "@/components/base/textarea/textarea";
 import { Card } from "@/components/nora/card";
 import { FormSection } from "@/components/nora/form-section";
-import { api, errorText } from "./api";
+import { useTRPC } from "@/lib/trpc/client";
+import { attempt, errorText } from "./api";
 
 type Values = Record<string, string>;
 
@@ -19,10 +21,10 @@ function useFields<T extends Values>(initial: T) {
   const [busy, setBusy] = useState(false);
   const set = (k: keyof T & string) => (v: string) => { setValues((s) => ({ ...s, [k]: v })); setErrors((e) => ({ ...e, [k]: undefined })); };
   const field = (k: keyof T & string) => ({ value: values[k], onChange: set(k), isInvalid: !!errors[k], hint: errors[k] });
-  async function send(path: string, method: string, body: unknown) {
+  async function send<R>(request: () => Promise<R>) {
     setBusy(true);
     setError(null);
-    const res = await api<{ id: string }>(path, { method, body });
+    const res = await attempt(request());
     setBusy(false);
     if (!res.ok) {
       setErrors(res.error.details ?? {});
@@ -36,8 +38,9 @@ function useFields<T extends Values>(initial: T) {
 export function ClientForm() {
   const router = useRouter();
   const f = useFields({ name: "", sector: "", contact: "" });
+  const create = useMutation(useTRPC().clients.create.mutationOptions());
   return (
-    <form noValidate className="px-8 py-6" onSubmit={async (e) => { e.preventDefault(); if ((await f.send("/clients", "POST", f.values)).ok) router.push("/lite/projects/new"); }}>
+    <form noValidate className="px-8 py-6" onSubmit={async (e) => { e.preventDefault(); if ((await f.send(() => create.mutateAsync(f.values))).ok) router.push("/lite/projects/new"); }}>
       <Card className="max-w-[880px] px-6">
         <FormSection title="Klien" description="Perusahaan pemilik proses yang dianalisis.">
           <Input label="Nama klien" {...f.field("name")} isRequired />
@@ -92,10 +95,11 @@ export function NewProjectForm({ clients }: { clients: { id: string; name: strin
     clientId: clients[0]?.id ?? "", name: "", description: "", processName: "", timezone: "Asia/Jakarta",
     contractStart: "", contractEnd: "", retentionPolicy: "Hapus 2 tahun setelah kontrak berakhir",
   });
+  const create = useMutation(useTRPC().projects.create.mutationOptions());
   return (
     <form noValidate className="px-8 py-6" onSubmit={async (e) => {
       e.preventDefault();
-      const res = await f.send("/projects", "POST", f.values);
+      const res = await f.send(() => create.mutateAsync(f.values));
       if (res.ok) { router.push(`/lite/projects/${res.data.id}`); router.refresh(); }
     }}>
       <Card className="max-w-[880px] px-6">
@@ -116,12 +120,13 @@ export function NewProjectForm({ clients }: { clients: { id: string; name: strin
 export function EditProjectForm({ projectId, initial, readOnly }: { projectId: string; initial: ProjectFormValues; readOnly: boolean }) {
   const router = useRouter();
   const f = useFields<ProjectFormValues>(initial);
+  const update = useMutation(useTRPC().projects.update.mutationOptions());
   const [saved, setSaved] = useState(false);
   return (
     <form noValidate onSubmit={async (e) => {
       e.preventDefault();
       setSaved(false);
-      if ((await f.send(`/projects/${projectId}`, "PATCH", f.values)).ok) { setSaved(true); router.refresh(); }
+      if ((await f.send(() => update.mutateAsync({ projectId, ...f.values }))).ok) { setSaved(true); router.refresh(); }
     }}>
       <fieldset disabled={readOnly}>
         <Card className="px-6">

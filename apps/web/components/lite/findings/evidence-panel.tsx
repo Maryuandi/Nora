@@ -2,12 +2,14 @@
 
 import "@xyflow/react/dist/style.css";
 import dagre from "@dagrejs/dagre";
-import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { BaseEdge, EdgeLabelRenderer, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, getBezierPath, type Edge, type EdgeProps, type Node, type NodeProps } from "@xyflow/react";
 import { formatDateTime } from "@/lib/lite/format";
 import { cx } from "@/utils/cx";
 import { StatePill } from "../badges";
-import { api, errorText } from "../api";
+import { useTRPC } from "@/lib/trpc/client";
+import { errorText, toApiError } from "../api";
 import { CATEGORY, LineagePanel } from "./finding-panels";
 
 type Cat = "lineage" | "observation" | "hypothesis" | "review";
@@ -53,14 +55,11 @@ function CatEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targe
 }
 
 function GraphView({ projectId, findingId, timezone }: { projectId: string; findingId: string; timezone: string }) {
-  const [g, setG] = useState<Neighborhood | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [sel, setSel] = useState<GNode | null>(null);
   const [depth, setDepth] = useState(1); // depth 2 pulls in every activity of the run; opt in
-  useEffect(() => {
-    setG(null);
-    api<Neighborhood>(`/projects/${projectId}/graph/neighborhood?type=Finding&id=${findingId}&depth=${depth}`).then((r) => (r.ok ? setG(r.data) : setError(errorText(r.error))));
-  }, [projectId, findingId, depth]);
+  const q = useQuery(useTRPC().graph.neighborhood.queryOptions({ projectId, type: "Finding", id: findingId, depth }));
+  const g: Neighborhood | undefined = q.data;
+  const error = q.error ? errorText(toApiError(q.error)) : null;
   const flow = useMemo(() => {
     if (!g) return null;
     const dg = new dagre.graphlib.Graph();
@@ -110,8 +109,7 @@ interface BundleRow { id: string; purpose: string; hash: string; contextLimited:
 interface BundleItem { ordinal: number; itemType: string; itemId: string; itemVersion: string | null; relationPath: string; priority: number; included: boolean; exclusionReason: string | null; estimatedTokens: number; content: Record<string, unknown> | null }
 
 function BundleView({ projectId, id }: { projectId: string; id: string }) {
-  const [b, setB] = useState<{ items: BundleItem[]; hash: string; graphSequence: number; contextLimited: boolean; contextMaybeStale: boolean } | null>(null);
-  useEffect(() => { api<typeof b>(`/projects/${projectId}/evidence-bundles/${id}`).then((r) => r.ok && setB(r.data)); }, [projectId, id]);
+  const b: { items: BundleItem[]; hash: string; graphSequence: number; contextLimited: boolean; contextMaybeStale: boolean } | undefined = useQuery(useTRPC().graph.bundle.queryOptions({ projectId, bundleId: id })).data;
   if (!b) return <p className="text-xs text-ink-3">Memuat paket…</p>;
   return (
     <div className="mt-2 overflow-x-auto">
@@ -134,9 +132,9 @@ function BundleView({ projectId, id }: { projectId: string; id: string }) {
 }
 
 function Bundles({ projectId, findingId }: { projectId: string; findingId: string }) {
-  const [rows, setRows] = useState<BundleRow[] | null>(null);
   const [open, setOpen] = useState<string | null>(null);
-  useEffect(() => { api<{ bundles: BundleRow[] }>(`/projects/${projectId}/evidence-bundles?targetId=${findingId}`).then((r) => setRows(r.ok ? r.data.bundles : [])); }, [projectId, findingId]);
+  const q = useQuery(useTRPC().graph.bundles.queryOptions({ projectId, targetId: findingId }));
+  const rows: BundleRow[] | null = q.data?.bundles ?? (q.isError ? [] : null);
   if (!rows) return <p className="text-sm text-ink-3">Memuat…</p>;
   if (!rows.length) return <p className="text-sm text-ink-2">Belum ada paket bukti. Paket dibentuk otomatis saat penilaian Jev atau interpretasi diminta.</p>;
   return (
@@ -158,8 +156,7 @@ function Bundles({ projectId, findingId }: { projectId: string; findingId: strin
 
 export function EvidencePanel({ projectId, findingId, timezone }: { projectId: string; findingId: string; timezone: string }) {
   const [tab, setTab] = useState<"tree" | "graph" | "bundles">("tree");
-  const [stale, setStale] = useState<{ stale: boolean; pending: number } | null>(null);
-  useEffect(() => { api<{ graph: { stale: boolean; pending: number } }>(`/projects/${projectId}/findings/${findingId}/lineage`).then((r) => r.ok && setStale(r.data.graph)); }, [projectId, findingId]);
+  const stale = useQuery(useTRPC().findings.lineage.queryOptions({ projectId, findingId })).data?.graph ?? null;
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">

@@ -1,11 +1,13 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import type { Condition } from "@nora/contracts";
 import { Button } from "@/components/base/buttons/button";
 import { Input } from "@/components/base/input/input";
 import { NativeSelect } from "@/components/base/select/select-native";
 import { TextArea } from "@/components/base/textarea/textarea";
+import { useTRPC } from "@/lib/trpc/client";
 import { ErrorLine, ItemStatus, LabelPicker, ReadyButton, useContextApi, type Item } from "./shared";
 
 const FINDING_TYPES = [{ value: "bottleneck_indication", label: "Indikasi bottleneck" }, { value: "high_rework", label: "Rework tinggi" }, { value: "rule_non_compliance", label: "Ketidakpatuhan aturan" }, { value: "bpmn_deviation", label: "Deviasi BPMN" }];
@@ -157,6 +159,7 @@ function RubricForm({ ctx, item }: { ctx: ReturnType<typeof useContextApi>; item
 
 export function CatalogPanel({ projectId, hypotheses, interventions, rubrics, labels, readOnly }: { projectId: string; hypotheses: Item[]; interventions: Item[]; rubrics: Item[]; labels: string[]; readOnly: boolean }) {
   const ctx = useContextApi(projectId);
+  const importCatalog = useMutation(useTRPC().context.importCatalog.mutationOptions());
   const [importText, setImportText] = useState("");
   const list = (items: Item[], title: (i: Item) => string, detail: (i: Item) => string) => (
     <ul className="flex flex-col gap-1.5">
@@ -198,7 +201,7 @@ export function CatalogPanel({ projectId, hypotheses, interventions, rubrics, la
               <Button size="xs" color="secondary" isDisabled={!importText.trim()} isLoading={ctx.busy === "import"} onClick={async () => {
                 let body: unknown;
                 try { body = JSON.parse(importText); } catch { return ctx.setError("JSON tidak valid"); }
-                if (await ctx.call("import", "/catalog/import", { body })) setImportText("");
+                if (await ctx.call("import", () => importCatalog.mutateAsync({ projectId, catalog: body }))) setImportText("");
               }}>Impor</Button>
             </div>
           </div>

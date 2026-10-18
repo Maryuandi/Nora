@@ -1,12 +1,14 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/base/buttons/button";
 import { Input } from "@/components/base/input/input";
 import { cx } from "@/utils/cx";
-import { api, errorText } from "../api";
+import { useTRPC } from "@/lib/trpc/client";
+import { attempt, errorText } from "../api";
 
 /** Sub-tabs of a project section; keeps ?run so the map and dashboard stay on the same analysis run. */
 export function PrepareTabs({ projectId, tabs, section = "prepare" }: { projectId: string; tabs: { label: string; path: string }[]; section?: string }) {
@@ -31,13 +33,14 @@ export function PrepareTabs({ projectId, tabs, section = "prepare" }: { projectI
 
 export function NewSourceForm({ projectId }: { projectId: string }) {
   const router = useRouter();
+  const createSource = useMutation(useTRPC().sources.create.mutationOptions());
   const [name, setName] = useState("");
   const [error, setError] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
-    const res = await api<{ id: string }>(`/projects/${projectId}/sources`, { body: { name } });
+    const res = await attempt(createSource.mutateAsync({ projectId, name }));
     setBusy(false);
     if (!res.ok) return setError(res.error.details?.name ?? errorText(res.error));
     router.push(`/lite/projects/${projectId}/prepare/sources/${res.data.id}`);
@@ -53,13 +56,14 @@ export function NewSourceForm({ projectId }: { projectId: string }) {
 
 export function PublishButton({ projectId, datasetId, enabled }: { projectId: string; datasetId: string; enabled: boolean }) {
   const router = useRouter();
+  const publish = useMutation(useTRPC().datasets.publish.mutationOptions());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   return (
     <div className="flex flex-col items-end gap-1">
       <Button color="primary" size="xs" isDisabled={!enabled} isLoading={busy} onClick={async () => {
         setBusy(true);
-        const res = await api(`/projects/${projectId}/datasets/${datasetId}/publish`, { body: {} });
+        const res = await attempt(publish.mutateAsync({ projectId, datasetId }));
         setBusy(false);
         if (!res.ok) return setError(errorText(res.error));
         router.refresh();

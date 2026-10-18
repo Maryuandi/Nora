@@ -1,12 +1,14 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { ProjectStatus } from "@nora/authz";
 import { Button } from "@/components/base/buttons/button";
 import { TextArea } from "@/components/base/textarea/textarea";
 import { NoraModal } from "@/components/nora/modal";
-import { api, errorText } from "./api";
+import { useTRPC } from "@/lib/trpc/client";
+import { attempt, errorText } from "./api";
 import { PROJECT_STATUS_LABEL } from "./badges";
 
 const CONFIRM: Partial<Record<ProjectStatus, string>> = {
@@ -22,11 +24,12 @@ export function StatusButton({ projectId, to, label, primary }: { projectId: str
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const confirm = CONFIRM[to];
+  const setStatus = useMutation(useTRPC().projects.setStatus.mutationOptions());
 
   async function run() {
     setBusy(true);
     setError(null);
-    const res = await api(`/projects/${projectId}/status`, { body: { status: to, reason } });
+    const res = await attempt(setStatus.mutateAsync({ projectId, status: to, reason }));
     setBusy(false);
     if (!res.ok) return setError(errorText(res.error));
     setOpen(false);
@@ -64,12 +67,13 @@ export function RebuildGraphButton({ projectId }: { projectId: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const rebuild = useMutation(useTRPC().graph.rebuild.mutationOptions());
   return (
     <div className="flex items-center gap-3">
       {msg && <p role="status" className="text-sm text-ink-2">{msg}</p>}
       <Button size="xs" color="secondary" isLoading={busy} onClick={async () => {
         setBusy(true);
-        const res = await api(`/projects/${projectId}/graph/rebuild`, { body: {} });
+        const res = await attempt(rebuild.mutateAsync({ projectId }));
         setBusy(false);
         setMsg(res.ok ? "Rebuild diminta; worker memproyeksikan ulang dari data otoritatif." : errorText(res.error));
         router.refresh();

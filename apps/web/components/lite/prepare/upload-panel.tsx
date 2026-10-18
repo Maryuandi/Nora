@@ -1,11 +1,13 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { UploadSimple } from "@phosphor-icons/react";
 import { Button } from "@/components/base/buttons/button";
 import { formatBytes } from "@/lib/lite/format";
-import { api, errorText } from "../api";
+import { useTRPC } from "@/lib/trpc/client";
+import { attempt, errorText } from "../api";
 
 const MAX = 2 * 1024 ** 3;
 const ACCEPT = ".csv,.xes,.gz,.zip,text/csv,application/zip,application/gzip";
@@ -25,6 +27,9 @@ function put(url: string, headers: Record<string, string>, file: File, onProgres
 
 export function UploadPanel({ projectId, sourceId }: { projectId: string; sourceId: string }) {
   const router = useRouter();
+  const trpc = useTRPC();
+  const createUpload = useMutation(trpc.sources.createUpload.mutationOptions());
+  const complete = useMutation(trpc.snapshots.complete.mutationOptions());
   const input = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
@@ -35,7 +40,7 @@ export function UploadPanel({ projectId, sourceId }: { projectId: string; source
     if (file.size > MAX) return setError("File melebihi batas 2 GiB.");
     setError(null);
     setProgress(0);
-    const init = await api<{ snapshotId: string; upload: { url: string; headers: Record<string, string> } }>(`/projects/${projectId}/sources/${sourceId}/uploads`, { body: { fileName: file.name, size: file.size } });
+    const init = await attempt(createUpload.mutateAsync({ projectId, sourceId, fileName: file.name, size: file.size }));
     if (!init.ok) { setProgress(null); return setError(errorText(init.error)); }
     try {
       const status = await put(init.data.upload.url, init.data.upload.headers, file, setProgress);
@@ -44,7 +49,7 @@ export function UploadPanel({ projectId, sourceId }: { projectId: string; source
       setProgress(null);
       return setError(e instanceof Error ? e.message : "Unggahan gagal");
     }
-    const done = await api(`/projects/${projectId}/snapshots/${init.data.snapshotId}/complete`, { body: {} });
+    const done = await attempt(complete.mutateAsync({ projectId, snapshotId: init.data.snapshotId }));
     setProgress(null);
     if (!done.ok) return setError(errorText(done.error));
     setFile(null);

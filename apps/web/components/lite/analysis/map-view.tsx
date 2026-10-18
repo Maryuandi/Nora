@@ -66,7 +66,7 @@ export function MapView({ projectId, runId, datasetId, map, timezone }: { projec
                   : selNode ? `${formatInt(selNode.caseCount)} kasus · ${formatInt(selNode.eventCount)} event · ${formatPct(selNode.caseShare)} kasus${selNode.serviceMedianSeconds != null ? ` · median service ${formatSeconds(selNode.serviceMedianSeconds)}` : ""}` : ""}
               </p>
             </div>
-            <CaseList key={query} projectId={projectId} endpoint={`/analyses/${runId}/cases`} query={query} timezone={timezone} onOpen={setOpenCase} openUid={openCase}
+            <CaseList key={query} projectId={projectId} source={selEdge ? { runId, from: selEdge.from, to: selEdge.to } : { runId, node: selNode?.id }} timezone={timezone} onOpen={setOpenCase} openUid={openCase}
               {...(selEdge && !isTerminal(selEdge.from) && !isTerminal(selEdge.to) ? { sorts: [{ value: "wait", label: "Tunggu transisi terpilih" }, ...MAP_SORTS], support: { label: "Tunggu transisi", unit: "seconds" as const } } : {})} />
           </section>
           {openCase && <CaseTimeline projectId={projectId} datasetId={datasetId} caseUid={openCase} timezone={timezone} onClose={() => setOpenCase(null)} />}

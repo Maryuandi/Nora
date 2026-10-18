@@ -53,9 +53,8 @@ export class AuthzError extends Error {
   }
 }
 
-export interface MembershipLookup {
-  query<R>(sql: string, params: unknown[]): Promise<{ rows: R[] }>;
-}
+/** Membership of an active user in a project, with the project's status; null when there is none. */
+export type MembershipLookup = (userId: string, projectId: string) => Promise<{ role: string; status: string } | null>;
 
 export interface Grant {
   userId: string;
@@ -64,22 +63,19 @@ export interface Grant {
   projectStatus: ProjectStatus;
 }
 
+const isRole = (r: string): r is Role => (ROLES as readonly string[]).includes(r);
+const isStatus = (s: string): s is ProjectStatus => (PROJECT_STATUSES as readonly string[]).includes(s);
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Checks membership on every call (no cache) so a revoked membership takes effect on the next request.
  * Non-members and unknown projects both get `not_found`: the API answers 404, never "forbidden".
  */
-export async function authorize(db: MembershipLookup, userId: string, action: Action, projectId: string): Promise<Grant> {
+export async function authorize(lookup: MembershipLookup, userId: string, action: Action, projectId: string): Promise<Grant> {
   if (!UUID.test(projectId) || !UUID.test(userId)) throw new AuthzError("not_found", "project not found");
-  const { rows } = await db.query<{ role: Role; status: ProjectStatus }>(
-    `SELECT m.role, p.status FROM memberships m JOIN projects p ON p.id = m.project_id
-      JOIN users u ON u.id = m.user_id
-      WHERE m.user_id = $1 AND m.project_id = $2 AND u.status = 'active'`,
-    [userId, projectId],
-  );
-  const row = rows[0];
-  if (!row) throw new AuthzError("not_found", "project not found");
+  const row = await lookup(userId, projectId);
+  if (!row || !isRole(row.role) || !isStatus(row.status)) throw new AuthzError("not_found", "project not found");
   if (!roleCan(row.role, action)) throw new AuthzError("forbidden", `role ${row.role} may not ${action}`);
   if (!statusAllows(row.status, action)) throw new AuthzError("project_inactive", `project is ${row.status}`);
   return { userId, projectId, role: row.role, projectStatus: row.status };

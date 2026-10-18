@@ -1,96 +1,117 @@
 import { gunzipSync } from "node:zlib";
-import { authorize, AuthzError } from "@nora/authz";
-import { withTx } from "@nora/db";
-import { ProcessAnalysisInput, ProcessAnalysisManifest, ProcessMapResult } from "@nora/contracts";
+import { AuthzError } from "@nora/authz";
+import { jsonAs } from "@nora/db";
+import { ProcessAnalysisInput, ProcessAnalysisManifest, ProcessMapResult, type MappingConfig } from "@nora/contracts";
 import { getBytes, getJson } from "@nora/storage";
-import type pg from "pg";
 import { z } from "zod";
-import { audit, db } from "../db.ts";
+import { audit, authorizeUser, db, withTx } from "../db.ts";
 import type { JobRef } from "./data.ts";
 
 export type RunJob = JobRef & { analysisRunId: string };
 
+/** Rows per INSERT; keeps every statement well under PostgreSQL's bind-parameter limit. */
+const CHUNK = 2000;
+export async function inChunks<T>(rows: T[], write: (chunk: T[]) => Promise<unknown>) {
+  for (let i = 0; i < rows.length; i += CHUNK) await write(rows.slice(i, i + CHUNK));
+}
+
 export async function loadAnalysisInput(job: RunJob): Promise<ProcessAnalysisInput | null> {
   try {
-    await authorize(db(), job.requestedBy, "analysis.run", job.projectId);
+    await authorizeUser(job.requestedBy, "analysis.run", job.projectId);
   } catch (err) {
     if (!(err instanceof AuthzError)) throw err;
-    await db().query("UPDATE analysis_runs SET status = 'failed', error_message = 'Proyek tidak aktif atau akses dicabut' WHERE id = $1 AND status = 'queued'", [job.analysisRunId]);
+    await db().analysisRun.updateMany({ where: { id: job.analysisRunId, status: "queued" }, data: { status: "failed", errorMessage: "Proyek tidak aktif atau akses dicabut" } });
     return null;
   }
-  const row = (await db().query(
-    `UPDATE analysis_runs r SET status = 'running', started_at = now()
-       FROM dataset_versions d, mapping_versions m, context_packages c
-      WHERE r.id = $1 AND r.project_id = $2 AND r.status IN ('queued', 'running')
-        AND d.id = r.dataset_version_id AND m.id = d.mapping_version_id AND c.id = r.context_package_id
-      RETURNING r.filter_spec, r.artifact_prefix, d.events_key, m.config->'columns'->'caseAttributes' AS case_attrs,
-        (SELECT json_build_object('startActivities', b.payload->'startActivities', 'endActivities', b.payload->'endActivities')
-           FROM process_boundaries b WHERE b.id = c.process_boundary_id) AS boundary`,
-    [job.analysisRunId, job.projectId],
-  )).rows[0];
-  if (!row) return null;
+  // Claims the run: only a queued (or retried running) run moves on.
+  const claimed = await db().analysisRun.updateMany({ where: { id: job.analysisRunId, projectId: job.projectId, status: { in: ["queued", "running"] } }, data: { status: "running", startedAt: new Date() } });
+  if (!claimed.count) return null;
+  const run = await db().analysisRun.findUniqueOrThrow({
+    where: { id: job.analysisRunId },
+    select: {
+      filterSpec: true, artifactPrefix: true,
+      datasetVersion: { select: { eventsKey: true, mappingVersion: { select: { config: true } } } },
+      contextPackage: { select: { processBoundary: { select: { payload: true } } } },
+    },
+  });
+  const boundary = jsonAs<{ startActivities?: string[]; endActivities?: string[] }>(run.contextPackage.processBoundary.payload);
   return ProcessAnalysisInput.parse({
-    projectId: job.projectId, analysisRunId: job.analysisRunId, eventsKey: row.events_key, artifactPrefix: row.artifact_prefix,
-    filter: row.filter_spec, boundary: row.boundary, caseAttributeKeys: row.case_attrs ?? [],
+    projectId: job.projectId, analysisRunId: job.analysisRunId, eventsKey: run.datasetVersion.eventsKey, artifactPrefix: run.artifactPrefix,
+    filter: run.filterSpec, boundary: { startActivities: boundary.startActivities ?? null, endActivities: boundary.endActivities ?? null },
+    caseAttributeKeys: jsonAs<Partial<MappingConfig>>(run.datasetVersion.mappingVersion.config).columns?.caseAttributes ?? [],
   });
 }
 
-async function insertRows(tx: pg.PoolClient, table: string, columns: string[], types: string[], rows: unknown[][]) {
-  for (let i = 0; i < rows.length; i += 5000) {
-    const chunk = rows.slice(i, i + 5000);
-    const arrays = columns.map((_, c) => chunk.map((r) => r[c]));
-    await tx.query(
-      `INSERT INTO ${table} (${columns.join(", ")}) SELECT * FROM unnest(${types.map((t, j) => `$${j + 1}::${t}[]`).join(", ")})`,
-      arrays,
-    );
-  }
-}
+const date = (s: unknown) => (typeof s === "string" ? new Date(s) : null);
 
 /** Persists aggregates and per-case drill-down rows; the run becomes result_ready so the map can show early. */
 export async function saveProcessResult(job: RunJob & { manifest: unknown }): Promise<void> {
   const m = ProcessAnalysisManifest.parse(job.manifest);
   const map = ProcessMapResult.extend({ warnings: z.array(z.string()).default([]) }).parse(await getJson(job.projectId, m.mapKey));
+  // Case rows: ["c", uid, id, start, end, duration, events, first, last, variant, rowStart, rowEnd], ["e", uid, from, to, n, total, max], ["n", uid, activity, n].
   const lines = gunzipSync(Buffer.from(await getBytes(job.projectId, m.caseRowsKey))).toString("utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as unknown[]);
-  const run = job.analysisRunId;
-  await withTx(db(), async (tx) => {
-    for (const t of ["analysis_case_nodes", "analysis_case_edges", "analysis_cases", "variants", "process_edges", "process_nodes"]) await tx.query(`DELETE FROM ${t} WHERE run_id = $1`, [run]);
-    const real = map.nodes.filter((n) => n.id !== "__start" && n.id !== "__end");
-    await insertRows(tx, "process_nodes",
-      ["run_id", "project_id", "activity", "event_count", "case_count", "case_share", "start_count", "end_count", "boundary_start", "boundary_end", "service_median_s"],
-      ["uuid", "uuid", "text", "bigint", "bigint", "float8", "bigint", "bigint", "bool", "bool", "float8"],
-      real.map((n) => [run, job.projectId, n.id, n.eventCount, n.caseCount, n.caseShare, n.startCount, n.endCount, n.boundaryStart, n.boundaryEnd, n.serviceMedianSeconds]));
-    await insertRows(tx, "process_edges",
-      ["run_id", "project_id", "from_activity", "to_activity", "occurrence_count", "case_count", "median_wait_s", "p90_wait_s", "total_wait_s", "contribution_share"],
-      ["uuid", "uuid", "text", "text", "bigint", "bigint", "float8", "float8", "float8", "float8"],
-      map.edges.map((e) => [run, job.projectId, e.from, e.to, e.count, e.caseCount, e.medianSeconds, e.p90Seconds, e.totalSeconds, e.contributionShare]));
-    await insertRows(tx, "variants",
-      ["run_id", "project_id", "rank", "sequence_hash", "sequence", "case_count", "share", "cumulative_share", "median_duration_s"],
-      ["uuid", "uuid", "int", "text", "jsonb", "bigint", "float8", "float8", "float8"],
-      map.variants.map((v, i) => [run, job.projectId, i + 1, v.hash, JSON.stringify(v.sequence), v.caseCount, v.share, v.cumulativeShare, v.medianDurationSeconds]));
-    await insertRows(tx, "analysis_cases",
-      ["run_id", "project_id", "case_uid", "case_id", "start_time", "end_time", "duration_s", "event_count", "first_activity", "last_activity", "variant_hash", "row_start", "row_end"],
-      ["uuid", "uuid", "text", "text", "timestamptz", "timestamptz", "float8", "int", "text", "text", "text", "bigint", "bigint"],
-      lines.filter((l) => l[0] === "c").map((l) => [run, job.projectId, ...l.slice(1)]));
-    await insertRows(tx, "analysis_case_edges", ["run_id", "case_uid", "from_activity", "to_activity", "occurrences", "total_wait_s", "max_wait_s"],
-      ["uuid", "text", "text", "text", "int", "float8", "float8"], lines.filter((l) => l[0] === "e").map((l) => [run, ...l.slice(1)]));
-    await insertRows(tx, "analysis_case_nodes", ["run_id", "case_uid", "activity", "occurrences"], ["uuid", "text", "text", "int"],
-      lines.filter((l) => l[0] === "n").map((l) => [run, ...l.slice(1)]));
-    await tx.query(
-      `UPDATE analysis_runs r SET status = 'result_ready', result_ready_at = now(), coverage = $2, warnings = $3,
-              project_status_changed = coalesce((SELECT p.status_changed_at > r.created_at FROM projects p WHERE p.id = r.project_id), false)
-        WHERE r.id = $1`,
-      [run, JSON.stringify({ ...map.coverage, mapAvailable: map.mapAvailable, unavailableReason: map.unavailableReason, caseDuration: map.caseDuration }), JSON.stringify(map.warnings)],
-    );
+  const of = (kind: string) => lines.filter((l) => l[0] === kind);
+  const runId = job.analysisRunId;
+  const projectId = job.projectId;
+  const run = await db().analysisRun.findUniqueOrThrow({ where: { id: runId }, select: { createdAt: true, project: { select: { statusChangedAt: true } } } });
+  await withTx(async (tx) => {
+    // A retried activity starts clean.
+    await tx.analysisCaseNode.deleteMany({ where: { runId } });
+    await tx.analysisCaseEdge.deleteMany({ where: { runId } });
+    await tx.analysisCase.deleteMany({ where: { runId } });
+    await tx.variant.deleteMany({ where: { runId } });
+    await tx.processEdge.deleteMany({ where: { runId } });
+    await tx.processNode.deleteMany({ where: { runId } });
+    await tx.processNode.createMany({
+      data: map.nodes.filter((n) => n.id !== "__start" && n.id !== "__end").map((n) => ({
+        runId, projectId, activity: n.id, eventCount: BigInt(n.eventCount), caseCount: BigInt(n.caseCount), caseShare: n.caseShare, startCount: BigInt(n.startCount),
+        endCount: BigInt(n.endCount), boundaryStart: n.boundaryStart, boundaryEnd: n.boundaryEnd, serviceMedianS: n.serviceMedianSeconds,
+      })),
+    });
+    await tx.processEdge.createMany({
+      data: map.edges.map((e) => ({
+        runId, projectId, fromActivity: e.from, toActivity: e.to, occurrenceCount: BigInt(e.count), caseCount: BigInt(e.caseCount), medianWaitS: e.medianSeconds,
+        p90WaitS: e.p90Seconds, totalWaitS: e.totalSeconds, contributionShare: e.contributionShare,
+      })),
+    });
+    await tx.variant.createMany({
+      data: map.variants.map((v, i) => ({
+        runId, projectId, rank: i + 1, sequenceHash: v.hash, sequence: v.sequence, caseCount: BigInt(v.caseCount), share: v.share, cumulativeShare: v.cumulativeShare,
+        medianDurationS: v.medianDurationSeconds,
+      })),
+    });
+    await inChunks(of("c"), (rows) => tx.analysisCase.createMany({
+      data: rows.map(([, caseUid, caseId, start, end, duration, events, first, last, variant, rowStart, rowEnd]) => ({
+        runId, projectId, caseUid: String(caseUid), caseId: String(caseId), startTime: date(start), endTime: date(end), durationS: duration == null ? null : Number(duration),
+        eventCount: Number(events), firstActivity: first == null ? null : String(first), lastActivity: last == null ? null : String(last), variantHash: String(variant),
+        rowStart: BigInt(Number(rowStart)), rowEnd: BigInt(Number(rowEnd)),
+      })),
+    }));
+    await inChunks(of("e"), (rows) => tx.analysisCaseEdge.createMany({
+      data: rows.map(([, caseUid, from, to, n, total, max]) => ({
+        runId, caseUid: String(caseUid), fromActivity: String(from), toActivity: String(to), occurrences: Number(n), totalWaitS: Number(total), maxWaitS: Number(max),
+      })),
+    }));
+    await inChunks(of("n"), (rows) => tx.analysisCaseNode.createMany({
+      data: rows.map(([, caseUid, activity, n]) => ({ runId, caseUid: String(caseUid), activity: String(activity), occurrences: Number(n) })),
+    }));
+    await tx.analysisRun.update({
+      where: { id: runId },
+      data: {
+        status: "result_ready", resultReadyAt: new Date(), warnings: map.warnings,
+        coverage: { ...map.coverage, mapAvailable: map.mapAvailable, unavailableReason: map.unavailableReason, caseDuration: map.caseDuration },
+        projectStatusChanged: run.project.statusChangedAt > run.createdAt,
+      },
+    });
   });
 }
 
 export async function markAnalysisCompleted(job: RunJob): Promise<void> {
-  await db().query("UPDATE analysis_runs SET status = 'completed', completed_at = now() WHERE id = $1 AND status IN ('running', 'result_ready')", [job.analysisRunId]);
+  await db().analysisRun.updateMany({ where: { id: job.analysisRunId, status: { in: ["running", "result_ready"] } }, data: { status: "completed", completedAt: new Date() } });
   await audit(db(), { projectId: job.projectId, actorId: job.requestedBy, action: "analysis.complete", objectType: "analysis_run", objectId: job.analysisRunId, correlationId: job.correlationId });
 }
 
 export async function markAnalysisFailed(job: RunJob & { message: string }): Promise<void> {
-  await db().query("UPDATE analysis_runs SET status = 'failed', error_message = $2 WHERE id = $1 AND status IN ('queued', 'running', 'result_ready')", [job.analysisRunId, job.message.slice(0, 500)]);
+  await db().analysisRun.updateMany({ where: { id: job.analysisRunId, status: { in: ["queued", "running", "result_ready"] } }, data: { status: "failed", errorMessage: job.message.slice(0, 500) } });
   await audit(db(), { projectId: job.projectId, actorId: job.requestedBy, action: "analysis.complete", objectType: "analysis_run", objectId: job.analysisRunId, result: "failed", correlationId: job.correlationId, metadata: { message: job.message.slice(0, 500) } });
 }
-

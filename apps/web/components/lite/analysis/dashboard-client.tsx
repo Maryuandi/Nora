@@ -1,5 +1,6 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Info } from "@phosphor-icons/react";
@@ -8,7 +9,8 @@ import type { MonitoringConfig } from "@nora/contracts";
 import { Button } from "@/components/base/buttons/button";
 import { Input } from "@/components/base/input/input";
 import { formatDate, formatInt, formatSeconds } from "@/lib/lite/format";
-import { api, errorText } from "../api";
+import { useTRPC } from "@/lib/trpc/client";
+import { attempt, errorText } from "../api";
 
 /** Definition popover: formula, version, population, period and coverage behind one number. */
 export function MetricInfo({ m }: { m: { name: string; key: string; version: number; formula: string; description: string; definitionPopulation: string; population: { cases: number; periodStart: string | null; periodEnd: string | null; basis: string | null } } }) {
@@ -100,9 +102,10 @@ export function SettingsForm({ projectId, config, version, readOnly }: { project
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const num = (v: string) => (v === "" ? 0 : Number(v));
+  const saveSettings = useMutation(useTRPC().analyses.saveSettings.mutationOptions());
   async function save() {
     setBusy(true);
-    const res = await api<{ version: number }>(`/projects/${projectId}/analysis-settings`, { method: "PUT", body: c });
+    const res = await attempt(saveSettings.mutateAsync({ projectId, config: c }));
     setBusy(false);
     setMsg(res.ok ? `Tersimpan sebagai versi ${res.data.version}. Jalankan analisis baru untuk memakainya.` : errorText(res.error));
     if (res.ok) router.refresh();

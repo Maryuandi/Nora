@@ -1,11 +1,13 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/base/buttons/button";
 import { Input } from "@/components/base/input/input";
 import { NativeSelect } from "@/components/base/select/select-native";
-import { api, errorText } from "../api";
+import { useTRPC } from "@/lib/trpc/client";
+import { attempt, errorText } from "../api";
 
 export interface RunOption { id: string; label: string }
 
@@ -24,12 +26,13 @@ export function RunBar({ projectId, runs, selected, attributeValues, initial, ca
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const keys = Object.keys(attributeValues);
+  const request = useMutation(useTRPC().analyses.request.mutationOptions());
 
   async function run() {
     setBusy(true);
     setError(null);
     const filterSpec = { period: from || to ? { from: from || null, to: to || null } : null, attribute: key && values.length ? { key, values } : null };
-    const res = await api<{ id: string }>(`/projects/${projectId}/analyses`, { body: { filterSpec } });
+    const res = await attempt(request.mutateAsync({ projectId, filterSpec }));
     setBusy(false);
     if (!res.ok) return setError(errorText(res.error));
     router.push(`${pathname}?run=${res.data.id}`);
