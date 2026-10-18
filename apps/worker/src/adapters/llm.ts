@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { ApplicationFailure } from "@temporalio/activity";
+import { z } from "zod";
 import { formatMetric, LlmInterpretation, type CheckContext, type InterpretationTarget } from "@nora/contracts";
 
 export interface LlmRequest {
@@ -86,6 +87,67 @@ class AnthropicAdapter implements LlmAdapter {
 }
 
 /**
+ * DeepSeek over its OpenAI-compatible chat API (LLM_MODE=deepseek). JSON mode does not enforce a schema,
+ * so the schema goes into the system prompt; the checker still validates every draft.
+ */
+class DeepSeekAdapter implements LlmAdapter {
+  readonly provider = "deepseek";
+  constructor(readonly model: string, private apiKey: string, private baseUrl: string) {}
+
+  async generateStructured(req: LlmRequest): Promise<LlmResponse> {
+    const started = Date.now();
+    const parameters = { max_tokens: 8000, response_format: "json_object" };
+    const schema = JSON.stringify(z.toJSONSchema(LlmInterpretation));
+    // DeepSeek tends to copy digits from the evidence (versions, hashes, codes); the checker rejects any bare digit.
+    const digits = [
+      "ATURAN ANGKA (WAJIB, diperiksa otomatis):",
+      "- Jangan menulis digit 0-9 sama sekali di text_template, assumptions, uncertainties, dan follow_up_questions.",
+      "- Nilai terukur hanya boleh muncul sebagai placeholder metrik persis seperti {{M1}}, dan ref itu wajib dicantumkan di metric_placeholders.",
+      "- Sebut dataset, konteks, versi, hash, kode fitur, atau tanggal tanpa angka: tulis \"dataset terbit\", \"paket konteks aktif\", bukan \"v1\", \"F03\", atau \"sha256\".",
+      "- Jika sebuah kalimat butuh angka yang tidak ada placeholder-nya, hilangkan angkanya atau hilangkan kalimatnya.",
+    ].join("\n");
+    const system = `${req.system}\n\n${digits}\n\nKeluarkan satu objek JSON valid saja, tanpa teks lain, yang sesuai JSON Schema berikut:\n${schema}`;
+    let res: Response;
+    try {
+      res = await fetch(`${this.baseUrl.replace(/\/$/, "")}/chat/completions`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${this.apiKey}` },
+        body: JSON.stringify({
+          model: this.model,
+          max_tokens: 8000,
+          response_format: { type: "json_object" },
+          messages: [{ role: "system", content: system }, { role: "user", content: req.prompt }],
+        }),
+        signal: AbortSignal.timeout(300_000),
+      });
+    } catch (err) {
+      throw ApplicationFailure.retryable(`Penyedia LLM tidak tersedia: ${(err as Error).message}`, "ProviderUnavailable");
+    }
+    if (res.status >= 500 || res.status === 429 || res.status === 408) throw ApplicationFailure.retryable(`Penyedia LLM tidak tersedia (HTTP ${res.status})`, "ProviderUnavailable");
+    if (!res.ok) throw ApplicationFailure.nonRetryable(`Penyedia LLM menolak permintaan (HTTP ${res.status}): ${(await res.text()).slice(0, 500)}`, "ProviderRejected");
+    const raw = (await res.json()) as Record<string, any>;
+    const choice = raw.choices?.[0];
+    const text = String(choice?.message?.content ?? "");
+    let output: unknown = null;
+    try {
+      output = JSON.parse(text);
+    } catch {
+      output = { invalid_json: text.slice(0, 2000) };
+    }
+    const inTok = raw.usage?.prompt_tokens ?? null, outTok = raw.usage?.completion_tokens ?? null;
+    const price = process.env.LLM_PRICE_INPUT ? [Number(process.env.LLM_PRICE_INPUT), Number(process.env.LLM_PRICE_OUTPUT ?? 0)] : null;
+    return {
+      output, text, raw,
+      meta: {
+        provider: this.provider, model: this.model, modelVersion: String(raw.model ?? this.model), requestId: String(raw.id ?? ""), latencyMs: Date.now() - started,
+        inputTokens: inTok, outputTokens: outTok, finishReason: choice?.finish_reason ?? null,
+        cost: price && inTok != null && outTok != null ? (inTok * price[0]! + outTok * price[1]!) / 1_000_000 : null, parameters,
+      },
+    };
+  }
+}
+
+/**
  * Deterministic stand-in for automated tests and explicit demo mode only (LLM_MODE=fixture). It writes a draft
  * from the structured data so the checker, renderer and repair loop can be exercised. Never a silent fallback.
  * LLM_FIXTURE_FAULT=first_attempt makes attempt 1 type a raw number; a template example containing
@@ -143,6 +205,11 @@ const label = (t: InterpretationTarget) => (t === "finding" ? "temuan" : t === "
 export function llmAdapter(): LlmAdapter {
   const mode = process.env.LLM_MODE ?? (process.env.ANTHROPIC_API_KEY ? "anthropic" : "unconfigured");
   if (mode === "fixture") return new FixtureAdapter();
+  if (mode === "deepseek") {
+    const dsKey = process.env.DEEPSEEK_API_KEY;
+    if (!dsKey) throw ApplicationFailure.nonRetryable("Penyedia LLM belum dikonfigurasi (DEEPSEEK_API_KEY). Tidak ada draft lokal yang dibuat.", "LlmNotConfigured");
+    return new DeepSeekAdapter(process.env.LLM_MODEL ?? "deepseek-chat", dsKey, process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com");
+  }
   const key = process.env.ANTHROPIC_API_KEY;
   if (mode !== "anthropic" || !key) throw ApplicationFailure.nonRetryable("Penyedia LLM belum dikonfigurasi (LLM_MODE dan ANTHROPIC_API_KEY). Tidak ada draft lokal yang dibuat.", "LlmNotConfigured");
   const effort = (process.env.LLM_EFFORT ?? "medium") as "low" | "medium" | "high";
@@ -152,5 +219,6 @@ export function llmAdapter(): LlmAdapter {
 /** Model identity that goes into the interpretation key; known before any call. */
 export function llmModelLabel(): string {
   const mode = process.env.LLM_MODE ?? (process.env.ANTHROPIC_API_KEY ? "anthropic" : "unconfigured");
-  return mode === "fixture" ? "fixture-llm@1" : `${process.env.LLM_MODEL ?? "claude-opus-5-5"}`;
+  if (mode === "fixture") return "fixture-llm@1";
+  return process.env.LLM_MODEL ?? (mode === "deepseek" ? "deepseek-chat" : "claude-opus-5-5");
 }
