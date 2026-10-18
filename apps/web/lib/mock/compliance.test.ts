@@ -62,3 +62,39 @@ describe("compliance", () => {
     expect(termFor(urutan)).toBe("Tidak sesuai dengan acuan");
   });
 });
+
+describe("atRisk (SLA)", () => {
+  const sla = (unit: "kalender" | "kerja", limit: number) => ({ ...slaV1, params: { type: "sla" as const, from: "A", to: "B", limit, unit } });
+  // find an open case that evaluates to "Kasus belum mencapai" for the given version
+  const openCase = (v: typeof slaV1, start: string) => {
+    for (let i = 0; i < 200; i++) {
+      const c = { id: `CASE-${i}`, start, end: null };
+      if (evaluateCase(v, c, m1).reason?.startsWith("Kasus belum mencapai")) return c;
+    }
+    throw new Error("no open case");
+  };
+  // 2026-06-05 is Friday; ref Tuesday 2026-06-09: 4 calendar days, 2 working days (Mon, Tue)
+  it("calendar vs working days across a weekend", () => {
+    const kal = sla("kalender", 3), ker = sla("kerja", 3);
+    expect(evaluateCase(kal, openCase(kal, "2026-06-05"), m1, "2026-06-09").atRisk).toBe(true);
+    expect(evaluateCase(ker, openCase(ker, "2026-06-05"), m1, "2026-06-09").atRisk).toBeUndefined();
+    expect(evaluateCase(ker, openCase(ker, "2026-06-05"), m1, "2026-06-11").atRisk).toBe(true); // 4 working days
+  });
+  it("no atRisk for non-SLA rules, without refDate or on closed cases", () => {
+    const sla1 = sla("kalender", 1);
+    const c = openCase(sla1, "2026-01-01");
+    expect(evaluateCase(sla1, c, m1).atRisk).toBeUndefined();
+    expect(evaluateCase(sla1, closedCase, m1, "2026-12-31").atRisk).toBeUndefined();
+    for (let i = 0; i < 50; i++) expect(evaluateCase(urutan, { id: `C${i}`, start: "2026-01-01", end: null }, m1, "2026-12-31").atRisk).toBeUndefined();
+  });
+  it("status and reason unchanged by refDate", () => {
+    const v = sla("kalender", 1);
+    for (let i = 0; i < 50; i++) {
+      const c = { id: `C${i}`, start: "2026-01-01", end: i % 2 ? null : "2026-01-05" };
+      const { atRisk, ...withRef } = evaluateCase(v, c, m1, "2026-12-31");
+      void atRisk;
+      expect(withRef).toEqual(evaluateCase(v, c, m1));
+    }
+  });
+});
+

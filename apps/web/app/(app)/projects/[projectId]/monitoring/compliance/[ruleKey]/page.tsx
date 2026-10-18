@@ -23,9 +23,11 @@ import { cx } from "@/utils/cx";
 
 const PAGE = 50;
 const DOT: Record<CaseStatus, string> = { patuh: "bg-status-active", tidak_patuh: "bg-status-ended", tidak_dapat_dievaluasi: "bg-status-suspended" };
-const FILTERS: { id: CaseStatus | null; label: string }[] = [
+type Filter = CaseStatus | "berisiko" | null;
+const FILTERS: { id: Filter; label: string }[] = [
   { id: null, label: "Semua" },
   ...(["patuh", "tidak_patuh", "tidak_dapat_dievaluasi"] as const).map((id) => ({ id, label: CASE_STATUS_LABEL[id] })),
+  { id: "berisiko", label: "Berisiko melewati SLA" },
 ];
 const pct = (n: number, total: number) => (total ? Math.round((n / total) * 100) : 0);
 
@@ -43,7 +45,7 @@ function ComplianceRoute({ ruleKey }: { ruleKey: string }) {
 function ComplianceDetail({ ruleKey }: { ruleKey: string }) {
   const ctx = useProject();
   const wanted = useSearchParams().get("run");
-  const [filter, setFilter] = useState<CaseStatus | null>(null);
+  const [filter, setFilter] = useState<Filter>(null);
   const [page, setPage] = useState(0);
   const runs = ctx ? runsForProject(ctx.state, ctx.project.id) : [];
   const run = wanted ? runs.find((r) => r.id === wanted) : runs[0];
@@ -56,11 +58,12 @@ function ComplianceDetail({ ruleKey }: { ruleKey: string }) {
   }, [run, ruleKey, snapshots, mappings]);
   if (!ctx || !run || !version) return <NotFoundPanel />;
   const { project } = ctx;
-  const rows = filter ? results.filter((r) => r.status === filter) : results;
+  const rows = !filter ? results : filter === "berisiko" ? results.filter((r) => r.atRisk) : results.filter((r) => r.status === filter);
+  const atRisk = results.filter((r) => r.atRisk).length;
   const pages = Math.max(1, Math.ceil(rows.length / PAGE));
   const from = page * PAGE;
   const shown = rows.slice(from, from + PAGE);
-  const count = (f: CaseStatus | null) => (f === "patuh" ? s.patuh : f === "tidak_patuh" ? s.tidakPatuh : f ? s.tidakDapat : s.total);
+  const count = (f: Filter) => (f === "berisiko" ? atRisk : f === "patuh" ? s.patuh : f === "tidak_patuh" ? s.tidakPatuh : f ? s.tidakDapat : s.total);
   const stats: [string, number][] = [["Patuh", s.patuh], [termFor(version), s.tidakPatuh], ["Tidak dapat dievaluasi", s.tidakDapat]];
 
   return (
@@ -99,6 +102,11 @@ function ComplianceDetail({ ruleKey }: { ruleKey: string }) {
             ))}
           </ul>
         ) : <p className="px-4 py-3 text-sm text-ink-3">Semua kasus dapat dievaluasi</p>}
+        {atRisk > 0 && (
+          <p className="flex items-center justify-between gap-4 border-t border-line px-4 py-2 text-sm">
+            <span className="text-ink">Berisiko melewati SLA</span><span className="text-ink-2">{atRisk}</span>
+          </p>
+        )}
       </Card>
 
       <div className="flex rounded-lg border border-line bg-sidebar p-0.5 self-start" role="tablist" aria-label="Filter status kasus">
@@ -131,7 +139,7 @@ function ComplianceDetail({ ruleKey }: { ruleKey: string }) {
                 </Table.Cell>
                 <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{formatDate(r.start)}</Table.Cell>
                 <Table.Cell className="px-6"><Pill dot={DOT[r.status]}>{CASE_STATUS_LABEL[r.status]}</Pill></Table.Cell>
-                <Table.Cell className="px-6 text-sm text-ink-2">{r.reason ?? "—"}</Table.Cell>
+                <Table.Cell className="px-6 text-sm text-ink-2"><span className="inline-flex flex-wrap items-center gap-2">{r.reason ?? "—"}{r.atRisk && <Pill dot="bg-status-suspended">Berisiko melewati SLA</Pill>}</span></Table.Cell>
                 <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{(() => { const v = run.ruleVersions.find((x) => x.id === r.ruleVersionId); return v ? `v${v.version}` : "—"; })()}</Table.Cell>
               </Table.Row>
             ))}

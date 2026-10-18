@@ -44,9 +44,18 @@ export function applicableVersion(versions: RuleVersion[], caseStart: string): R
 const activityB = (v: RuleVersion): string | null =>
   v.params.type === "sla" ? v.params.to : v.params.type === "urutan" ? v.params.after : null;
 
-export function evaluateCase(version: RuleVersion, c: MockCase, mapping: MappingVersion): CaseResult {
-  const out = (status: CaseStatus, reason?: string): CaseResult =>
-    ({ caseId: c.id, start: c.start, status, ...(reason ? { reason } : {}), ruleVersionId: version.id });
+// Whole days from start to refDate; "kerja" counts Mon-Fri days after start up to and including refDate (no holiday calendar in the mock).
+function caseAge(start: string, refDate: string, unit: "kalender" | "kerja"): number {
+  const total = Math.round((toMs(refDate) - toMs(start)) / DAY);
+  if (unit === "kalender") return total;
+  let n = 0;
+  for (let i = 1; i <= total; i++) { const d = new Date(toMs(start) + i * DAY).getUTCDay(); if (d !== 0 && d !== 6) n++; }
+  return n;
+}
+
+export function evaluateCase(version: RuleVersion, c: MockCase, mapping: MappingVersion, refDate?: string): CaseResult {
+  const out = (status: CaseStatus, reason?: string, atRisk?: boolean): CaseResult =>
+    ({ caseId: c.id, start: c.start, status, ...(reason ? { reason } : {}), ...(atRisk ? { atRisk: true } : {}), ruleVersionId: version.id });
   const roles = Object.values(mapping.roles);
   if (version.params.type === "pemisahan_tugas" && !roles.includes("resource")) return out("tidak_dapat_dievaluasi", "Kolom sumber daya belum dipetakan (M03)");
   if (version.scope) {
@@ -54,7 +63,10 @@ export function evaluateCase(version: RuleVersion, c: MockCase, mapping: Mapping
     if (role !== "case_attr" && role !== "event_attr") return out("tidak_dapat_dievaluasi", `Atribut ${version.scope.attribute} belum dipetakan (M03)`);
   }
   const b = activityB(version);
-  if (b && c.end === null && hash(version.id + c.id) % 2 === 0) return out("tidak_dapat_dievaluasi", `Kasus belum mencapai ${b}`);
+  if (b && c.end === null && hash(version.id + c.id) % 2 === 0) {
+    const p = version.params;
+    return out("tidak_dapat_dievaluasi", `Kasus belum mencapai ${b}`, p.type === "sla" && !!refDate && caseAge(c.start, refDate, p.unit) > p.limit);
+  }
   const p = 3 + (hash(version.id) % 43);
   return out(hash(version.id + c.id, 7) % 100 < p ? "tidak_patuh" : "patuh");
 }
@@ -66,7 +78,7 @@ export function evaluateRun(state: MockState, run: MonitoringRun, ruleKey: strin
   const versions = run.ruleVersions.filter((r) => r.ruleKey === ruleKey);
   return mockCases(snapshot, run.periodFrom, run.periodTo).map((c) => {
     const v = applicableVersion(versions, c.start);
-    return v ? evaluateCase(v, c, mapping)
+    return v ? evaluateCase(v, c, mapping, run.periodTo)
       : { caseId: c.id, start: c.start, status: "tidak_dapat_dievaluasi", reason: "Tidak ada versi aturan yang berlaku pada awal kasus", ruleVersionId: null };
   });
 }

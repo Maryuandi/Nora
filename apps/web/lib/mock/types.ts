@@ -173,7 +173,7 @@ export interface MonitoringRun {
 }
 
 export interface MockCase { id: string; start: string; end: string | null } // end null = masih terbuka
-export interface CaseResult { caseId: string; start: string; status: CaseStatus; reason?: string; ruleVersionId: string | null }
+export interface CaseResult { caseId: string; start: string; status: CaseStatus; reason?: string; atRisk?: boolean; ruleVersionId: string | null }
 
 export interface MockState {
   clients: Client[];
