@@ -9,7 +9,7 @@ import { useAnalysis } from "@/components/project/analysis-filter";
 import { EmptyFilterResult, FilterBar, NoDataCard } from "@/components/project/filter-bar";
 import { useProject } from "@/components/project/use-project";
 import { VariantTable } from "@/components/project/variant-table";
-import { filteredLogFor, validateFilter, variantsTo80 } from "@/lib/mock/analysis";
+import { filteredLogFor, normalizeFilter, validateFilter, variantsTo80 } from "@/lib/mock/analysis";
 import { eventLogFor, pageOf } from "@/lib/mock/eventlog";
 
 const PAGE_SIZE = 100;
@@ -42,7 +42,7 @@ export default function VariantsPage() {
   }
 
   const toggle = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
-  const apply = () => { setFilter({ ...filter, variantIds: selected }); setPicked([]); setPage(1); };
+  const apply = () => { setFilter(normalizeFilter({ ...filter, variantIds: selected })); setPicked([]); setPage(1); };
   const showCases = (id: string) => { setSelection({ kind: "variant", id }); router.push(`${base}/analysis/cases`); };
 
   return (

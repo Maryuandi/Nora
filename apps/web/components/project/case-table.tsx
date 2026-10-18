@@ -11,8 +11,8 @@ import { pageOf, sortCases, type LogCase } from "@/lib/mock/eventlog";
 type SortKey = "durasi" | "event" | "mulai";
 const cell = "px-6 text-sm whitespace-nowrap text-ink-2";
 
-/** Sortable, paged case list. Mount with a `key` per cases source so sort and page reset. Case values are plain text. */
-export function CaseTable({ cases, base, variantOf, size = 20 }: { cases: LogCase[]; base: string; variantOf: (c: LogCase) => string; size?: number }) {
+/** Sortable, paged case list. `attrsAvailable` false (no case_attr mapping) shows "-" for vendor and PO, never a link. Mount with a `key` per cases source so sort and page reset. Case values are plain text. */
+export function CaseTable({ cases, base, variantOf, size = 20, attrsAvailable = true }: { cases: LogCase[]; base: string; variantOf: (c: LogCase) => string; size?: number; attrsAvailable?: boolean }) {
   const [sort, setSort] = useState<{ by: SortKey; dir: "asc" | "desc" }>({ by: "mulai", dir: "asc" });
   const [page, setPage] = useState(1);
   const sorted = useMemo(() => sortCases(cases, sort.by, sort.dir), [cases, sort]);
@@ -41,9 +41,9 @@ export function CaseTable({ cases, base, variantOf, size = 20 }: { cases: LogCas
               <Table.Cell className={cell}>{formatDateTime(new Date(c.startMs).toISOString())}</Table.Cell>
               <Table.Cell className={cell}>{formatDuration(c.durationMs)}</Table.Cell>
               <Table.Cell className={cell}>{c.events.length}</Table.Cell>
-              <Table.Cell className="max-w-[240px] px-6 text-sm text-ink-2"><span className="block truncate" title={c.attrs.vendor}>{c.attrs.vendor}</span></Table.Cell>
+              <Table.Cell className="max-w-[240px] px-6 text-sm text-ink-2">{attrsAvailable ? <span className="block truncate" title={c.attrs.vendor}>{c.attrs.vendor}</span> : "-"}</Table.Cell>
               <Table.Cell className="max-w-[200px] px-6 text-sm">
-                <Link href={`${base}/analysis/objects/${encodeURIComponent(c.objects.po)}`} title={c.objects.po} className="block truncate text-accent hover:underline">{c.objects.po}</Link>
+                {attrsAvailable ? <Link href={`${base}/analysis/objects/${encodeURIComponent(c.objects.po)}`} title={c.objects.po} className="block truncate text-accent hover:underline">{c.objects.po}</Link> : <span className="text-ink-2">-</span>}
               </Table.Cell>
               <Table.Cell className={`${cell} font-mono`}>{variantOf(c)}</Table.Cell>
             </Table.Row>

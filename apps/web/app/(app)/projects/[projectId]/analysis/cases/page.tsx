@@ -36,9 +36,10 @@ export default function CasesPage() {
 
   const label = (id: string) => (id === START_ID ? "Mulai" : id === END_ID ? "Selesai" : (result.dfg.nodes.find((n) => n.id === id)?.label ?? id));
   const edge = selection?.kind === "edge" ? result.dfg.edges.find((e) => e.id === selection.id) : undefined;
-  const narrowed = !selection ? null
+  // Start/end nodes cover every case: no narrowing chip.
+  const narrowed = !selection || (selection.kind === "node" && (selection.id === START_ID || selection.id === END_ID)) ? null
     : selection.kind === "variant" ? `Varian ${selection.id}`
-    : selection.kind === "node" ? (selection.id === START_ID || selection.id === END_ID ? "Semua kasus" : `Kasus yang melewati ${label(selection.id)}`)
+    : selection.kind === "node" ? `Kasus yang melewati ${label(selection.id)}`
     : edge ? `Transisi ${label(edge.from)} → ${label(edge.to)}` : `Transisi ${selection.id}`;
   const total = result.filtered.cases.length;
 
@@ -64,7 +65,7 @@ export default function CasesPage() {
           {cases.length === 0 ? (
             <p className="border-t border-line px-4 py-8 text-center text-sm text-ink-3">Tidak ada kasus untuk pilihan ini pada filter yang berlaku.</p>
           ) : (
-            <CaseTable key={`${selection?.kind}:${selection?.id}`} cases={cases} base={base} variantOf={variantOf} />
+            <CaseTable key={`${selection?.kind}:${selection?.id}`} cases={cases} base={base} variantOf={variantOf} attrsAvailable={result.attrsAvailable} />
           )}
         </Card>
       )}
