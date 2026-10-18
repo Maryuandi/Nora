@@ -13,6 +13,7 @@ export * from "./evidence.ts";
 export * from "./monitoring.ts";
 export * from "./ping.ts";
 export * from "./queues.ts";
+export * from "./recommendation.ts";
 export * from "./stable.ts";
 
 /** JSON Schema per contract, keyed by file name without extension. */

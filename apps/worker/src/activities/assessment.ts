@@ -63,7 +63,29 @@ export async function buildCandidateLinks(projectId: string, findingId: string):
     );
     out.push({ id: row!.id, status });
   }
+  // Analyst additions keep their origin; their conditions are re-checked on every refresh.
+  for (const ac of await many("SELECT * FROM analyst_candidates WHERE project_id = $1 AND finding_id = $2 ORDER BY created_at", [projectId, findingId])) {
+    const checks = ((ac.payload.conditions ?? []) as unknown[]).map((cond) => evaluateCondition(Condition.parse(cond), facts));
+    const status = checks.some((x) => x.status === "fail") ? "not_eligible" : checks.some((x) => x.status === "not_evaluable") ? "insufficient_information" : "eligible";
+    const row = await one(
+      `INSERT INTO candidate_links (project_id, finding_id, context_package_id, candidate_type, candidate_id, candidate_key, candidate_version, origin, precondition_status, precondition_checks)
+       VALUES ($1, $2, $3, 'analyst', $4, $5, $6, $7, $8, $9)
+       ON CONFLICT (finding_id, candidate_id) DO UPDATE SET precondition_status = EXCLUDED.precondition_status, precondition_checks = EXCLUDED.precondition_checks
+       RETURNING id`,
+      [projectId, findingId, f.context_package_id, ac.id, `analis-${String(ac.id).slice(0, 8)}`, ac.version, `analis: ${ac.source_reason}`, status, JSON.stringify(checks)],
+    );
+    out.push({ id: row!.id, status });
+  }
   return out;
+}
+
+/** Catalog interventions and analyst candidates share one shape for assessment and validation. */
+export async function candidatePayload(link: Row): Promise<Intervention & { addressedProblem?: string }> {
+  if (link.candidate_type === "analyst") {
+    const ac = (await one("SELECT payload, addressed_problem FROM analyst_candidates WHERE id = $1", [link.candidate_id]))!;
+    return { ...Intervention.parse({ ...ac.payload, action: ac.payload.description }), addressedProblem: ac.addressed_problem };
+  }
+  return Intervention.parse((await one("SELECT payload FROM interventions WHERE id = $1", [link.candidate_id]))!.payload);
 }
 
 export async function startAssessmentRun(job: AssessmentJob): Promise<{ eligible: string[] }> {
@@ -127,7 +149,7 @@ export async function runAssessment(job: AssessmentJob & { assessmentId: string 
   const adapter = decisionAdapter();
   const specs = Object.fromEntries((await activeQuestionSpecs(job.projectId)).map((s) => [s.task, s])) as Record<string, QuestionSpec>;
   const link = (await one("SELECT * FROM candidate_links WHERE id = $1", [a.candidate_link_id]))!;
-  const cand = Intervention.parse((await one("SELECT payload FROM interventions WHERE id = $1", [link.candidate_id]))!.payload);
+  const cand = await candidatePayload(link);
   const f = (await one("SELECT * FROM findings WHERE id = $1", [a.finding_id]))!;
   const bundleRow = (await one("SELECT object_key FROM evidence_bundles WHERE id = $1", [a.evidence_bundle_id]))!;
   const bundle = EvidenceBundle.parse(await getJson(job.projectId, bundleRow.object_key));

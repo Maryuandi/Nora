@@ -1,9 +1,10 @@
-import { ApplicationFailure, proxyActivities } from "@temporalio/workflow";
+import { ApplicationFailure, executeChild, proxyActivities } from "@temporalio/workflow";
 import { PingResult, PreviewMappingResult, PreviewRuleResult, TASK_QUEUE_PYTHON, type BuildDatasetInput, type IngestSnapshotInput, type PingRequest, type PreviewMappingInput, type MonitoringInput, type PreviewRuleInput, type ProcessAnalysisInput, type ValidateBpmnInput } from "@nora/contracts";
 import type * as analysis from "./activities/analysis.ts";
 import type * as assessment from "./activities/assessment.ts";
 import type * as context from "./activities/context.ts";
 import type * as monitoring from "./activities/monitoring.ts";
+import type * as recommendation from "./activities/recommendation.ts";
 import type * as data from "./activities/data.ts";
 import type * as evidence from "./activities/evidence.ts";
 import type * as graph from "./activities/graph.ts";
@@ -22,7 +23,7 @@ export async function pingWorkflow(input: PingRequest): Promise<PingResult> {
 }
 
 // Transient errors retry up to three times; corrupt files and schema errors are non-retryable in the activities.
-const ts = proxyActivities<typeof data & typeof context & typeof analysis & typeof monitoring & typeof graph & typeof evidence & typeof assessment>({ startToCloseTimeout: "30 minutes", retry: { maximumAttempts: 3, nonRetryableErrorTypes: ["Unauthorized", "NotFound", "SnapshotNotReady"] } });
+const ts = proxyActivities<typeof data & typeof context & typeof analysis & typeof monitoring & typeof graph & typeof evidence & typeof assessment & typeof recommendation>({ startToCloseTimeout: "30 minutes", retry: { maximumAttempts: 3, nonRetryableErrorTypes: ["Unauthorized", "NotFound", "SnapshotNotReady"] } });
 
 const py = proxyActivities<{
   ingestSnapshot(input: IngestSnapshotInput): Promise<{ status: string }>;
@@ -147,6 +148,22 @@ export async function assessmentWorkflow(job: assessment.AssessmentJob): Promise
     return "completed";
   } catch (err) {
     await jev.completeAssessmentRun({ ...job, error: message(err) });
+    return "failed";
+  }
+}
+
+/** Build/validate a finding's candidate set: Jev assessment first (child), then deterministic checks and scores. */
+export async function recommendationRefreshWorkflow(job: recommendation.RefreshJob): Promise<string> {
+  try {
+    const { assessmentRunId } = await ts.startRefresh(job);
+    await executeChild(assessmentWorkflow, {
+      workflowId: `assessment-${assessmentRunId}`,
+      args: [{ projectId: job.projectId, findingId: job.findingId, assessmentRunId, requestedBy: job.requestedBy, correlationId: job.correlationId }],
+    });
+    await ts.validateCandidates(job);
+    return "completed";
+  } catch (err) {
+    await ts.failRefresh({ ...job, message: message(err) });
     return "failed";
   }
 }

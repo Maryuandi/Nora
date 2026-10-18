@@ -15,7 +15,8 @@
     "smoke:f05": "tsx --env-file-if-exists=../../.env scripts/smoke/f05.ts",
     "smoke:f06": "tsx --env-file-if-exists=../../.env scripts/smoke/f06.ts",
     "smoke:f07": "tsx --env-file-if-exists=../../.env scripts/smoke/f07.ts",
-    "smoke:f08": "tsx --env-file-if-exists=../../.env scripts/smoke/f08.ts"
+    "smoke:f08": "tsx --env-file-if-exists=../../.env scripts/smoke/f08.ts",
+    "smoke:f09": "tsx --env-file-if-exists=../../.env scripts/smoke/f09.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",
