@@ -2,7 +2,10 @@ import Link from "next/link";
 import { useProject } from "@/components/project/use-project";
 import { cx } from "@/utils/cx";
 
-const TABS = [["/context/rules", "Aturan"]] as const;
+const TABS = [
+  ["/context/documents", "Dokumen"], ["/context/definitions", "Definisi proses"], ["/context/rules", "Aturan"], ["/context/bpmn", "BPMN"],
+  ["/context/calendar", "Kalender"], ["/context/catalog", "Katalog"], ["/context/packages", "Paket konteks"],
+] as const;
 
 /** Secondary tabs of the Konteks section. `active` is the path suffix of the current tab. */
 export function ContextTabs({ active }: { active: (typeof TABS)[number][0] }) {
