@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { StatePill } from "@/components/lite/badges";
+import { InterpretationPanel } from "@/components/lite/interpretation/interpretation-panel";
 import { RELEVANCE_LABEL, VALIDATION } from "@/components/lite/recommendations/labels";
 import { SectionCard } from "@/components/lite/ui";
 import { formatPct } from "@/lib/lite/format";
@@ -29,7 +30,7 @@ const ROWS: [string, string, (c: Cell) => React.ReactNode][] = [
 export default async function ComparePage({ params, searchParams }: { params: Promise<{ projectId: string; findingId: string }>; searchParams: Promise<{ ids?: string }> }) {
   const { projectId, findingId } = await params;
   const { ids } = await searchParams;
-  const { viewer } = await loadPageProject(projectId);
+  const { viewer, project, may } = await loadPageProject(projectId);
   const cmp = await orNotFound(compareCandidates(viewer, projectId, findingId, (ids ?? "").split(",").filter(Boolean), newCorrelationId()));
   const base = `/lite/projects/${projectId}`;
   return (
@@ -70,6 +71,9 @@ export default async function ComparePage({ params, searchParams }: { params: Pr
             </tbody>
           </table>
         </div>
+      </SectionCard>
+      <SectionCard title="Interpretasi perbandingan" description="Draft model atas snapshot perbandingan ini. Hanya kandidat berstatus tervalidasi yang boleh disebut sebagai rekomendasi.">
+        <InterpretationPanel projectId={projectId} targetType="candidate_comparison" targetId={cmp.id} canRequest={may("interpretation.request") && project.status === "active"} canReview={may("interpretation.review") && project.status === "active"} />
       </SectionCard>
     </div>
   );

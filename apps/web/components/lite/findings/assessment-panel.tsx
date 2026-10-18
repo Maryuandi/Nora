@@ -8,6 +8,7 @@ import { NoraModal } from "@/components/nora/modal";
 import { formatPct } from "@/lib/lite/format";
 import { StatePill, type Tone } from "../badges";
 import { api, errorText } from "../api";
+import { InterpretationPanel } from "../interpretation/interpretation-panel";
 
 const CONCLUSION: Record<string, string> = { relevant: "Relevan", partly_relevant: "Sebagian relevan", not_relevant: "Tidak relevan", insufficient_information: "Informasi tidak cukup" };
 const STATUS: Record<string, { label: string; tone: Tone }> = {
@@ -88,7 +89,18 @@ function Advanced({ projectId, canRun }: { projectId: string; canRun: boolean })
   );
 }
 
-export function AssessmentPanel({ projectId, findingId, canRun, canCorrect }: { projectId: string; findingId: string; canRun: boolean; canCorrect: boolean }) {
+/** Mounted on open only, so a list of assessments does not load every interpretation history. */
+function AssessmentInterpretation({ projectId, assessmentId, canRequest, canReview }: { projectId: string; assessmentId: string; canRequest: boolean; canReview: boolean }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <details className="mt-2 text-sm" onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
+      <summary className="cursor-pointer text-xs text-ink-2">Interpretasi penilaian</summary>
+      {open && <div className="mt-2"><InterpretationPanel projectId={projectId} targetType="assessment" targetId={assessmentId} canRequest={canRequest} canReview={canReview} /></div>}
+    </details>
+  );
+}
+
+export function AssessmentPanel({ projectId, findingId, canRun, canCorrect, canInterpret = false }: { projectId: string; findingId: string; canRun: boolean; canCorrect: boolean; canInterpret?: boolean }) {
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -140,6 +152,7 @@ export function AssessmentPanel({ projectId, findingId, canRun, canCorrect }: { 
               </div>
             )}
             {canCorrect && a.status === "needs_review" && !a.corrections.length && <div className="mt-2"><Review projectId={projectId} a={a} onDone={load} /></div>}
+            {a.status !== "failed" && a.status !== "queued" && a.status !== "running" && <AssessmentInterpretation projectId={projectId} assessmentId={a.id} canRequest={canInterpret} canReview={canInterpret} />}
           </li>
         ))}
       </ul>

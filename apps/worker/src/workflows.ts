@@ -8,6 +8,7 @@ import type * as recommendation from "./activities/recommendation.ts";
 import type * as data from "./activities/data.ts";
 import type * as evidence from "./activities/evidence.ts";
 import type * as graph from "./activities/graph.ts";
+import type * as interpretation from "./activities/interpretation.ts";
 
 const { pythonPing } = proxyActivities<{ pythonPing(input: PingRequest): Promise<unknown> }>({
   taskQueue: TASK_QUEUE_PYTHON,
@@ -166,4 +167,28 @@ export async function recommendationRefreshWorkflow(job: recommendation.RefreshJ
     await ts.failRefresh({ ...job, message: message(err) });
     return "failed";
   }
+}
+
+const llm = proxyActivities<typeof interpretation>({
+  startToCloseTimeout: "5 minutes",
+  // Provider outages retry; missing configuration, refusals, budget and auth do not. There is no fallback to a local draft.
+  retry: { maximumAttempts: 3, initialInterval: "2 seconds", nonRetryableErrorTypes: ["LlmNotConfigured", "ProviderRefused", "ProviderRejected", "BudgetExceeded", "Unauthorized", "NotFound"] },
+});
+const MAX_INTERPRETATION_ATTEMPTS = 3;
+
+/** evidence bundle → generate → schema/checks → repair (max 3) → passed or failed_check. */
+export async function interpretationWorkflow(job: interpretation.InterpretationJob): Promise<string> {
+  try {
+    const { targetType, targetId } = await llm.startInterpretation(job);
+    const bundle = await ts.buildEvidenceBundle({ projectId: job.projectId, targetType, targetId, purpose: "llm_interpretation", requestedBy: job.requestedBy, correlationId: job.correlationId });
+    const { reused } = await llm.prepareInterpretation({ ...job, bundleId: bundle.bundleId });
+    if (!reused) {
+      let last: Awaited<ReturnType<typeof interpretation.generateAttempt>> = { ok: false, violations: [] };
+      for (let attempt = 1; attempt <= MAX_INTERPRETATION_ATTEMPTS && !last.ok; attempt++) last = await llm.generateAttempt({ ...job, attempt });
+      if (!last.ok) await llm.markFailedCheck({ ...job, violations: last.violations });
+    }
+  } catch (err) {
+    await llm.markInterpretationFailed({ ...job, message: message(err) });
+  }
+  return llm.completeInterpretation(job);
 }

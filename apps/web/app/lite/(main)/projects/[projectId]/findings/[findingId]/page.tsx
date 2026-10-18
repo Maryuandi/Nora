@@ -7,6 +7,8 @@ import { AssessmentPanel } from "@/components/lite/findings/assessment-panel";
 import { EvidencePanel } from "@/components/lite/findings/evidence-panel";
 import { FindingCases } from "@/components/lite/findings/finding-panels";
 import { SEV_TONE, TYPE_LABEL } from "@/components/lite/findings/labels";
+import { InterpretationPanel } from "@/components/lite/interpretation/interpretation-panel";
+import { INTERPRETATION_STATUS } from "@/components/lite/interpretation/labels";
 import { SectionCard } from "@/components/lite/ui";
 import { downstreamStatus } from "@/lib/lite/downstream";
 import { getFinding, relatedHypotheses } from "@/lib/lite/findings";
@@ -47,7 +49,7 @@ async function Downstream({ projectId, findingId }: { projectId: string; finding
     <ul className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-xs">
       <li>{d.assessments?.total ? <StatePill tone={d.assessments.needsReview ? "warning" : "active"}>{d.assessments.total} penilaian{d.assessments.needsReview ? ` · ${d.assessments.needsReview} perlu review` : ""}</StatePill> : <span className="text-ink-3">Penilaian belum dijalankan</span>}</li>
       <li>{d.recommendations?.total ? <Link className="text-accent hover:underline" href={`${base}/recommendations/${findingId}`}>{d.recommendations.total} kandidat · {d.recommendations.validated} tervalidasi</Link> : <span className="text-ink-3">Rekomendasi belum disusun</span>}</li>
-      <li>{d.interpretations?.total ? <StatePill tone="info">Interpretasi {d.interpretations.latestStatus}</StatePill> : <span className="text-ink-3">Interpretasi belum dibuat</span>}</li>
+      <li>{d.interpretations?.total ? <StatePill tone={INTERPRETATION_STATUS[d.interpretations.latestStatus ?? ""]?.tone ?? "info"}>Interpretasi: {INTERPRETATION_STATUS[d.interpretations.latestStatus ?? ""]?.label ?? d.interpretations.latestStatus}</StatePill> : <span className="text-ink-3">Interpretasi belum dibuat</span>}</li>
     </ul>
   );
 }
@@ -115,8 +117,12 @@ export default async function FindingDetailPage({ params }: { params: Promise<{ 
       <SectionCard title="Bukti">
         <EvidencePanel projectId={projectId} findingId={f.id} timezone={project.timezone} />
       </SectionCard>
-      <SectionCard title="Penilaian & interpretasi" actions={<Suspense fallback={null}><Downstream projectId={projectId} findingId={f.id} /></Suspense>}>
-        <AssessmentPanel projectId={projectId} findingId={f.id} canRun={may("assessment.run") && project.status === "active"} canCorrect={may("assessment.correct") && project.status === "active"} />
+      <SectionCard title="Penilaian Jev" actions={<Suspense fallback={null}><Downstream projectId={projectId} findingId={f.id} /></Suspense>}>
+        <AssessmentPanel projectId={projectId} findingId={f.id} canRun={may("assessment.run") && project.status === "active"} canCorrect={may("assessment.correct") && project.status === "active"}
+          canInterpret={may("interpretation.request") && project.status === "active"} />
+      </SectionCard>
+      <SectionCard title="Interpretasi temuan" description="Draft model berbahasa Indonesia atas paket bukti temuan ini. Menjelaskan, tidak menghitung, tidak memutuskan.">
+        <InterpretationPanel projectId={projectId} targetType="finding" targetId={f.id} canRequest={may("interpretation.request") && project.status === "active"} canReview={may("interpretation.review") && project.status === "active"} />
       </SectionCard>
     </div>
   );

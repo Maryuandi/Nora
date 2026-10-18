@@ -168,7 +168,8 @@ const HANDLERS: Record<string, Handler> = {
     const b = await one("SELECT * FROM evidence_bundles WHERE id = $1", [id]);
     if (!b) return;
     await w.node(ref("EvidenceBundle", id), `Paket bukti ${b.purpose}`, { purpose: b.purpose, hash: b.hash, contextLimited: b.context_limited });
-    if (b.target_type === "finding") await w.rel("CITES", ref("EvidenceBundle", id), ref("Finding", b.target_id), code(b));
+    const target = ({ finding: "Finding", assessment: "Assessment", candidate_comparison: "Comparison" } as const)[b.target_type as string];
+    if (target) await w.rel("CITES", ref("EvidenceBundle", id), ref(target, b.target_id), code(b));
   },
 };
 

@@ -10,6 +10,7 @@ export * from "./assessment.ts";
 export * from "./context.ts";
 export * from "./dataset.ts";
 export * from "./evidence.ts";
+export * from "./interpretation.ts";
 export * from "./monitoring.ts";
 export * from "./ping.ts";
 export * from "./queues.ts";

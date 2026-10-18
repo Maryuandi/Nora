@@ -1,0 +1,156 @@
+import { createHash } from "node:crypto";
+import Anthropic from "@anthropic-ai/sdk";
+import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
+import { ApplicationFailure } from "@temporalio/activity";
+import { formatMetric, LlmInterpretation, type CheckContext, type InterpretationTarget } from "@nora/contracts";
+
+export interface LlmRequest {
+  system: string;
+  prompt: string;
+  idempotencyKey: string;
+  /** the structured data the prompt was built from; only the fixture reads it */
+  data: CheckContext & { audience: string; fixtureDirective?: string; attempt: number };
+}
+export interface LlmMeta {
+  provider: string;
+  model: string;
+  modelVersion: string;
+  requestId: string;
+  latencyMs: number;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  cost: number | null;
+  finishReason: string | null;
+  parameters: Record<string, unknown>;
+}
+export interface LlmResponse { output: unknown; text: string; meta: LlmMeta; raw: unknown }
+
+/** Provider-neutral: one structured generation. Callers validate the output themselves (the checker). */
+export interface LlmAdapter {
+  readonly provider: string;
+  readonly model: string;
+  generateStructured(req: LlmRequest): Promise<LlmResponse>;
+}
+
+/** USD per million tokens; override with LLM_PRICE_INPUT / LLM_PRICE_OUTPUT for other models. */
+const PRICES: Record<string, [number, number]> = { "claude-opus-5-5": [4, 20] };
+
+class AnthropicAdapter implements LlmAdapter {
+  readonly provider = "anthropic";
+  private client: Anthropic;
+  constructor(readonly model: string, apiKey: string, private effort: "low" | "medium" | "high") {
+    this.client = new Anthropic({ apiKey, maxRetries: 2 });
+  }
+
+  async generateStructured(req: LlmRequest): Promise<LlmResponse> {
+    const started = Date.now();
+    const parameters = { max_tokens: 16000, effort: this.effort, fallbacks: "default" };
+    let msg: Anthropic.Beta.BetaMessage;
+    try {
+      const stream = this.client.beta.messages.stream({
+        model: this.model,
+        max_tokens: 16000,
+        system: req.system,
+        messages: [{ role: "user", content: req.prompt }],
+        output_config: { effort: this.effort, format: betaZodOutputFormat(LlmInterpretation) },
+        // A policy decline re-runs on Anthropic's recommended fallback model inside the same call; the served model is recorded.
+        fallbacks: "default",
+        betas: ["server-side-fallback-2026-07-01"],
+      });
+      msg = await stream.finalMessage();
+    } catch (err) {
+      if (err instanceof Anthropic.APIError && err.status && err.status < 500 && err.status !== 429 && err.status !== 408) {
+        throw ApplicationFailure.nonRetryable(`Penyedia LLM menolak permintaan (HTTP ${err.status}): ${err.message}`, "ProviderRejected");
+      }
+      throw ApplicationFailure.retryable(`Penyedia LLM tidak tersedia: ${(err as Error).message}`, "ProviderUnavailable");
+    }
+    if (msg.stop_reason === "refusal") throw ApplicationFailure.nonRetryable("Model menolak menyusun interpretasi untuk bukti ini", "ProviderRefused");
+    const text = msg.content.filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === "text").map((b) => b.text).join("");
+    let output: unknown = null;
+    try {
+      output = JSON.parse(text);
+    } catch {
+      output = { invalid_json: text.slice(0, 2000) };
+    }
+    const price = PRICES[msg.model] ?? (process.env.LLM_PRICE_INPUT ? [Number(process.env.LLM_PRICE_INPUT), Number(process.env.LLM_PRICE_OUTPUT ?? 0)] as [number, number] : null);
+    const inTok = msg.usage.input_tokens + (msg.usage.cache_read_input_tokens ?? 0) + (msg.usage.cache_creation_input_tokens ?? 0);
+    return {
+      output, text, raw: msg,
+      meta: {
+        provider: this.provider, model: this.model, modelVersion: msg.model, requestId: msg.id, latencyMs: Date.now() - started,
+        inputTokens: inTok, outputTokens: msg.usage.output_tokens, finishReason: msg.stop_reason,
+        cost: price ? (inTok * price[0] + msg.usage.output_tokens * price[1]) / 1_000_000 : null, parameters,
+      },
+    };
+  }
+}
+
+/**
+ * Deterministic stand-in for automated tests and explicit demo mode only (LLM_MODE=fixture). It writes a draft
+ * from the structured data so the checker, renderer and repair loop can be exercised. Never a silent fallback.
+ * LLM_FIXTURE_FAULT=first_attempt makes attempt 1 type a raw number; a template example containing
+ * "fixture:invalid" makes every attempt invalid.
+ */
+class FixtureAdapter implements LlmAdapter {
+  readonly provider = "fixture";
+  readonly model = "fixture-llm";
+
+  async generateStructured(req: LlmRequest): Promise<LlmResponse> {
+    const d = req.data;
+    const firstFact = d.metrics[0];
+    const anchor = d.items[0]!.ref;
+    const claim = (text: string, type: LlmInterpretation["sections"][number]["claims"][number]["type"], citations: string[], ph: string[] = [], candidate: string | null = null) =>
+      ({ text_template: text, type, citations, metric_placeholders: ph, candidate_id: candidate });
+    const hyp = d.items.find((i) => i.itemType === "hypothesis");
+    const broken = d.fixtureDirective === "invalid" || (process.env.LLM_FIXTURE_FAULT === "first_attempt" && d.attempt === 1);
+    const facts = d.metrics.slice(0, 3).map((m) => claim(`Nilai ${m.metric} tercatat {{${m.ref}}}.`, "measured_fact", [m.evidenceRef], [m.ref]));
+    if (broken && firstFact) facts[0] = claim(`Nilai ${firstFact.metric} tercatat ${formatMetric(firstFact)}.`, "measured_fact", [firstFact.evidenceRef]);
+    const who = d.audience === "process_owner" ? "Bagi pemilik proses, " : "";
+    const sections: LlmInterpretation["sections"] = [
+      { key: "summary", claims: [claim(`${who}bukti menunjukkan pola yang perlu ditinjau pada ${label(d.target)} ini.`, "interpretation", [anchor])] },
+      { key: "measured_facts", claims: facts.length ? facts : [claim("Tidak ada nilai terukur pada paket bukti.", "interpretation", [anchor])] },
+      { key: "evidence_basis", claims: [claim("Penjelasan ini hanya memakai item yang termasuk dalam paket bukti.", "interpretation", d.items.slice(0, 2).map((i) => i.ref))] },
+      { key: "interpretation", claims: [claim("Pola tersebut tampak konsisten dengan ukuran yang tercatat, namun belum menjelaskan alasannya.", "interpretation", [anchor])] },
+      { key: "open_hypotheses", claims: hyp ? [claim("Salah satu penjelasan yang mungkin adalah hipotesis katalog yang belum terbukti.", "hypothesis", [hyp.ref])] : [] },
+      { key: "follow_up", claims: [claim("Pola ini perlu dikonfirmasi bersama pemilik proses.", "interpretation", [anchor])] },
+    ];
+    if (d.target === "candidate_comparison") {
+      sections.push({
+        key: "validated_recommendations",
+        claims: d.validatedCandidateIds.map((id) => {
+          const item = d.items.find((i) => i.itemType === "comparison_candidate" && i.itemId === id);
+          return claim(`Kandidat "${String(item?.content.action ?? id)}" berstatus tervalidasi.`, "validated_recommendation", [item?.ref ?? anchor], [], id);
+        }),
+      });
+    }
+    const uncertainties = [...d.requiredCaveats.map((c) => `Perlu diperhatikan: ${c.keywords[0]}.`), "Penjelasan tidak membuktikan sebab dari pola yang terlihat."];
+    if (d.target === "candidate_comparison" && !d.validatedCandidateIds.length) uncertainties.push("Belum ada kandidat tervalidasi untuk direkomendasikan.");
+    const output: LlmInterpretation = { sections, assumptions: ["Data peristiwa mencerminkan urutan kerja yang sebenarnya."], uncertainties, follow_up_questions: ["Apakah ada perubahan kebijakan pada periode data ini?"] };
+    const text = JSON.stringify(output);
+    return {
+      output, text, raw: { fixture: true, output },
+      meta: {
+        provider: this.provider, model: this.model, modelVersion: "1", requestId: `fixture-${createHash("sha256").update(req.idempotencyKey).digest("hex").slice(0, 16)}`,
+        latencyMs: 0, inputTokens: Math.ceil((req.system.length + req.prompt.length) / 4), outputTokens: Math.ceil(text.length / 4), cost: 0, finishReason: "end_turn", parameters: { fixture: true },
+      },
+    };
+  }
+}
+
+const label = (t: InterpretationTarget) => (t === "finding" ? "temuan" : t === "assessment" ? "penilaian" : "perbandingan kandidat");
+
+/** Chosen by server configuration only. No key, no model call: the request fails instead of producing a local draft. */
+export function llmAdapter(): LlmAdapter {
+  const mode = process.env.LLM_MODE ?? (process.env.ANTHROPIC_API_KEY ? "anthropic" : "unconfigured");
+  if (mode === "fixture") return new FixtureAdapter();
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (mode !== "anthropic" || !key) throw ApplicationFailure.nonRetryable("Penyedia LLM belum dikonfigurasi (LLM_MODE dan ANTHROPIC_API_KEY). Tidak ada draft lokal yang dibuat.", "LlmNotConfigured");
+  const effort = (process.env.LLM_EFFORT ?? "medium") as "low" | "medium" | "high";
+  return new AnthropicAdapter(process.env.LLM_MODEL ?? "claude-opus-5-5", key, effort);
+}
+
+/** Model identity that goes into the interpretation key; known before any call. */
+export function llmModelLabel(): string {
+  const mode = process.env.LLM_MODE ?? (process.env.ANTHROPIC_API_KEY ? "anthropic" : "unconfigured");
+  return mode === "fixture" ? "fixture-llm@1" : `${process.env.LLM_MODEL ?? "claude-opus-5-5"}`;
+}
