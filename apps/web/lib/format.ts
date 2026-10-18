@@ -39,3 +39,16 @@ export const formatDuration = (ms: number): string => {
 /** "from - to" on the mapping's time zone; "-" when either bound is not a finite ms value. */
 export const formatRange = (fromMs: number, toMs: number, tz: string): string =>
   Number.isFinite(fromMs) && Number.isFinite(toMs) ? `${formatEventTime(new Date(fromMs).toISOString(), tz)} - ${formatEventTime(new Date(toMs).toISOString(), tz)}` : "-";
+/** One decimal with Indonesian comma ("82,5"); "–" for null/non-finite so a missing score never shows NaN. */
+export const formatScore = (n: number | null | undefined): string =>
+  n == null || !Number.isFinite(n) ? "–" : n.toLocaleString("id-ID", { maximumFractionDigits: 1 });
+
+/** Probability 0..1 as a whole percent; non-finite counts as 0%. */
+export const formatPercent = (p: number): string => `${Number.isFinite(p) ? Math.round(Math.max(0, Math.min(1, p)) * 100) : 0}%`;
+
+/** Fixed `digits` decimals with Indonesian comma ("0,80"); "–" for null/non-finite. */
+export const formatNumber = (n: number | null | undefined, digits: number): string =>
+  n == null || !Number.isFinite(n) ? "–" : n.toLocaleString("id-ID", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+
+/** Ratio 0..1 as a percent with up to one decimal ("83,3%"); "–" for null/non-finite. */
+export const formatRatioPct = (p: number | null | undefined): string => (p == null || !Number.isFinite(p) ? "–" : `${formatScore(p * 100)}%`);

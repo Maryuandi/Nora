@@ -45,6 +45,18 @@ const EXPECTED: Record<UiAction, Role[]> = {
   "view.save": ["administrator", "analis"],
   "trace.view": ["administrator", "analis", "pemilik_proses"],
   "graph.rebuild": ["administrator"],
+  "assessment.view": ["administrator", "analis", "pemilik_proses"],
+  "assessment.run": ["analis"],
+  "assessment.correct": ["analis"],
+  "classify.view": ["administrator", "analis", "pemilik_proses"],
+  "classify.run": ["analis"],
+  "classify.correct": ["analis"],
+  "gold.view": ["administrator", "analis", "pemilik_proses"],
+  "gold.edit": ["analis"],
+  "evaluation.view": ["administrator", "analis", "pemilik_proses"],
+  "evaluation.run": ["analis"],
+  "spec.view": ["administrator", "analis", "pemilik_proses"],
+  "spec.edit": ["analis"],
 };
 
 describe("can", () => {
@@ -71,6 +83,10 @@ describe("can with null role", () => {
   for (const action of Object.keys(EXPECTED) as UiAction[]) {
     it(`denies ${action}`, () => expect(can(null, action)).toBe(false));
   }
+});
+
+describe("assessment.view", () => {
+  it("is denied without a role", () => expect(can(null, "assessment.view")).toBe(false));
 });
 
 describe("acceptsData", () => {

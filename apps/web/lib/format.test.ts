@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MOCK_TODAY } from "./mock/data";
-import { daysSince, formatBytes, formatDuration, formatEventTime, formatRange, isStale } from "./format";
+import { daysSince, formatBytes, formatDuration, formatEventTime, formatNumber, formatPercent, formatRange, formatRatioPct, formatScore, isStale } from "./format";
 
 const before = (days: number) => new Date(Date.parse(`${MOCK_TODAY}T00:00:00Z`) - days * 86_400_000).toISOString();
 
@@ -50,5 +50,44 @@ describe("formatRange", () => {
     expect(formatRange(NaN, 1, "UTC")).toBe("-");
     expect(formatRange(Infinity, -Infinity, "UTC")).toBe("-");
     expect(formatRange(0, 1000, "UTC")).toContain(" - ");
+  });
+});
+
+describe("formatScore", () => {
+  it("uses the id-ID decimal comma", () => {
+    expect(formatScore(82.5)).toBe("82,5");
+    expect(formatScore(80)).toBe("80");
+  });
+  it("shows a dash for missing or non-finite scores", () => {
+    expect(formatScore(null)).toBe("–");
+    expect(formatScore(NaN)).toBe("–");
+  });
+});
+
+describe("formatPercent", () => {
+  it("rounds to whole percent and clamps", () => {
+    expect(formatPercent(0.666)).toBe("67%");
+    expect(formatPercent(1.4)).toBe("100%");
+  });
+  it("renders NaN as 0%", () => expect(formatPercent(NaN)).toBe("0%"));
+});
+
+describe("formatNumber", () => {
+  it("pads to fixed digits with decimal comma", () => {
+    expect(formatNumber(0.8, 2)).toBe("0,80");
+    expect(formatNumber(5, 1)).toBe("5,0");
+  });
+  it("renders null and NaN as a dash", () => {
+    expect(formatNumber(null, 2)).toBe("–");
+    expect(formatNumber(NaN, 1)).toBe("–");
+  });
+});
+
+describe("formatRatioPct", () => {
+  it("keeps one decimal at most", () => {
+    expect(formatRatioPct(0.8)).toBe("80%");
+    expect(formatRatioPct(0.8333)).toBe("83,3%");
+    expect(formatRatioPct(null)).toBe("–");
+    expect(formatRatioPct(NaN)).toBe("–");
   });
 });

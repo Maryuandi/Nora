@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { initialState as s } from "./data";
 import { buildGraph, lineage } from "./graph";
 import { projectCanonicalLabels } from "./rules";
+import { FIXTURE } from "./assessment-data";
 import { linkFreshness, unreviewedModelOutputs } from "./investigation";
 
 describe("seed mappings", () => {
@@ -203,5 +204,69 @@ describe("seed graph (resolved via buildGraph)", () => {
         }
       }
     }
+  });
+});
+
+describe("seed assessments", () => {
+  const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
+  it("are consistent with findings and candidates", () => {
+    expect(s.assessments.length).toBeGreaterThan(0);
+    for (const a of s.assessments) {
+      const f = s.assessFindings.find((x) => x.id === a.findingId);
+      const c = s.candidates.find((x) => x.id === a.candidateId);
+      expect(f).toBeTruthy();
+      expect(c).toBeTruthy();
+      expect(f!.candidateIds).toContain(a.candidateId);
+      expect(a.id).toContain(a.candidateId);
+      expect(sum(Object.values(a.relevance.probs))).toBeCloseTo(1, 9);
+      for (const sc of a.scores) {
+        expect(sc.probs).toHaveLength(5);
+        expect(sum(sc.probs)).toBeCloseTo(1, 9);
+      }
+    }
+  });
+  it("candidate criteria weights sum to 1 with 5-level scales", () => {
+    for (const c of s.candidates) {
+      expect(sum(c.criteria.map((k) => k.weight))).toBeCloseTo(1, 9);
+      for (const k of c.criteria) expect(k.scale.map((x) => x.level)).toEqual([1, 2, 3, 4, 5]);
+    }
+  });
+  it("leave c6 (not applicable) and c9 (not yet assessed) without results", () => {
+    expect(s.assessments.some((a) => a.candidateId === "c6")).toBe(false);
+    expect(s.assessments.some((a) => a.candidateId === "c9")).toBe(false);
+    expect(s.candidates.find((c) => c.id === "c6")?.applicable).toBe(false);
+  });
+});
+
+describe("assessment fixture", () => {
+  it("has no more levels than the candidate has criteria", () => {
+    for (const c of s.candidates) if (FIXTURE[c.id]) expect(FIXTURE[c.id].levels.length).toBeLessThanOrEqual(c.criteria.length);
+  });
+});
+
+describe("seed classification", () => {
+  const ids = s.classItems.map((i) => i.id);
+  it("has 20 activities and 16 synthetic notes with unique ids", () => {
+    expect(s.classItems.filter((i) => i.task === "aktivitas")).toHaveLength(20);
+    expect(s.classItems.filter((i) => i.task === "catatan")).toHaveLength(16);
+    expect(new Set(ids).size).toBe(36);
+    for (const i of s.classItems) expect(i.synthetic).toBe(i.task === "catatan");
+  });
+  it("notes read as 8-20 word sentences", () => {
+    for (const i of s.classItems.filter((x) => x.task === "catatan")) {
+      const n = i.text.trim().split(/\s+/).length;
+      expect(n).toBeGreaterThanOrEqual(8);
+      expect(n).toBeLessThanOrEqual(20);
+    }
+  });
+  it("results sum to 1, match spec keys, and exactly six need review", () => {
+    expect(s.classResults).toHaveLength(36);
+    for (const r of s.classResults) {
+      const spec = s.specs.find((x) => x.task === r.task && x.version === r.specVersion)!;
+      expect(Object.keys(r.probs).sort()).toEqual(spec.categories.map((c) => c.key).sort());
+      expect(Math.abs(Object.values(r.probs).reduce((a, b) => a + b, 0) - 1)).toBeLessThan(1e-9);
+    }
+    expect(s.classResults.filter((r) => r.status === "perlu_review").map((r) => r.itemId).sort()).toEqual(["a02", "a06", "a14", "a18", "n11", "n14"]);
+    expect(s.classResults.filter((r) => r.status === "gagal")).toHaveLength(0);
   });
 });

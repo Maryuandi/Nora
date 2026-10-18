@@ -12,7 +12,10 @@ export type UiAction = "client.create" | "project.create" | "project.status" | "
   | "analysis.view"
   | "quality.view" | "repair.edit" | "dataset.publish"
   | "view.save"
-  | "trace.view" | "graph.rebuild";
+  | "trace.view" | "graph.rebuild"
+  | "assessment.view" | "assessment.run" | "assessment.correct"
+  | "classify.view" | "classify.run" | "classify.correct" | "gold.view" | "gold.edit"
+  | "evaluation.view" | "evaluation.run" | "spec.view" | "spec.edit";
 
 // Button matrix from PRD M01 "Matriks Kewenangan" (UI subset).
 const ALLOWED: Record<UiAction, readonly Role[]> = {
@@ -62,6 +65,20 @@ const ALLOWED: Record<UiAction, readonly Role[]> = {
   // PRD M07: every role can read traces; only Administrator rebuilds the graph.
   "trace.view": ["administrator", "analis", "pemilik_proses"],
   "graph.rebuild": ["administrator"],
+  // PRD M08: only Analis runs assessments and corrects results; others read.
+  "assessment.view": ["administrator", "analis", "pemilik_proses"],
+  "assessment.run": ["analis"],
+  "assessment.correct": ["analis"],
+  // PRD M08 klasifikasi, set acuan, evaluasi, spesifikasi: same split (analis writes, all roles read).
+  "classify.view": ["administrator", "analis", "pemilik_proses"],
+  "classify.run": ["analis"],
+  "classify.correct": ["analis"],
+  "gold.view": ["administrator", "analis", "pemilik_proses"],
+  "gold.edit": ["analis"],
+  "evaluation.view": ["administrator", "analis", "pemilik_proses"],
+  "evaluation.run": ["analis"],
+  "spec.view": ["administrator", "analis", "pemilik_proses"],
+  "spec.edit": ["analis"],
 };
 
 export const can = (role: Role | null, action: UiAction): boolean => role !== null && ALLOWED[action].includes(role);

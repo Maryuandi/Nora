@@ -1,8 +1,13 @@
 import { FINDINGS } from "./interpretation-targets";
 import { runCheckedGeneration, statusOf } from "./interpretation";
 import { copyConfig } from "./metrics";
-import type { AnalysisState, Audience, AuditEvent, Client, Comment, Decision, Interpretation, Investigation, InvestigationLink, InvestigationNote, Notification, Membership, MappingVersion, MockState, MonitoringConfig, MonitoringRun, Project, RuleSourceRef, RuleVersion, Snapshot, Source, User } from "./types";
+import type { AnalysisState, Audience, AuditEvent, Client, Comment, Decision, Interpretation, Investigation, InvestigationLink, InvestigationNote, Notification, Membership, MappingVersion, GoldItem, MockState, MonitoringConfig, MonitoringRun, Project, QuestionSpec, RuleSourceRef, RuleVersion, Snapshot, Source, User } from "./types";
 import { graphSeed } from "./graph-data";
+import { candidates, findings } from "./assessment-data";
+import { runFixture } from "./assessment";
+import { runClassFixture } from "./classification";
+import { CLASS_FIXTURE, classItems } from "./classification-data";
+import { DEFAULT_THRESHOLDS } from "./specs";
 
 export const MOCK_TODAY = "2026-10-17";
 
@@ -270,7 +275,59 @@ const decisions: Decision[] = [
       metricValues: { "finding_42.p90_days": 18.4 }, ruleVersions: { "r-sla": "v2" } } },
 ];
 
+// c6 is not applicable and c9 is deliberately left unscored so the "Jalankan penilaian" button has work in the demo.
+const assessments = findings.flatMap((f) =>
+  runFixture(f, candidates.filter((c) => f.candidateIds.includes(c.id) && c.id !== "c9"), { runId: "run-seed", at: MOCK_TODAY + "T09:00:00Z" }));
+
+const sp = (task: QuestionSpec["task"], question: string, cats: [string, string, string][]): QuestionSpec => ({
+  id: `sp-${task}-1`, projectId: "p-p2p", task, version: 1, question,
+  categories: cats.map(([key, label, definition]) => ({ key, label, definition })),
+  thresholds: { ...DEFAULT_THRESHOLDS }, createdBy: "u-dimas", createdAt: MOCK_TODAY + "T09:00:00Z",
+});
+
+export const specs: QuestionSpec[] = [
+  sp("relevansi", "Seberapa relevan kandidat ini sebagai penjelasan temuan?", []),
+  sp("aktivitas", "Golongan apa yang paling tepat untuk aktivitas ini?", [
+    ["persetujuan", "Persetujuan", "Aktivitas yang menyetujui atau menolak suatu dokumen atau permintaan."],
+    ["pembuatan", "Pembuatan", "Aktivitas yang membuat dokumen atau transaksi baru."],
+    ["perubahan", "Perubahan", "Aktivitas yang mengubah isi dokumen atau transaksi yang sudah ada."],
+    ["pembatalan", "Pembatalan", "Aktivitas yang membatalkan atau menghapus dokumen atau transaksi."],
+    ["penerimaan", "Penerimaan", "Aktivitas yang mencatat penerimaan barang atau jasa."],
+    ["pencatatan_dokumen", "Pencatatan dokumen", "Aktivitas yang mencatat atau mengarsipkan dokumen pendukung."],
+    ["pembayaran", "Pembayaran", "Aktivitas yang melakukan atau mengeluarkan pembayaran."],
+    ["lainnya", "Lainnya", "Aktivitas yang tidak masuk golongan lain."],
+  ]),
+  sp("catatan", "Apa alasan utama yang tertulis pada catatan ini?", [
+    ["harga_tidak_sesuai", "Harga tidak sesuai", "Harga pada dokumen berbeda dari kesepakatan atau pesanan."],
+    ["kuantitas_tidak_sesuai", "Kuantitas tidak sesuai", "Jumlah barang berbeda antara pesanan, penerimaan, dan faktur."],
+    ["dokumen_kurang", "Dokumen kurang", "Dokumen pendukung belum lengkap atau belum diterima."],
+    ["vendor_salah", "Vendor salah", "Data vendor pada dokumen keliru atau tidak sesuai."],
+    ["lainnya", "Lainnya", "Alasan yang tidak masuk kategori lain."],
+  ]),
+];
+
+const classResults = (["aktivitas", "catatan"] as const).flatMap((task) =>
+  runClassFixture(classItems.filter((i) => i.task === task), specs.find((x) => x.task === task)!, { runId: "run-seed-cls", at: MOCK_TODAY + "T09:00:00Z" }));
+
+// Gold labels: the fixture's top category, except where the analyst disagrees with the model (so accuracy is 16/20 and 14/16).
+const GOLD_FIX: Record<string, string> = { a02: "pencatatan_dokumen", a14: "pencatatan_dokumen", a18: "pembuatan", a19: "pembayaran", n05: "dokumen_kurang", n11: "dokumen_kurang" };
+const LABEL_B_FIX: Record<string, string> = { a02: "pembuatan", a06: "perubahan" };
+const gold = (task: GoldItem["task"], itemRef: string, label: string, labelB?: string): GoldItem => ({
+  id: `g-${task}-${itemRef.replace(":", "-")}`, projectId: "p-p2p", task, itemRef, label, labeler: "u-dimas",
+  ...(labelB ? { labelB, labelerB: "u-anton" } : {}), createdAt: MOCK_TODAY + "T09:00:00Z",
+});
+const goldItems: GoldItem[] = [
+  ...([["f-bottleneck:c1", "relevan"], ["f-bottleneck:c2", "sebagian_relevan"], ["f-bottleneck:c3", "sebagian_relevan"], ["f-bottleneck:c4", "tidak_relevan"],
+    ["f-bottleneck:c5", "informasi_tidak_cukup"], ["f-rework:c7", "relevan"]] as const).map(([ref, label]) => gold("relevansi", ref, label)),
+  ...classItems.map((i) => {
+    const label = GOLD_FIX[i.id] ?? CLASS_FIXTURE[i.id].top;
+    const n = Number(i.id.slice(1));
+    return gold(i.task, i.id, label, i.task === "aktivitas" && n <= 12 ? (LABEL_B_FIX[i.id] ?? label) : undefined);
+  }),
+];
+
 export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, rules,
   runs, monitoringConfigs: [p2pConfig], repairRules: [], datasetVersions: [], savedViews: [],
   findings: FINDINGS, interpretations, investigations, links, notes, comments, notifications, reviews: [], decisions, flags: [], proposals: [], analysisStates,
+  assessFindings: findings, candidates, assessments, corrections: [], specs, classItems, classResults, classCorrections: [], goldItems, evaluations: [],
   ...graphSeed, viewerId: "u-dimas" };

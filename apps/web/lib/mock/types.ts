@@ -214,6 +214,56 @@ export interface EvidenceBundle {
 
 export interface GraphStatus { version: number; projectedAt: string; authoritativeAt: string; failed: { eventId: string; reason: string; attempts: number }[]; rebuilding: boolean }
 
+export type AssessmentStatus = "otomatis" | "perlu_review" | "informasi_tidak_cukup" | "gagal" | "tertunda";
+export type Relevance = "relevan" | "sebagian_relevan" | "tidak_relevan" | "informasi_tidak_cukup";
+
+export interface Criterion {
+  key: string; label: string;
+  weight: number; // bobot, jumlah 1 per kandidat
+  scale: { level: number; definition: string }[]; // 1..5
+}
+export interface Candidate {
+  id: string; kind: "hipotesis" | "intervensi"; name: string;
+  criteria: Criterion[]; applicable: boolean; notApplicableReason?: string;
+}
+export interface Finding {
+  id: string; projectId: string; title: string; summary: string;
+  candidateIds: string[]; evidenceBundleId: string;
+}
+
+export interface CriterionScore { key: string; level: number; probs: number[] } // probs: panjang 5, jumlah 1
+export interface Assessment {
+  id: string; projectId: string; findingId: string; candidateId: string;
+  status: AssessmentStatus;
+  sufficient: { prob: number }; // Noul: probabilitas "cukup"
+  scores: CriterionScore[]; // Score per kriteria
+  relevance: { probs: Record<Relevance, number> }; // Choice: distribusi
+  modelId: string; specVersion: number; evidenceBundleId: string; runId: string; createdAt: string;
+  rawOutputRef: string; // tautan tiruan ke keluaran mentah
+  supersededBy?: string; // id hasil yang menggantikannya
+}
+export interface AssessmentCorrection {
+  id: string; assessmentId: string; actorId: string; at: string;
+  relevance: Relevance; reason: string; addToGoldSet: boolean;
+  confirmedOnly: boolean; // konfirmasi tanpa mengubah nilai
+}
+
+export type TaskKind = "relevansi" | "aktivitas" | "catatan";
+export type ClassStatus = "otomatis" | "perlu_review" | "gagal";
+export interface SpecCategory { key: string; label: string; definition: string }
+export interface Thresholds { sufficient: number; topProb: number; margin: number }
+export interface QuestionSpec { id: string; projectId: string; task: TaskKind; version: number; question: string; categories: SpecCategory[]; thresholds: Thresholds; note?: string; createdBy: string; createdAt: string }
+export interface ClassItem { id: string; projectId: string; task: "aktivitas" | "catatan"; text: string; context: string; synthetic: boolean; activity?: string; period?: string }
+export interface ClassResult { id: string; projectId: string; itemId: string; task: "aktivitas" | "catatan"; specVersion: number; modelId: string; runId: string; at: string; probs: Record<string, number>; status: ClassStatus; supersededBy?: string }
+export interface ClassCorrection { id: string; resultId: string; actorId: string; at: string; category: string; reason: string; confirmedOnly: boolean }
+export interface GoldItem { id: string; projectId: string; task: TaskKind; itemRef: string; label: string; labeler: string; labelB?: string; labelerB?: string; createdAt: string }
+export interface Bin { lo: number; hi: number; n: number; meanConf: number; accuracy: number | null }
+export interface EvaluationRun {
+  id: string; projectId: string; task: TaskKind; at: string; actorId: string; modelId: string; specVersion: number; n: number; excluded: number;
+  accuracy: number; macroF1: number; autoCoverage: number; autoAccuracy: number | null; reviewShare: number;
+  highConf: { n: number; accuracy: number | null }; kappa: number | null; bins: Bin[];
+}
+
 export interface MockState {
   clients: Client[];
   projects: Project[];
@@ -246,6 +296,16 @@ export interface MockState {
   graphNodes: GraphNode[];
   graphEdges: GraphEdge[];
   graphStatus: Record<string, GraphStatus>;
+  assessFindings: Finding[];
+  candidates: Candidate[];
+  assessments: Assessment[];
+  corrections: AssessmentCorrection[];
+  specs: QuestionSpec[];
+  classItems: ClassItem[];
+  classResults: ClassResult[];
+  classCorrections: ClassCorrection[];
+  goldItems: GoldItem[];
+  evaluations: EvaluationRun[];
   viewerId: string;
 }
 

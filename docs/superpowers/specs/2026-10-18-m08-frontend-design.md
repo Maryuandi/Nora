@@ -53,6 +53,7 @@ interface Assessment {
   relevance: { probs: Record<Relevance, number> };       // Choice: distribusi
   modelId: string; specVersion: number; evidenceBundleId: string; runId: string; createdAt: string;
   rawOutputRef: string;                                  // tautan tiruan ke keluaran mentah
+  supersededBy?: string;                                 // id hasil yang menggantikannya; tampilan hanya memakai hasil tanpa supersededBy
 }
 interface AssessmentCorrection { id: string; assessmentId: string; actorId: string; at: string; relevance: Relevance; reason: string; addToGoldSet: boolean; confirmedOnly: boolean }
 ```
@@ -76,13 +77,13 @@ interface AssessmentCorrection { id: string; assessmentId: string; actorId: stri
 
 ## Seed (`lib/mock/assessment-data.ts`, baru)
 
-Satu proyek berisi dua temuan: "Persetujuan menumpuk pada satu approver" (lima kandidat dinilai, satu tidak dapat dinilai karena syarat penerapan tidak terpenuhi, total enam) dan "Rework pada Change Approval" (tiga kandidat). Setiap kandidat punya 3–4 kriteria berbobot dengan skala 1–5 beserta definisi. Distribusi fixture memberi: ≥2 `otomatis` dengan relevansi berbeda, 1 `perlu_review` (margin sempit), 1 `informasi_tidak_cukup`, dan di temuan kedua 1 `gagal`. Hasil sudah ada di seed (batch "sudah dijalankan" agar demo langsung tampil); tombol "Jalankan penilaian" membuat run baru untuk kandidat yang belum punya hasil, atau untuk semua (dengan konfirmasi) bila diulang.
+Satu proyek berisi dua temuan: "Persetujuan menumpuk pada satu approver" (lima kandidat dinilai, satu tidak dapat dinilai karena syarat penerapan tidak terpenuhi, total enam) dan "Rework pada Change Approval" (tiga kandidat). Setiap kandidat punya 3–4 kriteria berbobot dengan skala 1–5 beserta definisi. Distribusi fixture memberi: ≥2 `otomatis` dengan relevansi berbeda, 1 `perlu_review` (margin sempit), 1 `informasi_tidak_cukup`, dan di temuan kedua 1 `gagal`. Hasil sudah ada di seed (batch "sudah dijalankan" agar demo langsung tampil). Temuan kedua sengaja **tanpa** hasil untuk kandidat ketiga (`c9`) agar tombol "Jalankan penilaian" punya pekerjaan di demo; tombol itu menjalankan `scope: "belum_dinilai"`, atau `"semua"` (dengan konfirmasi) bila diulang.
 
 ## Reducer (`lib/mock/assessment-reducer.ts`, baru, pola `rules-reducer`)
 
-Aksi: `assessment/run { projectId, findingId }`, `assessment/correct { assessmentId, relevance, reason, addToGoldSet }`, `assessment/confirm { assessmentId }`.
+Aksi: `assessment/run { projectId, findingId, scope: "belum_dinilai" | "semua" }`, `assessment/correct { assessmentId, relevance, reason, addToGoldSet }`, `assessment/confirm { assessmentId }`.
 
-- `run`: ditolak bila peran tidak berizin, proyek tidak `aktif`, atau temuan tidak ditemukan. Run mengganti hasil kandidat yang sama pada temuan itu dengan hasil baru; **koreksi lama tetap tersimpan** dan tetap merujuk `assessmentId` lamanya (hasil lama dipertahankan sebagai riwayat dengan tanda `superseded` pada tampilan; di M08a cukup disimpan dan tidak ditampilkan). Audit `penilaian.jalankan`.
+- `run`: ditolak bila peran tidak berizin, proyek tidak `aktif`, atau temuan tidak ditemukan. `scope: "belum_dinilai"` hanya menilai kandidat yang belum punya hasil; `"semua"` menilai ulang semua. Hasil baru menggantikan hasil lama kandidat yang sama: hasil lama diberi `supersededBy` = id hasil baru dan dipertahankan sebagai riwayat; **koreksi lama tetap tersimpan** dan tetap merujuk `assessmentId` lamanya. Semua tampilan memakai hasil yang `supersededBy`-nya kosong; riwayat di M08a cukup disimpan dan tidak ditampilkan. Audit `penilaian.jalankan`.
 - `correct`: wajib `reason` tidak kosong (maks 500 karakter) dan `relevance` valid; menambah `AssessmentCorrection`, tidak mengubah `Assessment`. Audit `penilaian.koreksi`. Validasi dengan Zod di `schemas.ts`.
 - `confirm`: koreksi dengan `confirmedOnly: true` dan relevansi = argmax model; alasan otomatis "Dikonfirmasi analis". Audit `penilaian.konfirmasi`.
 - Semua mengembalikan `ReduceResult` dengan galat bahasa Indonesia; tidak melempar.

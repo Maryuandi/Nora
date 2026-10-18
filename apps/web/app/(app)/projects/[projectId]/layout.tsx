@@ -1,11 +1,12 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { ClockCounterClockwise, Database, FlowArrow, GearSix, MagnifyingGlassPlus, Pulse, Scales, Sparkle, SquaresFour, TreeStructure, UsersThree } from "@phosphor-icons/react";
+import { ClipboardText, ClockCounterClockwise, Database, FlowArrow, GearSix, MagnifyingGlassPlus, Pulse, Scales, Sparkle, SquaresFour, TreeStructure, UsersThree } from "@phosphor-icons/react";
 import { StatusBadge } from "@/components/nora/badges";
 import { NotFoundPanel } from "@/components/not-found-panel";
 import { formatPeriod } from "@/components/project-card";
 import { useProject } from "@/components/project/use-project";
+import { reviewQueue } from "@/lib/mock/assessment";
 import { interpretationsForProject, investigationsForProject, rulesForProject, runsForProject } from "@/lib/mock/reducer";
 import { latestByKey } from "@/lib/mock/rules";
 import { PageHeader } from "@/components/shell/page-header";
@@ -22,6 +23,7 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
   const rules = latestByKey(rulesForProject(state, project.id)).length;
   const interpretations = interpretationsForProject(state, project.id).length;
   const investigations = investigationsForProject(state, project.id).filter((i) => i.status !== "selesai").length;
+  const queue = reviewQueue(state, project.id).length;
   const audit = state.audit.filter((a) => a.projectId === project.id).length;
 
   const tabs = [
@@ -31,12 +33,13 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
     { label: "Analisis", icon: FlowArrow, href: `${base}/analysis/map` },
     { label: "Monitoring", icon: Pulse, href: `${base}/monitoring`, count: runsForProject(state, project.id).length },
     { label: "Jejak", icon: TreeStructure, href: `${base}/trace` },
+    { label: "Penilaian", icon: ClipboardText, href: `${base}/assessments`, count: queue },
     { label: "Interpretasi", icon: Sparkle, href: `${base}/interpretations`, count: interpretations },
     { label: "Investigasi", icon: MagnifyingGlassPlus, href: `${base}/investigations`, count: investigations },
     { label: "Anggota", icon: UsersThree, href: `${base}/members`, count: members },
     { label: "Audit log", icon: ClockCounterClockwise, href: `${base}/audit`, count: audit },
     ...(can("project.status", project.id) ? [{ label: "Pengaturan", icon: GearSix, href: `${base}/settings` }] : []),
-  ].map((t) => ({ ...t, active: t.href === `${base}/sources` ? path.startsWith(t.href) || path.startsWith(`${base}/snapshots`) : t.href === `${base}/context/rules` ? path.startsWith(`${base}/context`) : t.href === `${base}/analysis/map` ? path.startsWith(`${base}/analysis`) : t.href === `${base}/monitoring` ? path.startsWith(`${base}/monitoring`) : t.href === `${base}/trace` || t.href === `${base}/interpretations` || t.href === `${base}/investigations` ? path.startsWith(t.href) : path === t.href }));
+  ].map((t) => ({ ...t, active: t.href === `${base}/sources` ? path.startsWith(t.href) || path.startsWith(`${base}/snapshots`) : t.href === `${base}/context/rules` ? path.startsWith(`${base}/context`) : t.href === `${base}/analysis/map` ? path.startsWith(`${base}/analysis`) : t.href === `${base}/monitoring` ? path.startsWith(`${base}/monitoring`) : t.href === `${base}/trace` || t.href === `${base}/assessments` || t.href === `${base}/interpretations` || t.href === `${base}/investigations` ? path.startsWith(t.href) : path === t.href }));
 
   return (
     <>

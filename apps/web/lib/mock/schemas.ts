@@ -44,4 +44,24 @@ export const activateSchema = z
   })
   .refine((v) => v.confirm === v.password, { path: ["confirm"], message: "Konfirmasi tidak sama dengan kata sandi" });
 
+export const correctionSchema = z.object({
+  relevance: z.enum(["relevan", "sebagian_relevan", "tidak_relevan", "informasi_tidak_cukup"]),
+  reason: required("Alasan").max(500, "Alasan maksimal 500 karakter"),
+  addToGoldSet: z.boolean(),
+});
+
+export const classCorrectionSchema = z.object({
+  category: required("Kategori"),
+  reason: required("Alasan").max(500, "Alasan maksimal 500 karakter"),
+  addToGoldSet: z.boolean(),
+});
+
+// `error` also covers NaN (zod rejects it as an invalid number).
+const range = (min: number, max: number, msg: string) => z.number({ error: msg }).min(min, msg).max(max, msg);
+export const thresholdsSchema = z.object({
+  sufficient: range(0, 1, "Ambang bukti cukup harus 0–1"),
+  topProb: range(0.3, 0.95, "Ambang probabilitas teratas harus 0,3–0,95"),
+  margin: range(0, 0.5, "Margin harus 0–0,5"),
+});
+
 export type ProjectInput = z.infer<typeof projectSchema>;
