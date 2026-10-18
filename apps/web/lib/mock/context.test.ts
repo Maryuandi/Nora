@@ -51,7 +51,7 @@ describe("validateConfig", () => {
     expect(v({ kind: "population", completedOnly: true, periodFrom: null, periodTo: null, filter: { attribute: "", op: "=", value: "" } })).toEqual(["filter"]);
   });
   it("calendar", () => {
-    const base = { kind: "calendar", timezone: "Asia/Jakarta", workDays: [1], startTime: "08:00", endTime: "17:00", holidays: [] } as const;
+    const base: Extract<ConfigData, { kind: "calendar" }> = { kind: "calendar", timezone: "Asia/Jakarta", workDays: [1], startTime: "08:00", endTime: "17:00", holidays: [] };
     expect(v(base)).toEqual([]);
     expect(v({ ...base, workDays: [] })).toEqual(["workDays"]);
     expect(v({ ...base, workDays: [8] })).toEqual(["workDays"]);
