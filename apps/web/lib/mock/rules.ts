@@ -131,6 +131,17 @@ export function previewRule(input: { params: RuleParams; scope: RuleScope | null
 const NEXT: Record<RuleStatus, RuleStatus[]> = { draf: ["ditinjau"], ditinjau: ["draf", "disetujui"], disetujui: ["usang"], usang: [] };
 export const nextStatuses = (status: RuleStatus): RuleStatus[] => (Object.hasOwn(NEXT, status) ? [...NEXT[status]] : []);
 
+// Newest version first; equal versions fall back to insertion order (later first).
+export const ruleVersions = (s: MockState, ruleKey: string): RuleVersion[] =>
+  s.rules
+    .map((x, i) => ({ x, i }))
+    .filter(({ x }) => x.ruleKey === ruleKey)
+    .sort((a, b) => b.x.version - a.x.version || b.i - a.i)
+    .map(({ x }) => x);
+
+// Aturan yang versi terbarunya masih draf/ditinjau sudah punya usulan berjalan; dipakai reducer dan formulir usulan.
+export const isProposalBlocked = (latest: RuleVersion): boolean => latest.status === "draf" || latest.status === "ditinjau";
+
 export function latestByKey(rules: RuleVersion[]): RuleVersion[] {
   const best = new Map<string, RuleVersion>();
   for (const r of rules) {

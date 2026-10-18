@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { initialState as s } from "./data";
 import {
-  canonicalLabels, latestByKey, nextStatuses, previewDataset, previewRule, projectCanonicalLabels, ruleSummary, validateRule,
+  canonicalLabels, isProposalBlocked, latestByKey, nextStatuses, previewDataset, previewRule, projectCanonicalLabels, ruleSummary, validateRule,
   type RuleInput,
 } from "./rules";
 import type { MappingVersion, MockState, RuleVersion, Snapshot } from "./types";
@@ -175,5 +175,12 @@ describe("nextStatuses / latestByKey / ruleSummary", () => {
     expect(ruleSummary({ type: "wajib", activity: "A" })).toContain("A");
     expect(ruleSummary({ type: "terlarang", activity: "A" })).toContain("A");
     expect(ruleSummary({ type: "pemisahan_tugas", activityA: "A", activityB: "B" })).toMatch(/A.*B/);
+  });
+});
+
+describe("isProposalBlocked", () => {
+  it("hanya draf dan ditinjau yang menghalangi usulan baru", () => {
+    const r = s.rules[0];
+    expect((["draf", "ditinjau", "disetujui", "usang"] as const).map((status) => isProposalBlocked({ ...r, status }))).toEqual([true, true, false, false]);
   });
 });

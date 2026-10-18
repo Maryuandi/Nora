@@ -4,7 +4,10 @@ export type UiAction = "client.create" | "project.create" | "project.status" | "
   | "source.view" | "source.create" | "snapshot.upload" | "snapshot.confirm" | "snapshot.cancel"
   | "mapping.view" | "mapping.edit"
   | "rule.view" | "rule.edit" | "rule.confirm"
-  | "interpretation.view" | "interpretation.request" | "interpretation.override";
+  | "interpretation.view" | "interpretation.request" | "interpretation.override"
+  | "investigation.view" | "investigation.create" | "investigation.link" | "investigation.status"
+  | "note.add" | "note.add.field" | "comment.add" | "review.jev" | "review.draft"
+  | "decision.analytic" | "decision.select" | "proposal.create";
 
 // Button matrix from PRD M01 "Matriks Kewenangan" (UI subset).
 const ALLOWED: Record<UiAction, readonly Role[]> = {
@@ -29,6 +32,19 @@ const ALLOWED: Record<UiAction, readonly Role[]> = {
   "interpretation.view": ["administrator", "analis", "pemilik_proses"],
   "interpretation.request": ["analis"],
   "interpretation.override": ["analis"],
+  // M11 (PRD assumption, not yet validated): analysts run the workspace; process owners add field notes, comment, propose and select.
+  "investigation.view": ["administrator", "analis", "pemilik_proses"],
+  "investigation.create": ["analis"],
+  "investigation.link": ["analis"],
+  "investigation.status": ["analis"],
+  "note.add": ["analis"],
+  "note.add.field": ["analis", "pemilik_proses"],
+  "comment.add": ["analis", "pemilik_proses"],
+  "review.jev": ["analis"],
+  "review.draft": ["analis"],
+  "decision.analytic": ["analis"],
+  "decision.select": ["pemilik_proses"],
+  "proposal.create": ["analis", "pemilik_proses"],
 };
 
 export const can = (role: Role | null, action: UiAction): boolean => role !== null && ALLOWED[action].includes(role);

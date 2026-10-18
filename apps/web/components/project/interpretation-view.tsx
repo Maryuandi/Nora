@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { CheckCircle, FileText, XCircle } from "@phosphor-icons/react";
 import { Button } from "@/components/base/buttons/button";
 import { Banner } from "@/components/nora/banner";
@@ -27,8 +28,17 @@ export function InterpretationView({ interpretation, finding }: { interpretation
   const [itemId, setItemId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>(interpretation.status === "gagal_pemeriksaan" ? "pemeriksaan" : "bukti");
   const [overriding, setOverriding] = useState<Violation | null>(null);
+  const [m11Error, setM11Error] = useState<string | undefined>();
+  const router = useRouter();
   if (!ctx) return null;
-  const { project, state, can } = ctx;
+  const { project, state, can, run } = ctx;
+  const workspaceId = state.links.find((l) => l.kind === "interpretasi" && l.targetId === interpretation.id)?.investigationId;
+  const mayCreateWorkspace = can("investigation.create", project.id) && acceptsData(project.status);
+  const createWorkspace = () => {
+    const r = run({ type: "createInvestigation", projectId: project.id, title: finding.title, question: finding.summary || `Apa yang melatarbelakangi temuan "${finding.title}"?`, findingId: finding.id });
+    if (r.error) return setM11Error(r.error);
+    router.push(`/projects/${project.id}/investigations/${r.investigationId}`);
+  };
 
   const { attempts, overrides, status } = interpretation;
   const lastIdx = attempts.length - 1;
@@ -61,9 +71,12 @@ export function InterpretationView({ interpretation, finding }: { interpretation
         </div>
         <div className="flex items-center gap-2">
           <Button color="secondary" size="xs" iconLeading={FileText} href={`/projects/${project.id}/interpretations/templates`}>Templat prompt</Button>
-          <span title="Workspace tinjauan (M11) belum tersedia"><Button color="secondary" size="xs" isDisabled>Buka di M11</Button></span>
+          {workspaceId ? <Button color="secondary" size="xs" href={`/projects/${project.id}/investigations/${workspaceId}`}>Buka di M11</Button>
+            : mayCreateWorkspace ? <Button color="secondary" size="xs" onClick={createWorkspace}>Buat workspace dari temuan ini</Button>
+            : <span title="Workspace tinjauan (M11) belum dibuat untuk temuan ini"><Button color="secondary" size="xs" isDisabled>Buka di M11</Button></span>}
         </div>
       </div>
+      {m11Error && <Banner tone="warning">{m11Error}</Banner>}
       <Banner tone="info">Draf dibuat model — belum ditinjau</Banner>
 
       <div className="flex flex-wrap gap-2" role="group" aria-label="Percobaan">

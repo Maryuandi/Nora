@@ -2,13 +2,16 @@ import { MOCK_TODAY, initialState } from "./data";
 import { isStale } from "../format";
 import { fabricate } from "./fabricate";
 import { AUDIENCE_LABEL, CHECK_LABEL, isOverridable, runCheckedGeneration, statusOf, violationKey } from "./interpretation";
+import { reduceInvestigation, type InvestigationAction } from "./investigation-reducer";
 import { validateMapping } from "./mapping";
+import { id, now, withAudit } from "./mutate";
 import { acceptsData } from "./permissions";
-import { nextStatuses, previewDataset, previewRule, projectCanonicalLabels, validateRule, type RuleInput } from "./rules";
+import { nextStatuses, previewDataset, previewRule, projectCanonicalLabels, ruleVersions, validateRule, type RuleInput } from "./rules";
 import { projectSchema, type ProjectInput } from "./schemas";
-import type { Audience, AuditEvent, CheckKey, ColumnRole, Interpretation, MockFinding, LabelRule, MappingVersion, MockState, Project, ProjectStatus, Role, RuleStatus, RuleVersion, Snapshot, SnapshotStatus } from "./types";
+import type { Audience, Investigation, Notification, RevalidationFlag, CheckKey, ColumnRole, Interpretation, MockFinding, LabelRule, MappingVersion, MockState, Project, ProjectStatus, Role, RuleStatus, RuleVersion, Snapshot, SnapshotStatus } from "./types";
 
 export { MOCK_TODAY, initialState };
+export { ruleVersions } from "./rules"; // dipindah ke rules.ts agar investigation-reducer tak mengimpor nilai dari sini
 
 export type MockAction =
   | { type: "createClient"; input: { name: string; sector: string; contact: string } }
@@ -28,9 +31,11 @@ export type MockAction =
   | { type: "confirmRuleClient"; ruleId: string }
   | { type: "requestInterpretation"; projectId: string; findingId: string; audience: Audience }
   | { type: "overrideCheck"; interpretationId: string; check: CheckKey; claimId?: string; reason: string }
-  | { type: "setViewer"; userId: string };
+  | { type: "setViewer"; userId: string }
+  | InvestigationAction;
 
-export type ReduceResult = { state: MockState; error?: string; snapshotId?: string; duplicateOf?: string; mappingId?: string; ruleId?: string; interpretationId?: string };
+export type ReduceResult = { state: MockState; error?: string; snapshotId?: string; duplicateOf?: string; mappingId?: string; ruleId?: string; interpretationId?: string;
+  investigationId?: string; linkId?: string; noteId?: string; commentId?: string; decisionId?: string; proposalId?: string };
 
 const MAX_BYTES = 500 * 1024 * 1024;
 // ".xes.gz" must come before ".xes".
@@ -57,16 +62,6 @@ const TRANSITIONS: Record<ProjectStatus, ProjectStatus[]> = {
 
 export const allowedTransitions = (from: ProjectStatus) => TRANSITIONS[from];
 
-// Fixed clock so the demo looks the same every time.
-const now = () => `${MOCK_TODAY}T09:30:00Z`;
-let seq = 0;
-const id = (prefix: string) => `${prefix}-${Date.now().toString(36)}${(seq++).toString(36)}`;
-
-const withAudit = (state: MockState, e: Omit<AuditEvent, "id" | "at" | "actorId" | "result">): MockState => ({
-  ...state,
-  audit: [{ id: id("a"), at: now(), actorId: state.viewerId, result: "sukses", ...e }, ...state.audit],
-});
-
 const isLastAdmin = (s: MockState, projectId: string, userId: string) => {
   const admins = s.memberships.filter((m) => m.projectId === projectId && m.role === "administrator");
   return admins.length === 1 && admins[0].userId === userId;
@@ -74,6 +69,8 @@ const isLastAdmin = (s: MockState, projectId: string, userId: string) => {
 
 export function reduce(state: MockState, action: MockAction): ReduceResult {
   const fail = (error: string) => ({ state, error });
+  const m11 = reduceInvestigation(state, action, reduce);
+  if (m11) return m11;
   switch (action.type) {
     case "setViewer":
       return { state: { ...state, viewerId: action.userId } };
@@ -345,6 +342,9 @@ export function reduce(state: MockState, action: MockAction): ReduceResult {
       const next = { ...state, snapshots: state.snapshots.map((x) => (x === snap ? { ...x, status: to } : x)) };
       return { state: withAudit(next, { action: confirm ? "snapshot.konfirmasi" : "snapshot.batal", objectType: "Snapshot", objectLabel: snap.fileName, projectId: snap.projectId }) };
     }
+
+    default: // M11 actions are handled above; this only keeps the switch total for TypeScript.
+      return fail("Aksi tidak dikenal");
   }
 }
 
@@ -372,14 +372,6 @@ const sameConfig = (a: MappingVersion, b: Pick<MappingVersion, "roles" | "timeFo
 
 export const rulesForProject = (s: MockState, projectId: string): RuleVersion[] => s.rules.filter((r) => r.projectId === projectId);
 
-// Newest version first; equal versions fall back to insertion order (later first).
-export const ruleVersions = (s: MockState, ruleKey: string): RuleVersion[] =>
-  s.rules
-    .map((x, i) => ({ x, i }))
-    .filter(({ x }) => x.ruleKey === ruleKey)
-    .sort((a, b) => b.x.version - a.x.version || b.i - a.i)
-    .map(({ x }) => x);
-
 // Deep canonical JSON with sorted keys, so key order never matters.
 const stable = (v: unknown): unknown =>
   Array.isArray(v) ? v.map(stable) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b)).map(([k, x]) => [k, stable(x)])) : v;
@@ -395,6 +387,20 @@ export const interpretationsForProject = (s: MockState, projectId: string): Inte
     .filter(({ x }) => x.projectId === projectId)
     .sort((a, b) => b.x.createdAt.localeCompare(a.x.createdAt) || b.i - a.i)
     .map(({ x }) => x);
+
+export const investigationsForProject = (s: MockState, projectId: string): Investigation[] =>
+  s.investigations
+    .map((x, i) => ({ x, i }))
+    .filter(({ x }) => x.projectId === projectId)
+    .sort((a, b) => b.x.createdAt.localeCompare(a.x.createdAt) || b.i - a.i)
+    .map(({ x }) => x);
+
+// Active flags only (not yet cleared), scoped to the project through their decision.
+export const flagsForProject = (s: MockState, projectId: string): RevalidationFlag[] =>
+  s.flags.filter((f) => !f.clearedAt && s.decisions.some((d) => d.id === f.decisionId && d.projectId === projectId));
+
+export const notificationsFor = (s: MockState, userId: string, projectId: string): Notification[] =>
+  s.notifications.filter((n) => n.userId === userId && n.projectId === projectId);
 
 export const findingsForProject = (s: MockState, projectId: string): MockFinding[] => s.findings.filter((f) => f.projectId === projectId);
 
