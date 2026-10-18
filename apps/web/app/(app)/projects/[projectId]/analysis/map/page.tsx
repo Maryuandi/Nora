@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Database } from "@phosphor-icons/react";
 import { Button } from "@/components/base/buttons/button";
 import { Card } from "@/components/nora/card";
@@ -18,7 +19,14 @@ import { cx } from "@/utils/cx";
 const isTerminal = (id: string) => id === START_ID || id === END_ID;
 
 export default function ProcessMapPage() {
+  return <Suspense><MapContent /></Suspense>;
+}
+
+function MapContent() {
   const ctx = useProject();
+  const router = useRouter();
+  const hl = useSearchParams().get("highlight");
+  const highlight = useMemo(() => new Set(hl ? hl.split(",").filter(Boolean) : []), [hl]);
   const result = ctx ? eventLogFor(ctx.state, ctx.project.id) : null;
   const dfg = result?.dfg ?? null;
   const [mode, setMode] = useState<MapMode>("frekuensi");
@@ -111,8 +119,15 @@ export default function ProcessMapPage() {
         <p className="text-sm text-ink-2" data-testid="hidden-counts">{visible.hiddenActivities} aktivitas dan {visible.hiddenTransitions} transisi disembunyikan</p>
       </div>
 
+      {highlight.size > 0 && (
+        <div className="flex flex-wrap items-center gap-3 text-sm text-ink-2">
+          <p title={[...highlight].join(", ")}>Disorot dari Monitoring › Model BPMN: {[...highlight].join(", ")}</p>
+          <Button color="secondary" size="xs" onClick={() => router.replace(`${base}/analysis/map`)}>Hapus sorotan</Button>
+        </div>
+      )}
+
       <div>
-        <ProcessMap dfg={dfg} positions={positions} visible={visible} mode={mode} selection={selection} onSelect={setSelection} hasStartTime={hasStartTime} />
+        <ProcessMap highlight={highlight} dfg={dfg} positions={positions} visible={visible} mode={mode} selection={selection} onSelect={setSelection} hasStartTime={hasStartTime} />
         <MapLegend mode={mode} hasStartTime={hasStartTime} />
       </div>
 

@@ -16,7 +16,7 @@ import { cx } from "@/utils/cx";
 export type MapMode = "frekuensi" | "performa";
 export type MapSelection = { kind: "node" | "edge"; id: string } | null;
 
-type NodeData = { label: string; value: number | null; terminal: boolean };
+type NodeData = { label: string; value: number | null; terminal: boolean; highlighted: boolean };
 type EdgeData = { d: string; lx: number; ly: number; label: string | null; color: string; width: number };
 type MapNode = Node<NodeData, "activity">;
 type MapEdge = Edge<EdgeData, "flow">;
@@ -28,7 +28,7 @@ function ActivityNode({ data, selected }: NodeProps<MapNode>) {
   return (
     <div style={{ width: w, height: h }} title={data.label}
       className={cx("flex flex-col items-center justify-center border bg-white px-2 text-center", data.terminal ? "rounded-full bg-sidebar" : "rounded-lg",
-        selected ? "border-accent ring-2 ring-accent" : "border-line shadow-card")}>
+        selected ? "border-accent ring-2 ring-accent" : data.highlighted ? "border-status-suspended ring-2 ring-status-suspended" : "border-line shadow-card")}>
       <Handle type="target" position={Position.Left} isConnectable={false} className="!pointer-events-none !opacity-0" />
       <span className={cx("max-w-full truncate text-ink", data.terminal ? "text-[11px] font-medium" : "text-xs font-medium")}>{data.label}</span>
       {data.value !== null && <span className="text-xs text-ink-3">{data.value.toLocaleString("id-ID")} kasus</span>}
@@ -92,7 +92,9 @@ function edgeGeometry(e: DfgEdge, from: Pt, to: Pt, bend: number): Pick<EdgeData
   return { d: `M ${a.x} ${a.y} Q ${cp.x} ${cp.y} ${b.x} ${b.y}`, lx: 0.25 * a.x + 0.5 * cp.x + 0.25 * b.x, ly: 0.25 * a.y + 0.5 * cp.y + 0.25 * b.y };
 }
 
-export function ProcessMap({ dfg, positions, visible, mode, selection, onSelect, hasStartTime }: {
+export function ProcessMap({ highlight, dfg, positions, visible, mode, selection, onSelect, hasStartTime }: {
+  /** Activity labels (= node ids) to ring in the warning color; empty keeps the M05a look. */
+  highlight?: Set<string>;
   dfg: Dfg;
   /** CENTER positions keyed by DFG node id (read with Object.hasOwn). */
   positions: Record<string, { x: number; y: number }>;
@@ -115,7 +117,7 @@ export function ProcessMap({ dfg, positions, visible, mode, selection, onSelect,
         id: `n${nodeIdx.get(n.id)}`, type: "activity", position: { x: c.x - w / 2, y: c.y - h / 2 }, width: w, height: h,
         selected: selection?.kind === "node" && selection.id === n.id, draggable: false, connectable: false,
         ariaLabel: terminal ? n.label : `${n.label}, ${n.caseCount} kasus, ${n.eventCount} event`,
-        data: { label: n.label, terminal, value: terminal ? null : n.caseCount },
+        data: { label: n.label, terminal, value: terminal ? null : n.caseCount, highlighted: !!highlight?.has(n.id) },
       };
     });
     const pairs = new Set(visible.edges.map((e) => `${nodeIdx.get(e.from)},${nodeIdx.get(e.to)}`));
@@ -140,7 +142,7 @@ export function ProcessMap({ dfg, positions, visible, mode, selection, onSelect,
       };
     });
     return { nodes, edges };
-  }, [dfg, positions, visible, mode, selection, nodeIdx, edgeIdx]);
+  }, [dfg, positions, visible, mode, selection, highlight, nodeIdx, edgeIdx]);
 
   const dfgNodeOf = useMemo(() => new Map(dfg.nodes.map((n, i) => [`n${i}`, n.id])), [dfg]);
   const dfgEdgeOf = useMemo(() => new Map(dfg.edges.map((e, i) => [`e${i}`, e.id])), [dfg]);
