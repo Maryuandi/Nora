@@ -3,6 +3,8 @@
 import { Table } from "@/components/application/table/table";
 import { Pill } from "@/components/nora/badges";
 import { AssessmentStatusBadge } from "@/components/project/assessment-status";
+import { useProject } from "@/components/project/use-project";
+import { isStale } from "@/lib/mock/specs";
 import { formatPercent, formatScore } from "@/lib/format";
 import { RELEVANCE_LABEL, hasModelVerdict, hasRelevanceResult, topTwo, totalScore } from "@/lib/mock/assessment";
 import type { Assessment, Candidate, Finding, Relevance } from "@/lib/mock/types";
@@ -18,6 +20,7 @@ const Trunc = ({ text, className }: { text: string; className?: string }) => (
 );
 
 export function CandidateTable({ finding, rows, onOpen }: { finding: Finding; rows: CandidateRow[]; onOpen: (candidateId: string) => void }) {
+  const ctx = useProject();
   return (
     <Table aria-label={`Kandidat untuk ${finding.title}`} size="sm">
       <Table.Header>
@@ -42,7 +45,12 @@ export function CandidateTable({ finding, rows, onOpen }: { finding: Finding; ro
               </Table.Cell>
               <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{c.kind === "hipotesis" ? "Hipotesis" : "Intervensi"}</Table.Cell>
               <Table.Cell className="px-6 whitespace-nowrap">
-                {!c.applicable ? <Pill className="text-ink-3">Tidak dinilai</Pill> : a ? <AssessmentStatusBadge status={a.status} /> : <Pill className="text-ink-2">Belum dinilai</Pill>}
+                {!c.applicable ? <Pill className="text-ink-3">Tidak dinilai</Pill> : a ? (
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    <AssessmentStatusBadge status={a.status} />
+                    {ctx && isStale(a.specVersion, ctx.state, ctx.project.id, "relevansi") && <Pill className="text-ink-2">Spesifikasi telah diperbarui</Pill>}
+                  </span>
+                ) : <Pill className="text-ink-2">Belum dinilai</Pill>}
               </Table.Cell>
               <Table.Cell className="px-6 whitespace-nowrap">
                 {a ? (

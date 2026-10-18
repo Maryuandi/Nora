@@ -8,6 +8,8 @@ import { Pill } from "@/components/nora/badges";
 import { AssessmentStatusBadge } from "@/components/project/assessment-status";
 import { ProbabilityBars } from "@/components/project/probability-bars";
 import { formatDateTime, formatPercent, formatScore } from "@/lib/format";
+import { useProject } from "@/components/project/use-project";
+import { isStale } from "@/lib/mock/specs";
 import { RELEVANCE_LABEL, RELEVANCE_ORDER, THRESHOLDS, effective, hasModelVerdict, hasRelevanceResult, topTwo, totalScore } from "@/lib/mock/assessment";
 import type { Assessment, AssessmentCorrection, Candidate } from "@/lib/mock/types";
 
@@ -33,6 +35,7 @@ export function CandidatePanel({ assessment: a, candidate, corrections, actorNam
   onClose: () => void; onCorrect: () => void; onConfirm: () => void;
 }) {
   const ref = useRef<HTMLElement>(null);
+  const ctx = useProject();
   useEffect(() => { ref.current?.focus(); }, [a.id]);
 
   const eff = effective(a, corrections);
@@ -42,6 +45,7 @@ export function CandidatePanel({ assessment: a, candidate, corrections, actorNam
   const canConfirm = canAct && (a.status === "otomatis" || a.status === "perlu_review") && !eff.correction;
   const cor = eff.correction;
   const verdict = hasModelVerdict(a);
+  const stale = !!ctx && isStale(a.specVersion, ctx.state, ctx.project.id, "relevansi");
 
   return (
     <aside ref={ref} tabIndex={-1} aria-label={`Detail kandidat ${candidate.name}`}
@@ -53,6 +57,7 @@ export function CandidatePanel({ assessment: a, candidate, corrections, actorNam
             <AssessmentStatusBadge status={a.status} />
             <span className="text-sm text-ink-3">{candidate.kind === "hipotesis" ? "Hipotesis" : "Intervensi"}</span>
             {verdict && eff.source === "model" && <Pill className="text-ink-2">Dinilai model</Pill>}
+            {stale && <Pill className="text-ink-2">Spesifikasi telah diperbarui</Pill>}
           </div>
         </div>
         <button type="button" onClick={onClose} aria-label="Tutup panel" className="shrink-0 rounded-md p-1 text-ink-3 hover:bg-canvas hover:text-ink">
