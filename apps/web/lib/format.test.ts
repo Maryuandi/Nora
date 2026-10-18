@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MOCK_TODAY } from "./mock/data";
-import { daysSince, formatBytes, formatPercent, formatScore, isStale } from "./format";
+import { daysSince, formatBytes, formatNumber, formatPercent, formatScore, isStale } from "./format";
 
 const before = (days: number) => new Date(Date.parse(`${MOCK_TODAY}T00:00:00Z`) - days * 86_400_000).toISOString();
 
@@ -36,4 +36,15 @@ describe("formatPercent", () => {
     expect(formatPercent(1.4)).toBe("100%");
   });
   it("renders NaN as 0%", () => expect(formatPercent(NaN)).toBe("0%"));
+});
+
+describe("formatNumber", () => {
+  it("pads to fixed digits with decimal comma", () => {
+    expect(formatNumber(0.8, 2)).toBe("0,80");
+    expect(formatNumber(5, 1)).toBe("5,0");
+  });
+  it("renders null and NaN as a dash", () => {
+    expect(formatNumber(null, 2)).toBe("–");
+    expect(formatNumber(NaN, 1)).toBe("–");
+  });
 });

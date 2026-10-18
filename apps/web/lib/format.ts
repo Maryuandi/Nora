@@ -21,3 +21,7 @@ export const formatScore = (n: number | null | undefined): string =>
 
 /** Probability 0..1 as a whole percent; non-finite counts as 0%. */
 export const formatPercent = (p: number): string => `${Number.isFinite(p) ? Math.round(Math.max(0, Math.min(1, p)) * 100) : 0}%`;
+
+/** Fixed `digits` decimals with Indonesian comma ("0,80"); "–" for null/non-finite. */
+export const formatNumber = (n: number | null | undefined, digits: number): string =>
+  n == null || !Number.isFinite(n) ? "–" : n.toLocaleString("id-ID", { minimumFractionDigits: digits, maximumFractionDigits: digits });
