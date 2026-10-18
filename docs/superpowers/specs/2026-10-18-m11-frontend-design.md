@@ -1,6 +1,6 @@
 # Spec: M11 frontend, Investigasi, kolaborasi, dan review (data tiruan)
 
-Tanggal: 18 Oktober 2026. Status: menunggu review.
+Tanggal: 18 Oktober 2026. Status: disetujui; diimplementasikan di feat/m11-frontend.
 
 Acuan: [PRD M11](../../prd/m11-investigasi-kolaborasi-review-prd.md), Story 1–7, Fitur 1–6. Dibangun di atas M10a frontend (`feat/m10a-frontend`): lapisan tiruan `apps/web/lib/mock/`, komponen Untitled UI, token Nora. Satu spec, satu plan (keputusan pengguna: "semua sekaligus"). Tidak ada backend, penyimpanan permanen, unggah file nyata, real-time, atau email. Branch `feat/m11-frontend` dari `feat/m10a-frontend`, worktree `nora-m11`.
 
@@ -144,7 +144,7 @@ Semua aksi mengembalikan `{ state, error? }` dan tidak pernah melempar; semua ak
 | `setQuestionState { noteId; state }` | analis atau penanggung jawab | `investigasi.pertanyaan` |
 | `addComment { investigationId; targetLinkId?; parentId?; body }` | analis atau pemilik proses; isi tidak kosong; induk satu workspace; sebutan memicu `Notification` per anggota yang disebut (bukan penulis) | `komentar.tambah` |
 | `resolveComment { commentId; resolved }` | penulis atau analis; hanya komentar akar | `komentar.selesai` |
-| `markNotificationsRead { }` | viewer | tanpa audit |
+| `markNotificationsRead { projectId? }` | viewer | tanpa audit; dengan `projectId` hanya notifikasi proyek itu yang ditandai terbaca |
 | `reviewJev { investigationId; linkId; outcome; correctedVerdict?; reason?; forEvalSet }` | analis; tautan `hasil_jev`; `dikoreksi` wajib `correctedVerdict` dan `reason` | `jev.konfirmasi` / `jev.koreksi` |
 | `reviewDraft { investigationId; linkId; outcome; rejectCode?; reason?; forEvalSet }` | analis; tautan `interpretasi` berstatus `lolos_pemeriksaan` (draf `gagal_pemeriksaan` tidak bisa disetujui); `ditolak` wajib `rejectCode` dan `reason` | `draf.setujui` / `draf.tolak` |
 | `makeDecision { investigationId; targetLinkId; status; reason; replacedByLinkId?; expectedVersion }` | `canDecide(peran viewer di proyek, status)`; `validateDecision`; **cek versi optimistis**: `expectedVersion` harus sama dengan versi terbaru target (0 bila belum ada) agar yang kedua mendapat galat "Keputusan sudah berubah, muat ulang"; membuat versi baru; `snapshot` = `snapshotFor` kini + versi narasi terakhir yang disetujui; keputusan baru menghapus penanda lama target itu (`clearedBy` = viewer) | `keputusan.tetapkan` (peran dan status di label) |
