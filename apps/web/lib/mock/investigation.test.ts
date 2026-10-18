@@ -36,7 +36,7 @@ function build(status: InvestigationStatus = "siap_diputuskan", validated = true
   });
   s.links.push(link("k1", "kandidat"), link("k2", "kandidat"), link("kt", "temuan"));
   s.findings.push({
-    id: "f-x", projectId: "p-1", title: "f", summary: "", limitedContext: false,
+    id: "f-x", projectId: "p-1", kind: "temuan", title: "f", summary: "", limitedContext: false,
     evidence: [
       { id: "k1", kind: "kandidat", title: "K1", detail: "", measured: true, validated },
       { id: "k2", kind: "kandidat", title: "K2", detail: "", measured: true, validated: true },

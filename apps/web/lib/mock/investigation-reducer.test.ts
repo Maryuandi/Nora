@@ -40,7 +40,7 @@ describe("createInvestigation", () => {
   });
   it("temuan milik proyek lain -> galat", () => {
     const s = s0();
-    s.findings.push({ id: "f-lain", projectId: "p-lain", title: "x", summary: "", limitedContext: false, evidence: [] });
+    s.findings.push({ id: "f-lain", projectId: "p-lain", kind: "temuan", title: "x", summary: "", limitedContext: false, evidence: [] });
     const r = create(s, { findingId: "f-lain" });
     expect(r.error).toBeDefined();
     expect(r.state).toBe(s);

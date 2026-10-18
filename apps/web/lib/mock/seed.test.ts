@@ -50,8 +50,9 @@ describe("seed rule activities", () => {
 });
 
 describe("seed findings", () => {
-  it("has exactly the three p-p2p findings with consistent evidence", () => {
-    expect(s.findings.map((f) => f.id)).toEqual(["finding_42", "finding_57", "finding_63"]);
+  it("has exactly the seven p-p2p findings with consistent evidence", () => {
+    expect(s.findings.map((f) => f.id)).toEqual(["finding_42", "finding_57", "finding_63", "assess_71", "compare_81", "scenario_91", "pilot_95"]);
+    expect(s.findings.map((f) => f.kind)).toEqual(["temuan", "temuan", "temuan", "penilaian_kandidat", "perbandingan", "skenario", "uji_coba"]);
     for (const f of s.findings) {
       expect(f.projectId).toBe("p-p2p");
       expect(f.evidence.some((e) => e.id === f.id)).toBe(true);
@@ -60,23 +61,39 @@ describe("seed findings", () => {
       for (const e of f.evidence)
         for (const m of Object.values(e.metrics ?? {})) expect(Number.isFinite(m.value)).toBe(true);
       expect(f.evidence.some((e) => e.kind === "kandidat" && e.validated === true)).toBe(true);
-      expect(f.limitedContext).toBe(f.id === "finding_63");
+      expect(f.limitedContext).toBe(f.id === "finding_63" || f.id === "pilot_95");
+      expect(f.evidence.length).toBeGreaterThanOrEqual(f.kind === "temuan" ? 4 : 5);
+      if (f.kind !== "temuan") {
+        expect(f.evidence.some((e) => e.kind === "kandidat" && e.validated === false)).toBe(true);
+        expect(f.evidence.some((e) => e.kind === "aturan")).toBe(true);
+        expect(f.evidence.some((e) => e.measured)).toBe(true);
+      }
     }
   });
 });
 
 describe("seed interpretations", () => {
-  it("has three p-p2p drafts with the expected statuses", () => {
-    expect(s.interpretations.map((i) => i.findingId)).toEqual(["finding_42", "finding_57", "finding_63"]);
-    expect(s.interpretations.map((i) => i.status)).toEqual(["lolos_pemeriksaan", "lolos_pemeriksaan", "gagal_pemeriksaan"]);
+  it("has seven p-p2p drafts with the expected statuses", () => {
+    expect(s.interpretations.map((i) => i.findingId)).toEqual(["finding_42", "finding_57", "finding_63", "assess_71", "compare_81", "scenario_91", "pilot_95"]);
+    expect(s.interpretations.map((i) => i.id)).toEqual(["i-seed-42", "i-seed-57", "i-seed-63", "i-seed-71", "i-seed-81", "i-seed-91", "i-seed-95"]);
+    expect(s.interpretations.map((i) => i.status)).toEqual(["lolos_pemeriksaan", "lolos_pemeriksaan", "gagal_pemeriksaan", "lolos_pemeriksaan", "lolos_pemeriksaan", "lolos_pemeriksaan", "lolos_pemeriksaan"]);
+    expect(s.interpretations.find((i) => i.findingId === "compare_81")!.attempts).toHaveLength(2);
     for (const i of s.interpretations) expect(i).toMatchObject({ projectId: "p-p2p", createdBy: "u-dimas", overrides: [], templateVersion: "tiruan-1", model: "model-tiruan" });
-    expect(new Set(s.interpretations.map((i) => i.createdAt)).size).toBe(3);
+    expect(new Set(s.interpretations.map((i) => i.createdAt)).size).toBe(7);
   });
   it("cites only evidence that exists in the last attempt", () => {
     for (const i of s.interpretations) {
       const ids = new Set(s.findings.find((f) => f.id === i.findingId)!.evidence.map((e) => e.id));
       const last = i.attempts[i.attempts.length - 1];
       for (const c of last.sections.flatMap((x) => x.claims).flatMap((c) => c.citations)) expect(ids.has(c)).toBe(true);
+    }
+  });
+  it("recommendation claims reference validated candidates only", () => {
+    for (const i of s.interpretations) {
+      const f = s.findings.find((x) => x.id === i.findingId)!;
+      const last = i.attempts[i.attempts.length - 1];
+      for (const c of last.sections.flatMap((x) => x.claims).filter((c) => c.type === "rekomendasi_tervalidasi"))
+        expect(f.evidence.find((e) => e.id === c.candidateId)).toMatchObject({ kind: "kandidat", validated: true });
     }
   });
 });

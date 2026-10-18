@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FINDINGS } from "./findings";
 import {
-  CHECKS, SECTION_ORDER, formatMetric, generateAttempt, isOverridable, resolvePlaceholders, runChecks,
+  CHECKS, SECTION_ORDER, TARGET_KIND_LABEL, formatMetric, kindsPresent, generateAttempt, isOverridable, resolvePlaceholders, runChecks,
   runCheckedGeneration, statusOf, unreferencedEvidence, violationKey,
 } from "./interpretation";
 import type { Audience, CheckKey, CheckOverride, Claim, ClaimType, MockFinding, Section, SectionKey } from "./types";
@@ -9,6 +9,10 @@ import type { Audience, CheckKey, CheckOverride, Claim, ClaimType, MockFinding, 
 const f42 = FINDINGS.find((f) => f.id === "finding_42")!;
 const f57 = FINDINGS.find((f) => f.id === "finding_57")!;
 const f63 = FINDINGS.find((f) => f.id === "finding_63")!;
+const f71 = FINDINGS.find((f) => f.id === "assess_71")!;
+const f81 = FINDINGS.find((f) => f.id === "compare_81")!;
+const f91 = FINDINGS.find((f) => f.id === "scenario_91")!;
+const f95 = FINDINGS.find((f) => f.id === "pilot_95")!;
 
 let seq = 0;
 const claim = (text: string, type: ClaimType, citations: string[], candidateId?: string): Claim => ({
@@ -162,6 +166,7 @@ describe("unreferencedEvidence", () => {
 });
 
 const AUD: Audience[] = ["analis", "pemilik_proses"];
+const ALL = [f42, f57, f63, f71, f81, f91, f95];
 const textIn = (sections: Section[], key: SectionKey) =>
   sections.find((s) => s.key === key)!.claims.map((c) => c.text).join(" ");
 const ov = (check: CheckKey, claimId?: string): CheckOverride => ({ check, claimId, reason: "alasan", by: "u", at: "t" });
@@ -197,19 +202,65 @@ describe("generator skrip", () => {
     }
   });
 
+  it("assess_71, scenario_91, pilot_95 bersih pada satu percobaan untuk kedua audiens", () => {
+    for (const f of [f71, f91, f95]) for (const aud of AUD) {
+      const atts = runCheckedGeneration(f, aud);
+      expect(atts, f.id).toHaveLength(1);
+      expect(atts[0].violations, f.id).toEqual([]);
+      expect(atts[0].sections.map((s) => s.key)).toEqual([...SECTION_ORDER]);
+    }
+    for (const aud of AUD) expect(textIn(runCheckedGeneration(f95, aud)[0].sections, "ketidakpastian").toLowerCase()).toContain("konteks terbatas");
+  });
+
+  it("compare_81: percobaan 1 gagal tepat pada rujukan, percobaan 2 bersih", () => {
+    for (const aud of AUD) {
+      const atts = runCheckedGeneration(f81, aud);
+      expect(atts.map((a) => a.n)).toEqual([1, 2]);
+      expect(atts[0].violations.map((v) => v.check)).toEqual(["rujukan"]);
+      expect(atts[0].violations[0].message).toContain("cand_99");
+      expect(atts[1].violations).toEqual([]);
+      expect(statusOf(atts, [])).toBe("lolos_pemeriksaan");
+    }
+  });
+
+  it("target baru: rekomendasi hanya pada kandidat tervalidasi; bukti tak dirujuk sesuai harapan", () => {
+    const expected: Record<string, string[]> = {
+      assess_71: ["case_71"], compare_81: [], scenario_91: ["case_91"], pilot_95: [],
+    };
+    for (const f of [f71, f81, f91, f95]) for (const aud of AUD) {
+      const last = runCheckedGeneration(f, aud).at(-1)!;
+      expect(unreferencedEvidence(last.sections, f).map((e) => e.id), f.id).toEqual(expected[f.id]);
+      const recs = last.sections.flatMap((s) => s.claims).filter((c) => c.type === "rekomendasi_tervalidasi");
+      expect(recs.length, f.id).toBeGreaterThan(0);
+      for (const r of recs) expect(f.evidence.find((e) => e.id === r.candidateId)?.validated, f.id).toBe(true);
+    }
+  });
+
+  it("kindsPresent hanya memuat jenis yang ada, berurutan menurut label", () => {
+    expect(kindsPresent([])).toEqual([]);
+    expect(kindsPresent([{ kind: "skenario" }, { kind: "temuan" }, { kind: "skenario" }])).toEqual(["temuan", "skenario"]);
+  });
+
+  it("TARGET_KIND_LABEL memuat lima jenis", () => {
+    expect(Object.keys(TARGET_KIND_LABEL).sort()).toEqual(["penilaian_kandidat", "perbandingan", "skenario", "temuan", "uji_coba"]);
+    expect(TARGET_KIND_LABEL.penilaian_kandidat).toBe("Penilaian kandidat (M08)");
+    for (const f of [f71, f81, f91, f95]) expect(Object.keys(TARGET_KIND_LABEL)).toContain(f.kind);
+  });
+
   it("id klaim unik, rekomendasi punya candidateId, tanpa angka literal kecuali cacat sengaja", () => {
-    for (const f of [f42, f57, f63]) for (const aud of AUD) for (let n = 1; n <= 3; n++) {
+    for (const f of ALL) for (const aud of AUD) for (let n = 1; n <= 3; n++) {
       const sections = generateAttempt(f, aud, n);
       const claims = sections.flatMap((s) => s.claims);
       expect(new Set(claims.map((c) => c.id)).size).toBe(claims.length);
       for (const c of claims.filter((x) => x.type === "rekomendasi_tervalidasi")) expect(c.candidateId).toBeTruthy();
       expect(runChecks(sections, f).find((r) => r.check === "angka_literal")!.ok).toBe(f.id !== "finding_57" || n > 1);
+      expect(sections.flatMap((x) => x.claims).length).toBeGreaterThan(0);
     }
   });
 
   it("deterministik; dua audiens: kunci dan jumlah klaim sama, teks berbeda", () => {
     expect(runCheckedGeneration(f57, "analis")).toEqual(runCheckedGeneration(f57, "analis"));
-    for (const f of [f42, f57, f63]) {
+    for (const f of ALL) {
       const [a, b] = AUD.map((aud) => generateAttempt(f, aud, 1));
       expect(a.map((s) => s.key)).toEqual(b.map((s) => s.key));
       expect(a.map((s) => s.claims.length)).toEqual(b.map((s) => s.claims.length));

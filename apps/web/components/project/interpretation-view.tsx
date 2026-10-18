@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle, XCircle } from "@phosphor-icons/react";
+import { CheckCircle, FileText, XCircle } from "@phosphor-icons/react";
 import { Button } from "@/components/base/buttons/button";
 import { Banner } from "@/components/nora/banner";
 import { Card } from "@/components/nora/card";
@@ -10,12 +10,12 @@ import { CheckReport } from "@/components/project/check-report";
 import { ClaimBadge } from "@/components/project/claim-badge";
 import { ClaimText } from "@/components/project/claim-text";
 import { EvidencePanel } from "@/components/project/evidence-panel";
-import { STATUS_META } from "@/components/nora/badges";
+import { Pill, STATUS_META } from "@/components/nora/badges";
 import { InterpretationStatusBadge, OverriddenPill } from "@/components/project/interpretation-status";
 import { OverrideCheckModal } from "@/components/project/override-check-modal";
 import { useProject } from "@/components/project/use-project";
 import { formatDateTime } from "@/lib/format";
-import { AUDIENCE_LABEL, CHECK_LABEL, SECTION_LABEL, SECTION_ORDER, isOverridable, unreferencedEvidence, violationKey } from "@/lib/mock/interpretation";
+import { AUDIENCE_LABEL, CHECK_LABEL, SECTION_LABEL, SECTION_ORDER, TARGET_KIND_LABEL, isOverridable, unreferencedEvidence, violationKey } from "@/lib/mock/interpretation";
 import { acceptsData } from "@/lib/mock/permissions";
 import type { Interpretation, MockFinding, Violation } from "@/lib/mock/types";
 import { cx } from "@/utils/cx";
@@ -64,13 +64,17 @@ export function InterpretationView({ interpretation, finding }: { interpretation
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 flex-wrap items-center gap-3">
           <h2 className="min-w-0 break-words text-[20px] leading-7 font-semibold tracking-[-0.02em]">{finding.title}</h2>
+          <Pill className="text-ink-2">{TARGET_KIND_LABEL[finding.kind]}</Pill>
           <span className="text-sm text-ink-2">{AUDIENCE_LABEL[interpretation.audience]}</span>
           <InterpretationStatusBadge status={status} />
           {overrides.length > 0 && <OverriddenPill />}
         </div>
-        {workspaceId ? <Button color="secondary" size="xs" href={`/projects/${project.id}/investigations/${workspaceId}`}>Buka di M11</Button>
-          : mayCreateWorkspace ? <Button color="secondary" size="xs" onClick={createWorkspace}>Buat workspace dari temuan ini</Button>
-          : <span title="Workspace tinjauan (M11) belum dibuat untuk temuan ini"><Button color="secondary" size="xs" isDisabled>Buka di M11</Button></span>}
+        <div className="flex items-center gap-2">
+          <Button color="secondary" size="xs" iconLeading={FileText} href={`/projects/${project.id}/interpretations/templates`}>Templat prompt</Button>
+          {workspaceId ? <Button color="secondary" size="xs" href={`/projects/${project.id}/investigations/${workspaceId}`}>Buka di M11</Button>
+            : mayCreateWorkspace ? <Button color="secondary" size="xs" onClick={createWorkspace}>Buat workspace dari temuan ini</Button>
+            : <span title="Workspace tinjauan (M11) belum dibuat untuk temuan ini"><Button color="secondary" size="xs" isDisabled>Buka di M11</Button></span>}
+        </div>
       </div>
       {m11Error && <Banner tone="warning">{m11Error}</Banner>}
       <Banner tone="info">Draf dibuat model — belum ditinjau</Banner>

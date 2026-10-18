@@ -301,7 +301,7 @@ export function reduce(state: MockState, action: MockAction): ReduceResult {
       if (!project) return fail("Proyek tidak ditemukan");
       if (!acceptsData(project.status)) return fail("Proyek ini tidak menerima data baru");
       const finding = state.findings.find((f) => f.id === action.findingId && f.projectId === project.id);
-      if (!finding) return fail("Temuan tidak ditemukan");
+      if (!finding) return fail("Target tidak ditemukan");
       if (!Object.hasOwn(AUDIENCE_LABEL, action.audience)) return fail("Audiens tidak dikenal");
       const attempts = runCheckedGeneration(finding, action.audience);
       const draft: Interpretation = {

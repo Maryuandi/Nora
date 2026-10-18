@@ -184,6 +184,10 @@ const interpretations: Interpretation[] = [
   seedDraft("42", "finding_42", "pemilik_proses", "2026-10-15T08:00:00Z"),
   seedDraft("57", "finding_57", "pemilik_proses", "2026-10-16T08:00:00Z"),
   seedDraft("63", "finding_63", "analis", "2026-10-17T08:00:00Z"),
+  seedDraft("71", "assess_71", "analis", "2026-10-17T10:00:00Z"),
+  seedDraft("81", "compare_81", "pemilik_proses", "2026-10-17T14:00:00Z"),
+  seedDraft("91", "scenario_91", "pemilik_proses", "2026-10-18T08:00:00Z"),
+  seedDraft("95", "pilot_95", "analis", "2026-10-18T09:00:00Z"),
 ];
 
 const analysisStates: AnalysisState[] = [

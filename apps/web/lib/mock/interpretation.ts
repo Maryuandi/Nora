@@ -2,7 +2,7 @@
 import { scriptFor } from "./interpretation-scripts";
 import type {
   Attempt, Audience, CheckKey, CheckOverride, CheckResult, Claim, ClaimType, EvidenceItem, InterpretationStatus,
-  MockFinding, Section, SectionKey, Violation,
+  MockFinding, Section, SectionKey, TargetKind, Violation,
 } from "./types";
 
 // ---------- Konstanta ----------
@@ -26,6 +26,16 @@ export const CLAIM_TYPE_LABEL: Record<ClaimType, string> = {
   rekomendasi_tervalidasi: "Rekomendasi tervalidasi",
 };
 export const AUDIENCE_LABEL: Record<Audience, string> = { analis: "Analis", pemilik_proses: "Pemilik proses" };
+export const TARGET_KIND_LABEL: Record<TargetKind, string> = {
+  temuan: "Temuan (M06)",
+  penilaian_kandidat: "Penilaian kandidat (M08)",
+  perbandingan: "Perbandingan kandidat (M09)",
+  skenario: "Skenario (M09)",
+  uji_coba: "Usulan uji coba (M09)",
+};
+/** Jenis target yang punya minimal satu target, dalam urutan TARGET_KIND_LABEL. */
+export const kindsPresent = (targets: { kind: TargetKind }[]): TargetKind[] =>
+  (Object.keys(TARGET_KIND_LABEL) as TargetKind[]).filter((k) => targets.some((t) => t.kind === k));
 export const DECISION_PHRASES = ["dipilih", "akan diterapkan", "diputuskan", "pasti disebabkan", "jelas disebabkan", "membuktikan bahwa"];
 export const CHECK_LABEL: Record<CheckKey, string> = {
   skema: "Skema",
