@@ -3,10 +3,11 @@ import { isStale } from "../format";
 import { fabricate } from "./fabricate";
 import { AUDIENCE_LABEL, CHECK_LABEL, isOverridable, runCheckedGeneration, statusOf, violationKey } from "./interpretation";
 import { validateMapping } from "./mapping";
+import { id, now, withAudit } from "./mutate";
 import { acceptsData } from "./permissions";
 import { nextStatuses, previewDataset, previewRule, projectCanonicalLabels, validateRule, type RuleInput } from "./rules";
 import { projectSchema, type ProjectInput } from "./schemas";
-import type { Audience, AuditEvent, CheckKey, ColumnRole, Interpretation, MockFinding, LabelRule, MappingVersion, MockState, Project, ProjectStatus, Role, RuleStatus, RuleVersion, Snapshot, SnapshotStatus } from "./types";
+import type { Audience, CheckKey, ColumnRole, Interpretation, MockFinding, LabelRule, MappingVersion, MockState, Project, ProjectStatus, Role, RuleStatus, RuleVersion, Snapshot, SnapshotStatus } from "./types";
 
 export { MOCK_TODAY, initialState };
 
@@ -56,16 +57,6 @@ const TRANSITIONS: Record<ProjectStatus, ProjectStatus[]> = {
 };
 
 export const allowedTransitions = (from: ProjectStatus) => TRANSITIONS[from];
-
-// Fixed clock so the demo looks the same every time.
-const now = () => `${MOCK_TODAY}T09:30:00Z`;
-let seq = 0;
-const id = (prefix: string) => `${prefix}-${Date.now().toString(36)}${(seq++).toString(36)}`;
-
-const withAudit = (state: MockState, e: Omit<AuditEvent, "id" | "at" | "actorId" | "result">): MockState => ({
-  ...state,
-  audit: [{ id: id("a"), at: now(), actorId: state.viewerId, result: "sukses", ...e }, ...state.audit],
-});
 
 const isLastAdmin = (s: MockState, projectId: string, userId: string) => {
   const admins = s.memberships.filter((m) => m.projectId === projectId && m.role === "administrator");
