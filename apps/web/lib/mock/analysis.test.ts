@@ -161,6 +161,25 @@ describe("validate / describe / normalize", () => {
     expect(validateFilter({ duration: { maxDays: NaN } })).toEqual(["Durasi maksimal harus berupa angka"]);
     expect(validateFilter({ duration: { minDays: -1, maxDays: -2 } })).toHaveLength(2);
   });
+  it("impossible calendar dates give an error message, never throw", () => {
+    for (const bad of ["2026-13-01", "2026-00-10", "0000-00-00"]) {
+      expect(() => validateFilter({ period: { by: "mulai", from: bad } })).not.toThrow();
+      expect(validateFilter({ period: { by: "mulai", from: bad } })).toHaveLength(1);
+      expect(validateFilter({ period: { by: "event", to: bad } })).toHaveLength(1);
+      const l = mk([{ acts: ["A", "B"] }]);
+      expect(() => applyFilter(l, { period: { by: "mulai", from: bad, to: bad } })).not.toThrow();
+      expect(ids(applyFilter(l, { period: { by: "mulai", from: bad } }))).toEqual(["C-0001"]); // bad bound is ignored
+      expect(() => filteredLogFor(s, "p-p2p", { period: { by: "akhir", to: bad } })).not.toThrow();
+    }
+  });
+  it("normalize drops NaN durations; describe skips invalid bounds", () => {
+    expect(isEmptyFilter({ duration: { minDays: NaN } })).toBe(true);
+    expect(normalizeFilter({ duration: { minDays: NaN, maxDays: 3 } })).toEqual({ duration: { maxDays: 3 } });
+    expect(JSON.stringify(normalizeFilter({ duration: { maxDays: NaN } }))).toBe("{}");
+    expect(describeFilter({ period: { by: "mulai", from: "2026-13-01" } })).toEqual([]);
+    expect(describeFilter({ period: { by: "mulai", from: "2026-13-01", to: "2026-07-31" } })).toEqual(["Periode: kasus mulai sampai 31 Jul 2026"]);
+    expect(describeFilter({ duration: { minDays: NaN } })).toEqual([]);
+  });
   it("isEmptyFilter / normalizeFilter drop empty keys and sort arrays", () => {
     expect(isEmptyFilter({})).toBe(true);
     expect(isEmptyFilter({ vendors: [], period: { by: "akhir" }, po: "  ", completion: "semua", duration: {} })).toBe(true);

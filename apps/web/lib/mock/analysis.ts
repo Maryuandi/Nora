@@ -61,7 +61,8 @@ export function variantsTo80(variants: Variant[]): number {
 }
 
 // ---- filter ----
-const isDay = (s: string | undefined): s is string => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s) && new Date(s).toISOString().slice(0, 10) === s;
+// Date.parse first: toISOString throws on impossible dates such as 2026-13-01.
+const isDay = (s: string | undefined): s is string => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s) && Number.isFinite(Date.parse(s)) && new Date(s).toISOString().slice(0, 10) === s;
 const dayMs = (s: string | undefined) => (isDay(s) ? Date.parse(s) : NaN);
 const num = (n: number | undefined) => typeof n === "number" && Number.isFinite(n);
 const list = (a: string[] | undefined) => [...new Set(a ?? [])].sort(byText);
@@ -76,8 +77,8 @@ export function normalizeFilter(spec: FilterSpec): FilterSpec {
     if (a.length > 0) out[k] = a;
   }
   const d = spec.duration;
-  if (d && (d.minDays !== undefined || d.maxDays !== undefined)) {
-    out.duration = { ...(d.minDays !== undefined ? { minDays: d.minDays } : {}), ...(d.maxDays !== undefined ? { maxDays: d.maxDays } : {}) };
+  if (d && (num(d.minDays) || num(d.maxDays))) {
+    out.duration = { ...(num(d.minDays) ? { minDays: d.minDays } : {}), ...(num(d.maxDays) ? { maxDays: d.maxDays } : {}) };
   }
   if (spec.completion === "selesai" || spec.completion === "berjalan") out.completion = spec.completion;
   const po = spec.po?.trim();
@@ -142,9 +143,10 @@ const fmtDay = (s: string) => { const p = dayParts(s); return `${p.d} ${p.m} ${p
 export function describeFilter(spec: FilterSpec): string[] {
   const f = normalizeFilter(spec);
   const out: string[] = [];
-  if (f.period) {
+  const validDays = f.period && [f.period.from, f.period.to].some(isDay);
+  if (f.period && validDays) {
     const basis = { mulai: "kasus mulai", akhir: "kasus berakhir", event: "ada event" }[f.period.by];
-    const { from, to } = f.period;
+    const from = isDay(f.period.from) ? f.period.from : undefined, to = isDay(f.period.to) ? f.period.to : undefined; // invalid bounds are skipped
     let range: string;
     if (from && to) {
       const a = dayParts(from), b = dayParts(to);
