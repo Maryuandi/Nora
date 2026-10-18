@@ -52,10 +52,7 @@ export default function SourcesPage() {
     <div className="flex flex-col gap-4">
       <Card>
         <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
-          <div>
-            <h2 className="text-sm font-semibold">Sumber data</h2>
-            <p className="text-sm text-ink-3">File event log yang diimpor ke proyek ini.</p>
-          </div>
+          <h2 className="text-sm font-semibold">Sumber data</h2>
           {mayCreate && open && <Button color="primary" size="xs" iconLeading={Plus} onClick={() => setAdding(true)}>Tambah sumber</Button>}
           {mayCreate && !open && <p className="text-sm text-ink-3">Proyek berstatus {STATUS_META[project.status].label}; penambahan sumber dinonaktifkan</p>}
         </div>

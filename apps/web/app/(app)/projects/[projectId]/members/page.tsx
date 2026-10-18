@@ -93,10 +93,7 @@ export default function MembersPage() {
       {error && <Banner tone="warning">{error}</Banner>}
       <Card>
         <div className="flex items-center justify-between border-b border-line px-4 py-3">
-          <div>
-            <h2 className="text-sm font-semibold">Anggota proyek</h2>
-            <p className="text-sm text-ink-3">{manage ? "Hanya anggota yang bisa membuka data proyek ini." : "Hanya Administrator yang bisa mengubah anggota."}</p>
-          </div>
+          <h2 className="text-sm font-semibold">Anggota proyek</h2>
           {manage && <Button color="primary" size="xs" iconLeading={Plus} onClick={() => setAdding(true)}>Tambah anggota</Button>}
         </div>
         <Table aria-label="Anggota proyek" size="sm">

@@ -104,7 +104,6 @@ const TableCardHeader = ({ title, badge, description, contentTrailing, className
                         )
                     ) : null}
                 </div>
-                {description && <p className="text-sm text-tertiary">{description}</p>}
             </div>
             {contentTrailing}
         </div>
