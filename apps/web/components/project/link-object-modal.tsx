@@ -8,7 +8,7 @@ import { NoraModal } from "@/components/nora/modal";
 import { AUDIENCE_LABEL } from "@/lib/mock/interpretation";
 import { LINK_KIND_LABEL } from "@/lib/mock/investigation";
 import { useMock } from "@/lib/mock/store";
-import type { LinkKind, MockState } from "@/lib/mock/types";
+import type { InvestigationLink, LinkKind, MockState } from "@/lib/mock/types";
 
 // Jenis yang didukung reducer `linkObject`.
 const KINDS: LinkKind[] = ["temuan", "kasus", "aturan", "kandidat", "hasil_jev", "interpretasi"];
@@ -30,6 +30,9 @@ export function linkTargets(s: MockState, projectId: string, kind: LinkKind): { 
     default: return [];
   }
 }
+
+export const linkTitle = (s: MockState, projectId: string, l: InvestigationLink) =>
+  linkTargets(s, projectId, l.kind).find((t) => t.value === l.targetId)?.label ?? l.targetId;
 
 export function LinkObjectModal({ open, onClose, investigationId }: { open: boolean; onClose: () => void; investigationId: string }) {
   const { state, dispatch } = useMock();

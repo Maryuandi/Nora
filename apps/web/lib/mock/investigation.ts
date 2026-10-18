@@ -197,3 +197,8 @@ export function extractMentions(body: string, members: User[]): string[] {
   }
   return [...ids];
 }
+
+// Pecah badan komentar menjadi potongan teks biasa dan sebutan `@nama` agar dirender tanpa HTML mentah.
+export function splitMentions(body: string): { text: string; mention: boolean }[] {
+  return body.split(/(@[\p{L}\p{N}_]+)/u).filter(Boolean).map((text) => ({ text, mention: text.startsWith("@") }));
+}
