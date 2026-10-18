@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { cx } from "@/utils/cx";
 
-const TABS = [["", "Snapshot"], ["/mapping", "Pemetaan"], ["/mapping/versions", "Riwayat"]] as const;
+const TABS = [["", "Snapshot"], ["/mapping", "Pemetaan"], ["/mapping/versions", "Riwayat"], ["/quality", "Kualitas"], ["/dataset", "Dataset"]] as const;
 
 /** Secondary tabs on a source's pages. `active` is the path suffix of the current tab. */
 export function SourceTabs({ base, active }: { base: string; active: (typeof TABS)[number][0] }) {
