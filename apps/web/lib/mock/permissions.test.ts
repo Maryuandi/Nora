@@ -57,6 +57,8 @@ const EXPECTED: Record<UiAction, Role[]> = {
   "evaluation.run": ["analis"],
   "spec.view": ["administrator", "analis", "pemilik_proses"],
   "spec.edit": ["analis"],
+  "rec.view": ["administrator", "analis", "pemilik_proses"],
+  "rec.edit": ["analis"],
 };
 
 describe("can", () => {

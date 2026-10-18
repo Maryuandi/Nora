@@ -264,6 +264,61 @@ export interface EvaluationRun {
   highConf: { n: number; accuracy: number | null }; kappa: number | null; bins: Bin[];
 }
 
+export type ValidationStatus = "tervalidasi" | "belum_layak_dinilai" | "tidak_memenuhi_syarat" | "perlu_review";
+export type RecCheckResult = "lolos" | "gagal" | "tidak_dapat_diperiksa";
+export type RecCheckKey = "syarat" | "angka" | "versi" | "kewenangan" | "jev";
+export type JevStatus = "otomatis" | "dikonfirmasi" | "perlu_review" | "informasi_tidak_cukup" | "belum_dinilai";
+
+export interface RecMetric { key: string; label: string; value: number; unit: string } // angka M06 pada temuan
+export interface RecFinding {
+  id: string; projectId: string; title: string; summary: string;
+  metrics: RecMetric[];
+  affectedShare: number; waitShare: number; // 0-1, dari M06
+  supportCases: number;
+  activeRefs: Record<string, number>; // rujukan -> versi aktif di paket konteks
+}
+export interface JevResult {
+  status: JevStatus; score: number | null; // 0-100
+  criteria: { label: string; level: number }[]; prob: number | null;
+  conclusion: "relevan" | "sebagian_relevan" | "tidak_relevan" | null;
+}
+export interface RecCandidate {
+  id: string; kind: "hipotesis" | "intervensi"; origin: "katalog" | "analis"; proposeToCatalog: boolean;
+  name: string; description: string; addresses: string; successMetric: string;
+  findingIds: string[];
+  conditions: { label: string; metricKey: string; op: ">" | ">=" | "<" | "<="; value: number }[];
+  refMetrics: { metricKey: string; expected: number }[];
+  refs: { key: string; version: number }[];
+  ownerRole: Role | null;
+  effort: number | null; risk: number | null; // 1-5, null = asumsi belum tersedia
+  prerequisites: string[]; exclusions: string[];
+  jev: Record<string, JevResult>; // per findingId
+}
+export interface PriorityWeights { relevance: number; magnitude: number; certainty: number; effort: number; risk: number }
+export interface PriorityPolicy { projectId: string; version: number; weights: PriorityWeights; changedBy: string; changedAt: string; note: string }
+
+export type ScenarioSpec =
+  | { kind: "kurangi_jeda"; transition: string; pct: number }
+  | { kind: "batasi_jeda"; transition: string; maxDays: number }
+  | { kind: "hapus_rework"; activity: string; pct: number }
+  | { kind: "lewati_aktivitas"; activity: string; filter: { attribute: "unit" | "kategori"; value: string } | null };
+export interface ScenarioResult {
+  n: number; affected: number;
+  before: { median: number; p90: number }; after: { median: number; p90: number };
+  smallSample: boolean;
+}
+export interface Scenario {
+  id: string; projectId: string; name: string; spec: ScenarioSpec; datasetVersion: string; contextPack: string;
+  status: "estimasi"; result: ScenarioResult; createdBy: string; createdAt: string;
+}
+export interface TrialProposal {
+  id: string; projectId: string; findingId: string; candidateId: string; status: "draf";
+  action: string; scope: string; durationWeeks: number | null;
+  successMetric: string; baseline: { label: string; value: number; unit: string }[];
+  target: string; guardrails: string[]; owner: string; risks: string[]; stopConditions: string[];
+  createdBy: string; createdAt: string; updatedAt: string;
+}
+
 export interface MockState {
   clients: Client[];
   projects: Project[];
@@ -306,6 +361,11 @@ export interface MockState {
   classCorrections: ClassCorrection[];
   goldItems: GoldItem[];
   evaluations: EvaluationRun[];
+  recFindings: RecFinding[];
+  recCandidates: RecCandidate[];
+  priorityPolicies: PriorityPolicy[];
+  scenarios: Scenario[];
+  trials: TrialProposal[];
   viewerId: string;
 }
 

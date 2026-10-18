@@ -9,6 +9,8 @@ import { runClassFixture } from "./classification";
 import { CLASS_FIXTURE, classItems } from "./classification-data";
 import { DEFAULT_THRESHOLDS } from "./specs";
 
+import { priorityPolicies, recCandidates, recFindings, scenarios, trials } from "./rec-data";
+
 export const MOCK_TODAY = "2026-10-17";
 
 const clients: Client[] = [
@@ -330,4 +332,5 @@ export const initialState: MockState = { clients, projects, users, memberships, 
   runs, monitoringConfigs: [p2pConfig], repairRules: [], datasetVersions: [], savedViews: [],
   findings: FINDINGS, interpretations, investigations, links, notes, comments, notifications, reviews: [], decisions, flags: [], proposals: [], analysisStates,
   assessFindings: findings, candidates, assessments, corrections: [], specs, classItems, classResults, classCorrections: [], goldItems, evaluations: [],
+  recFindings, recCandidates, priorityPolicies, scenarios, trials,
   ...graphSeed, viewerId: "u-dimas" };

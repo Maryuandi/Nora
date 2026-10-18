@@ -1,4 +1,5 @@
 import { MOCK_TODAY, initialState } from "./data";
+import { reduceRec, type RecAction } from "./rec-reducer";
 import { isStale } from "../format";
 import { participatingVersions } from "./compliance";
 import { reduceAssessment, type AssessmentAction } from "./assessment-reducer";
@@ -48,6 +49,7 @@ export type MockAction =
   | { type: "finishGraphRebuild"; projectId: string }
   | AssessmentAction
   | ClassificationAction
+  | RecAction
   | { type: "setViewer"; userId: string }
   | InvestigationAction;
 
@@ -55,6 +57,7 @@ export type ReduceResult = {
   state: MockState; error?: string; snapshotId?: string; duplicateOf?: string; mappingId?: string; datasetId?: string; repairRuleId?: string; ruleId?: string; runId?: string; savedViewId?: string;
   interpretationId?: string; investigationId?: string; linkId?: string; noteId?: string; commentId?: string; decisionId?: string; proposalId?: string;
   assessmentId?: string; correctionId?: string; resultId?: string; goldId?: string; evaluationId?: string; specId?: string;
+  candidateId?: string; scenarioId?: string; trialId?: string;
 };
 
 const MAX_BYTES = 500 * 1024 * 1024;
@@ -87,10 +90,13 @@ const isLastAdmin = (s: MockState, projectId: string, userId: string) => {
   return admins.length === 1 && admins[0].userId === userId;
 };
 
+const isRec = (a: MockAction): a is RecAction => a.type.startsWith("rec/");
+
 export function reduce(state: MockState, action: MockAction): ReduceResult {
   const fail = (error: string) => ({ state, error });
   const m11 = reduceInvestigation(state, action, reduce);
   if (m11) return m11;
+  if (isRec(action)) return reduceRec(state, action);
   switch (action.type) {
     case "runAssessment":
     case "correctAssessment":
@@ -641,3 +647,4 @@ export function runnableSources(s: MockState, projectId: string): { source: Sour
     return snapshot && mapping ? [{ source, snapshot, mapping }] : [];
   });
 }
+export { recFindingsForProject, candidatesForFinding, latestPolicy, evaluateFinding } from "./rec-reducer";

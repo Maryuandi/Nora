@@ -15,7 +15,8 @@ export type UiAction = "client.create" | "project.create" | "project.status" | "
   | "trace.view" | "graph.rebuild"
   | "assessment.view" | "assessment.run" | "assessment.correct"
   | "classify.view" | "classify.run" | "classify.correct" | "gold.view" | "gold.edit"
-  | "evaluation.view" | "evaluation.run" | "spec.view" | "spec.edit";
+  | "evaluation.view" | "evaluation.run" | "spec.view" | "spec.edit"
+  | "rec.view" | "rec.edit";
 
 // Button matrix from PRD M01 "Matriks Kewenangan" (UI subset).
 const ALLOWED: Record<UiAction, readonly Role[]> = {
@@ -79,6 +80,9 @@ const ALLOWED: Record<UiAction, readonly Role[]> = {
   "evaluation.run": ["analis"],
   "spec.view": ["administrator", "analis", "pemilik_proses"],
   "spec.edit": ["analis"],
+  // PRD M09: Analis compiles candidates, changes policy, runs scenarios; others read.
+  "rec.view": ["administrator", "analis", "pemilik_proses"],
+  "rec.edit": ["analis"],
 };
 
 export const can = (role: Role | null, action: UiAction): boolean => role !== null && ALLOWED[action].includes(role);
