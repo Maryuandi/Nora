@@ -187,5 +187,34 @@ export interface MockState {
   rules: RuleVersion[];
   runs: MonitoringRun[];
   monitoringConfigs: MonitoringConfig[];
+  repairRules: RepairRule[];
+  datasetVersions: DatasetVersion[];
   viewerId: string;
+}
+
+export type CheckId =
+  | "nilai_hilang" | "waktu_tidak_wajar" | "duplikasi" | "urutan_ambigu"
+  | "kasus_belum_selesai" | "waktu_mulai_selesai" | "label_belum_dipetakan" | "di_luar_periode";
+export type Severity = "tinggi" | "sedang" | "info";
+export type RepairAction = "kecualikan_event" | "kecualikan_kasus" | "terima";
+
+export interface RepairRule {
+  id: string; sourceId: string; projectId: string;
+  check: CheckId; action: RepairAction; reason: string;
+  impactEvents: number; impactCases: number; // computed at creation
+  active: boolean; // false = revoked
+  createdBy: string; createdAt: string; revokedBy?: string; revokedAt?: string;
+}
+
+export type CapabilityStatus = "tersedia" | "terbatas" | "tidak_tersedia";
+export interface Capability { id: string; label: string; status: CapabilityStatus; explanation: string }
+
+export interface DatasetVersion {
+  id: string; sourceId: string; projectId: string; version: number; // per source
+  snapshotId: string; mappingId: string; repairRuleIds: string[]; // active rules at publish
+  hash: string; // 12 hex, deterministic
+  verdict: "siap" | "siap_catatan" | "belum_layak";
+  eventsIncluded: number; casesIncluded: number;
+  capabilities: Capability[]; note?: string;
+  createdBy: string; createdAt: string;
 }

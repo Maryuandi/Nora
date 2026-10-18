@@ -24,6 +24,9 @@ const EXPECTED: Record<UiAction, Role[]> = {
   "monitoring.run": ["analis"],
   "monitoring.configure": ["analis"],
   "analysis.view": ["administrator", "analis", "pemilik_proses"],
+  "quality.view": ["administrator", "analis", "pemilik_proses"],
+  "repair.edit": ["administrator", "analis"],
+  "dataset.publish": ["analis"],
 };
 
 describe("can", () => {
