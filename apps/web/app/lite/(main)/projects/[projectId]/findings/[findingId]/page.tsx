@@ -3,7 +3,8 @@ import { Suspense } from "react";
 import { MetricInfo } from "@/components/lite/analysis/dashboard-client";
 import { describeFilter } from "@/components/lite/analysis/run-header";
 import { StatePill } from "@/components/lite/badges";
-import { FindingCases, LineagePanel } from "@/components/lite/findings/finding-panels";
+import { EvidencePanel } from "@/components/lite/findings/evidence-panel";
+import { FindingCases } from "@/components/lite/findings/finding-panels";
 import { SEV_TONE, TYPE_LABEL } from "@/components/lite/findings/labels";
 import { SectionCard } from "@/components/lite/ui";
 import { downstreamStatus } from "@/lib/lite/downstream";
@@ -115,7 +116,7 @@ export default async function FindingDetailPage({ params }: { params: Promise<{ 
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
         <SectionCard title="Bukti">
-          <LineagePanel projectId={projectId} findingId={f.id} timezone={project.timezone} />
+          <EvidencePanel projectId={projectId} findingId={f.id} timezone={project.timezone} />
         </SectionCard>
         <SectionCard title="Penilaian & interpretasi">
           <Suspense fallback={<p className="text-sm text-ink-3">Memuat status…</p>}>

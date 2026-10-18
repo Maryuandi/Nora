@@ -4,6 +4,8 @@ import type * as analysis from "./activities/analysis.ts";
 import type * as context from "./activities/context.ts";
 import type * as monitoring from "./activities/monitoring.ts";
 import type * as data from "./activities/data.ts";
+import type * as evidence from "./activities/evidence.ts";
+import type * as graph from "./activities/graph.ts";
 
 const { pythonPing } = proxyActivities<{ pythonPing(input: PingRequest): Promise<unknown> }>({
   taskQueue: TASK_QUEUE_PYTHON,
@@ -19,7 +21,7 @@ export async function pingWorkflow(input: PingRequest): Promise<PingResult> {
 }
 
 // Transient errors retry up to three times; corrupt files and schema errors are non-retryable in the activities.
-const ts = proxyActivities<typeof data & typeof context & typeof analysis & typeof monitoring>({ startToCloseTimeout: "30 minutes", retry: { maximumAttempts: 3, nonRetryableErrorTypes: ["Unauthorized", "NotFound", "SnapshotNotReady"] } });
+const ts = proxyActivities<typeof data & typeof context & typeof analysis & typeof monitoring & typeof graph & typeof evidence>({ startToCloseTimeout: "30 minutes", retry: { maximumAttempts: 3, nonRetryableErrorTypes: ["Unauthorized", "NotFound", "SnapshotNotReady"] } });
 
 const py = proxyActivities<{
   ingestSnapshot(input: IngestSnapshotInput): Promise<{ status: string }>;
@@ -101,4 +103,16 @@ export async function processAnalysisWorkflow(job: analysis.RunJob): Promise<str
     await ts.markAnalysisFailed({ ...job, message: message(err) });
     return "failed";
   }
+}
+
+/** Started by a Temporal Schedule every few seconds; projects every project with pending outbox events. */
+export async function graphProjectionSweepWorkflow(): Promise<number> {
+  let n = 0;
+  for (const projectId of await ts.pendingGraphProjects()) n += (await ts.projectGraph(projectId)).projected;
+  return n;
+}
+
+/** Internal retrieval service: model-facing features call this; there is no public free-form endpoint. */
+export async function evidenceBundleWorkflow(request: unknown): Promise<Awaited<ReturnType<typeof evidence.buildEvidenceBundle>>> {
+  return ts.buildEvidenceBundle(request);
 }

@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import { CANONICAL_ALGORITHM_VERSION, MappingConfig, MAX_UPLOAD_BYTES, type PreviewMappingResult } from "@nora/contracts";
+import { CANONICAL_ALGORITHM_VERSION, MappingConfig, MAX_UPLOAD_BYTES, stableStringify, type PreviewMappingResult } from "@nora/contracts";
 import { presignPut } from "@nora/storage";
 import type { z } from "zod";
 import { audit } from "./audit";
@@ -10,12 +10,7 @@ import { badRequest, conflict, HttpError, notFound } from "./http";
 import { runJob, startJob } from "./jobs";
 import { can } from "./projects";
 
-/** Key order must not change the hash: same input and config always give the same content hash. */
-export function stableStringify(v: unknown): string {
-  if (Array.isArray(v)) return `[${v.map(stableStringify).join(",")}]`;
-  if (v && typeof v === "object") return `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${stableStringify((v as Record<string, unknown>)[k])}`).join(",")}}`;
-  return JSON.stringify(v ?? null);
-}
+export { stableStringify };
 
 export const contentHash = (rawSha256: string, config: MappingConfig) =>
   createHash("sha256").update(`${rawSha256}\n${stableStringify(config)}\n${CANONICAL_ALGORITHM_VERSION}`).digest("hex");

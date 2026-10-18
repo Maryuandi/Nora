@@ -13,7 +13,8 @@
     "smoke:f03": "tsx --env-file-if-exists=../../.env scripts/smoke/f03.ts",
     "smoke:f04": "tsx --env-file-if-exists=../../.env scripts/smoke/f04.ts",
     "smoke:f05": "tsx --env-file-if-exists=../../.env scripts/smoke/f05.ts",
-    "smoke:f06": "tsx --env-file-if-exists=../../.env scripts/smoke/f06.ts"
+    "smoke:f06": "tsx --env-file-if-exists=../../.env scripts/smoke/f06.ts",
+    "smoke:f07": "tsx --env-file-if-exists=../../.env scripts/smoke/f07.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",
@@ -22,6 +23,7 @@
     "@nora/authz": "workspace:*",
     "@nora/contracts": "workspace:*",
     "@nora/db": "workspace:*",
+    "@nora/graph": "workspace:*",
     "@nora/storage": "workspace:*",
     "@phosphor-icons/react": "^2.1.10",
     "@react-stately/utils": "^3.12.1",

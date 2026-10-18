@@ -32,6 +32,9 @@ importers:
       '@nora/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@nora/graph':
+        specifier: workspace:*
+        version: link:../../packages/graph
       '@nora/storage':
         specifier: workspace:*
         version: link:../../packages/storage
@@ -147,10 +150,16 @@ importers:
       '@nora/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@nora/graph':
+        specifier: workspace:*
+        version: link:../../packages/graph
       '@nora/storage':
         specifier: workspace:*
         version: link:../../packages/storage
       '@temporalio/activity':
+        specifier: ^1.24.0
+        version: 1.24.0
+      '@temporalio/client':
         specifier: ^1.24.0
         version: 1.24.0
       '@temporalio/worker':
@@ -225,6 +234,19 @@ importers:
       tsx:
         specifier: ^4.23.15
         version: 4.23.15
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+
+  packages/graph:
+    dependencies:
+      neo4j-driver:
+        specifier: ^6.2.0
+        version: 6.2.0
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.5
+        version: 26.6.5
       typescript:
         specifier: ^7.0.2
         version: 7.0.2

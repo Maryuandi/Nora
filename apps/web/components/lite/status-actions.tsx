@@ -59,3 +59,21 @@ export function StatusButton({ projectId, to, label, primary }: { projectId: str
     </>
   );
 }
+
+export function RebuildGraphButton({ projectId }: { projectId: string }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  return (
+    <div className="flex items-center gap-3">
+      {msg && <p role="status" className="text-sm text-ink-2">{msg}</p>}
+      <Button size="xs" color="secondary" isLoading={busy} onClick={async () => {
+        setBusy(true);
+        const res = await api(`/projects/${projectId}/graph/rebuild`, { body: {} });
+        setBusy(false);
+        setMsg(res.ok ? "Rebuild diminta; worker memproyeksikan ulang dari data otoritatif." : errorText(res.error));
+        router.refresh();
+      }}>Rebuild graph</Button>
+    </div>
+  );
+}
