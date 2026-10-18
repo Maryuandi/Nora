@@ -23,7 +23,7 @@ def _scope_sql(rule: dict) -> tuple[str, str]:
     return (" AND ".join(terms) or "true"), (" OR ".join(missing) or "false")
 
 
-def rule_sql(rule: dict) -> str:
+def rule_sql(rule: dict, source: str = "ev") -> str:
     """SELECT case_id, status, reason for every in-scope case."""
     p = rule["params"]
     t = p["type"]
@@ -56,9 +56,9 @@ def rule_sql(rule: dict) -> str:
             end_act = p.get("toActivity")
             # DuckDB cannot nest aggregates in FILTER; compute the start per case first.
             return f"""
-              WITH s AS (SELECT case_id, {start} AS t0 FROM ev WHERE NOT excluded GROUP BY case_id),
+              WITH s AS (SELECT case_id, {start} AS t0 FROM {source} WHERE NOT excluded GROUP BY case_id),
               e AS (SELECT ev.case_id, s.t0, {('min(ev.event_time_utc) FILTER (WHERE ev.activity = ' + a(end_act) + ' AND ev.event_time_utc >= s.t0)') if end_act else 'max(ev.event_time_utc)'} AS t1
-                    FROM ev JOIN s USING (case_id) WHERE NOT ev.excluded GROUP BY ev.case_id, s.t0)
+                    FROM {source} ev JOIN s USING (case_id) WHERE NOT ev.excluded GROUP BY ev.case_id, s.t0)
               SELECT case_id,
                 CASE WHEN t0 IS NULL THEN 'not_evaluable' WHEN t1 IS NULL THEN 'not_evaluable'
                      WHEN epoch(t1) - epoch(t0) > {limit} THEN 'non_compliant' ELSE 'compliant' END AS status,
@@ -70,21 +70,21 @@ def rule_sql(rule: dict) -> str:
                    CASE WHEN epoch(max(event_time_utc)) - epoch(min(event_time_utc)) > {limit} THEN 'melebihi ' || {lit(str(p['maxHours']))} || ' jam' END AS reason"""
     else:
         raise ValueError(f"unknown rule type {t}")
-    return f"SELECT case_id, {body}, NULL::DOUBLE AS measured_seconds FROM ev WHERE NOT excluded GROUP BY case_id"
+    return f"SELECT case_id, {body}, NULL::DOUBLE AS measured_seconds FROM {source} WHERE NOT excluded GROUP BY case_id"
 
 
-def evaluate_rule(con, rule: dict, max_cases: int | None = None) -> list[tuple[str, str, str | None]]:
-    """Returns (case_id, status, reason) for every in-scope case; `ev` must already exist on `con`."""
+def evaluate_rule(con, rule: dict, max_cases: int | None = None, source: str = "ev") -> list[tuple[str, str, str | None]]:
+    """Returns (case_id, status, reason) for every in-scope case; `source` must already exist on `con`."""
     in_scope, missing = _scope_sql(rule)
     con.execute(
-        """CREATE OR REPLACE TEMP VIEW case_info AS
+        f"""CREATE OR REPLACE TEMP VIEW case_info AS
            SELECT case_id, any_value(case_attributes) AS case_attributes, min(event_time_utc) AS case_start
-           FROM ev WHERE NOT excluded AND case_id IS NOT NULL GROUP BY case_id"""
+           FROM {source} WHERE NOT excluded AND case_id IS NOT NULL GROUP BY case_id"""
     )
     limit = f"LIMIT {int(max_cases)}" if max_cases else ""
     sql = f"""
       WITH c AS (SELECT * FROM case_info ORDER BY case_id {limit}),
-      r AS ({rule_sql(rule)})
+      r AS ({rule_sql(rule, source)})
       SELECT c.case_id,
         CASE WHEN {missing} THEN 'not_evaluable' ELSE r.status END,
         CASE WHEN {missing} THEN 'atribut scope tidak tersedia' ELSE r.reason END

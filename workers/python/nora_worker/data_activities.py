@@ -1,5 +1,7 @@
 """F02 activities. Inputs are validated against the exported Zod contracts; object keys must sit in the project prefix."""
 
+import gzip
+import json
 import shutil
 import tempfile
 from pathlib import Path
@@ -12,6 +14,7 @@ from nora_worker import storage
 from nora_worker.contracts import load_schema
 from nora_worker.analysis import run_process_analysis
 from nora_worker.bpmn import validate_bpmn
+from nora_worker.monitoring import run_monitoring
 from nora_worker.dataset import build_dataset, connect, lit, preview_mapping
 from nora_worker.ingest import ingest_file
 from nora_worker.rules import evaluate_rule, summarize
@@ -112,3 +115,24 @@ def run_process_analysis_activity(payload: dict) -> dict:
         storage.upload(pid, keys["caseIndexKey"], files["caseIndex"])
         storage.upload(pid, keys["caseRowsKey"], files["caseRows"], "application/gzip")
     return {**keys, "caseCount": result["coverage"]["cases"], "eventCount": result["coverage"]["events"], "mapAvailable": result["mapAvailable"]}
+
+
+@activity.defn(name="runMonitoring")
+def run_monitoring_activity(payload: dict) -> dict:
+    _validate(payload, "MonitoringInput")
+    pid, prefix = payload["projectId"], payload["artifactPrefix"]
+    storage.assert_project_key(pid, prefix)
+    with _Workdir() as wd:
+        events = storage.download(pid, payload["eventsKey"], wd / "events.parquet")
+        inp = dict(payload)
+        if payload.get("bpmn"):
+            inp["_bpmnPath"] = str(storage.download(pid, payload["bpmn"]["objectKey"], wd / "model.bpmn"))
+        result, rows = run_monitoring(events, wd, inp)
+        keys = {"resultKey": f"{prefix}/monitoring.json", "findingCasesKey": f"{prefix}/finding-cases.ndjson.gz"}
+        storage.put_json(pid, keys["resultKey"], result)
+        path = wd / "finding-cases.ndjson.gz"
+        with gzip.open(path, "wt", encoding="utf-8") as out:
+            for r in rows:
+                out.write(json.dumps(r) + "\n")
+        storage.upload(pid, keys["findingCasesKey"], path, "application/gzip")
+    return {**keys, "findings": len(result["findings"])}

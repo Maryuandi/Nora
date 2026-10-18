@@ -1,12 +1,14 @@
 import { z } from "zod";
 import { BuildDatasetInput, BuildDatasetReport, IngestReport, IngestSnapshotInput, PreviewMappingInput, PreviewMappingResult } from "./dataset.ts";
 import { ProcessAnalysisInput, ProcessAnalysisManifest, ProcessMapResult } from "./analysis.ts";
+import { MonitoringInput } from "./monitoring.ts";
 import { PreviewRuleInput, PreviewRuleResult, ValidateBpmnInput, ValidateBpmnResult } from "./context.ts";
 import { PingRequest, PingResult } from "./ping.ts";
 
 export * from "./analysis.ts";
 export * from "./context.ts";
 export * from "./dataset.ts";
+export * from "./monitoring.ts";
 export * from "./ping.ts";
 export * from "./queues.ts";
 
@@ -28,5 +30,6 @@ export function exportSchemas(): Record<string, object> {
     ProcessAnalysisInput: z.toJSONSchema(ProcessAnalysisInput),
     ProcessAnalysisManifest: z.toJSONSchema(ProcessAnalysisManifest),
     ProcessMapResult: z.toJSONSchema(ProcessMapResult),
+    MonitoringInput: z.toJSONSchema(MonitoringInput),
   };
 }

@@ -1,7 +1,8 @@
 import { ApplicationFailure, proxyActivities } from "@temporalio/workflow";
-import { PingResult, PreviewMappingResult, PreviewRuleResult, TASK_QUEUE_PYTHON, type BuildDatasetInput, type IngestSnapshotInput, type PingRequest, type PreviewMappingInput, type PreviewRuleInput, type ProcessAnalysisInput, type ValidateBpmnInput } from "@nora/contracts";
+import { PingResult, PreviewMappingResult, PreviewRuleResult, TASK_QUEUE_PYTHON, type BuildDatasetInput, type IngestSnapshotInput, type PingRequest, type PreviewMappingInput, type MonitoringInput, type PreviewRuleInput, type ProcessAnalysisInput, type ValidateBpmnInput } from "@nora/contracts";
 import type * as analysis from "./activities/analysis.ts";
 import type * as context from "./activities/context.ts";
+import type * as monitoring from "./activities/monitoring.ts";
 import type * as data from "./activities/data.ts";
 
 const { pythonPing } = proxyActivities<{ pythonPing(input: PingRequest): Promise<unknown> }>({
@@ -18,13 +19,14 @@ export async function pingWorkflow(input: PingRequest): Promise<PingResult> {
 }
 
 // Transient errors retry up to three times; corrupt files and schema errors are non-retryable in the activities.
-const ts = proxyActivities<typeof data & typeof context & typeof analysis>({ startToCloseTimeout: "30 minutes", retry: { maximumAttempts: 3, nonRetryableErrorTypes: ["Unauthorized", "NotFound", "SnapshotNotReady"] } });
+const ts = proxyActivities<typeof data & typeof context & typeof analysis & typeof monitoring>({ startToCloseTimeout: "30 minutes", retry: { maximumAttempts: 3, nonRetryableErrorTypes: ["Unauthorized", "NotFound", "SnapshotNotReady"] } });
 
 const py = proxyActivities<{
   ingestSnapshot(input: IngestSnapshotInput): Promise<{ status: string }>;
   previewMapping(input: PreviewMappingInput): Promise<unknown>;
   buildDataset(input: BuildDatasetInput): Promise<{ qualityStatus: string }>;
   runProcessAnalysis(input: ProcessAnalysisInput): Promise<unknown>;
+  runMonitoring(input: MonitoringInput): Promise<{ resultKey: string; findingCasesKey: string }>;
 }>({ taskQueue: TASK_QUEUE_PYTHON, startToCloseTimeout: "2 hours", retry: { maximumAttempts: 3, nonRetryableErrorTypes: ["ContractMismatch", "InvalidMapping", "ProjectKeyViolation"] } });
 
 const pyPreview = proxyActivities<{ previewMapping(input: PreviewMappingInput): Promise<unknown>; previewRule(input: PreviewRuleInput): Promise<unknown>; validateBpmn(input: ValidateBpmnInput): Promise<unknown> }>({
@@ -86,6 +88,13 @@ export async function processAnalysisWorkflow(job: analysis.RunJob): Promise<str
     if (!input) return "skipped";
     const manifest = await py.runProcessAnalysis(input);
     await ts.saveProcessResult({ ...job, manifest });
+    // Second stage: a failure here leaves the map usable and marks only the dashboard section as failed.
+    try {
+      const mInput = await ts.loadMonitoringInput(job);
+      if (mInput) await ts.saveMonitoringResult({ ...job, manifest: await py.runMonitoring(mInput) });
+    } catch (err) {
+      await ts.markMonitoringFailed({ ...job, message: message(err) });
+    }
     await ts.markAnalysisCompleted(job);
     return "completed";
   } catch (err) {

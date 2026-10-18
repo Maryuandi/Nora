@@ -4,7 +4,7 @@ export default async function AnalysisLayout({ children, params }: { children: R
   const { projectId } = await params;
   return (
     <>
-      <PrepareTabs projectId={projectId} section="analysis" tabs={[{ label: "Peta proses", path: "" }]} />
+      <PrepareTabs projectId={projectId} section="analysis" tabs={[{ label: "Peta proses", path: "" }, { label: "Dashboard", path: "dashboard" }]} />
       {children}
     </>
   );

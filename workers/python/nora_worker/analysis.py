@@ -47,7 +47,12 @@ def _case_filter(f: dict, boundary: dict | None) -> tuple[str, list[str]]:
     return (" AND ".join(terms) or "true"), warnings
 
 
-def run_process_analysis(events: Path, workdir: Path, inp: dict) -> tuple[dict, dict[str, Path], list[str]]:
+def build_population(events: Path, workdir: Path, inp: dict):
+    """Creates ev (included events), c (all cases), fc (filtered cases), fev (their events), steps (direct-follows).
+
+    Returns (con, warnings, dataset_events, dataset_excluded, dataset_cases, cases, events).
+    The map and the monitoring stage call this with the same filter, so both describe the same population.
+    """
     con = connect(workdir, "UTC")
     boundary = inp.get("boundary")
     con.execute(f"CREATE TEMP VIEW raw AS SELECT * FROM read_parquet({lit(events.as_posix())})")
@@ -79,6 +84,13 @@ def run_process_analysis(events: Path, workdir: Path, inp: dict) -> tuple[dict, 
            FROM fev WINDOW w AS (PARTITION BY case_uid ORDER BY row_index)"""
     )
     con.execute("DELETE FROM steps WHERE to_activity IS NULL")
+
+    return con, warnings, ds_events, ds_excluded, ds_cases, n_cases, n_events
+
+
+def run_process_analysis(events: Path, workdir: Path, inp: dict) -> tuple[dict, dict[str, Path], list[str]]:
+    boundary = inp.get("boundary")
+    con, warnings, ds_events, ds_excluded, ds_cases, n_cases, n_events = build_population(events, workdir, inp)
 
     starts = set((boundary or {}).get("startActivities") or [])
     ends = set((boundary or {}).get("endActivities") or [])

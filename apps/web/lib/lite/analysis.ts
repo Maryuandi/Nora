@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import { normalizeFilter, PROCESS_ALGORITHM_VERSION, type ProcessMapResult } from "@nora/contracts";
+import { DEFAULT_MONITORING_CONFIG, MONITORING_ALGORITHM_VERSION, normalizeFilter, PROCESS_ALGORITHM_VERSION, type ProcessMapResult } from "@nora/contracts";
 import { getJson } from "@nora/storage";
 import { audit } from "./audit";
 import type { Viewer } from "./auth";
@@ -11,8 +11,18 @@ import { startJob } from "./jobs";
 import { plain, readRows } from "./parquet";
 import { can } from "./projects";
 
-export const analysisKey = (datasetHash: string, packageHash: string, filter: unknown, algorithm = PROCESS_ALGORITHM_VERSION) =>
-  createHash("sha256").update(`${datasetHash}\n${packageHash}\n${stableStringify(normalizeFilter(filter))}\n${algorithm}`).digest("hex");
+export const ALGORITHM_VERSION = `${PROCESS_ALGORITHM_VERSION}+${MONITORING_ALGORITHM_VERSION}`;
+
+/** Thresholds are part of the key: a changed monitoring config is a different analysis, not a silent reuse. */
+export const analysisKey = (datasetHash: string, packageHash: string, filter: unknown, monitoringConfig: unknown = DEFAULT_MONITORING_CONFIG, algorithm = ALGORITHM_VERSION) =>
+  createHash("sha256").update(`${datasetHash}\n${packageHash}\n${stableStringify(normalizeFilter(filter))}\n${stableStringify(monitoringConfig)}\n${algorithm}`).digest("hex");
+
+export async function currentMonitoringConfig(projectId: string): Promise<{ id: string | null; version: number; config: typeof DEFAULT_MONITORING_CONFIG }> {
+  const row = (await db().query<{ id: string; version: number; config: typeof DEFAULT_MONITORING_CONFIG }>(
+    "SELECT id, version, config FROM monitoring_configs WHERE project_id = $1 ORDER BY version DESC LIMIT 1", [projectId],
+  )).rows[0];
+  return row ?? { id: null, version: 0, config: DEFAULT_MONITORING_CONFIG };
+}
 
 /** Latest published dataset and active context package; analysis only ever runs on these kinds of records. */
 async function activeInputs(projectId: string) {
@@ -34,7 +44,8 @@ export async function requestAnalysis(viewer: Viewer, projectId: string, input: 
     : activePkg;
   if (!ds) throw conflict("Belum ada dataset terbit");
   if (!pkg) throw conflict("Belum ada paket konteks aktif");
-  const key = analysisKey(ds.content_hash, pkg.hash, filter);
+  const mon = await currentMonitoringConfig(projectId);
+  const key = analysisKey(ds.content_hash, pkg.hash, filter, mon.config);
   return withTx(async (tx) => {
     await tx.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`analysis:${projectId}:${key}`]);
     // Same inputs, same algorithm: reuse the finished (or running) run instead of computing again.
@@ -44,9 +55,9 @@ export async function requestAnalysis(viewer: Viewer, projectId: string, input: 
     if (existing) return { id: existing.id, reused: true, status: existing.status };
     const id = crypto.randomUUID();
     await tx.query(
-      `INSERT INTO analysis_runs (id, project_id, dataset_version_id, context_package_id, filter_spec, algorithm_version, analysis_key, artifact_prefix, requested_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [id, projectId, ds.id, pkg.id, JSON.stringify(filter), PROCESS_ALGORITHM_VERSION, key, `projects/${projectId}/analyses/${id}`, viewer.id],
+      `INSERT INTO analysis_runs (id, project_id, dataset_version_id, context_package_id, filter_spec, algorithm_version, analysis_key, artifact_prefix, requested_by, monitoring_config_id, monitoring_config)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      [id, projectId, ds.id, pkg.id, JSON.stringify(filter), ALGORITHM_VERSION, key, `projects/${projectId}/analyses/${id}`, viewer.id, mon.id, JSON.stringify(mon.config)],
     );
     await audit(tx, { projectId, actorId: viewer.id, action: "analysis.request", objectType: "analysis_run", objectId: id, correlationId, metadata: { datasetVersionId: ds.id, contextPackageId: pkg.id, analysisKey: key } });
     return { id, reused: false, status: "queued" };
@@ -74,12 +85,16 @@ export interface RunRow {
   projectStatusChanged: boolean;
   datasetIsCurrent: boolean;
   contextIsCurrent: boolean;
+  monitoringStatus: "pending" | "running" | "completed" | "failed";
+  monitoringError: string | null;
+  monitoringConfig: typeof DEFAULT_MONITORING_CONFIG | null;
 }
 
 const RUN_COLS = `r.id, r.status, r.dataset_version_id AS "datasetVersionId", d.name AS "datasetName", r.context_package_id AS "contextPackageId", c.name AS "contextName",
   r.filter_spec AS "filterSpec", r.algorithm_version AS "algorithmVersion", r.analysis_key AS "analysisKey", r.coverage, r.warnings, r.error_message AS "errorMessage",
   r.created_at AS "createdAt", r.completed_at AS "completedAt", r.project_status_changed AS "projectStatusChanged",
-  d.status = 'published' AS "datasetIsCurrent", c.status = 'active' AS "contextIsCurrent"`;
+  d.status = 'published' AS "datasetIsCurrent", c.status = 'active' AS "contextIsCurrent",
+  r.monitoring_status AS "monitoringStatus", r.monitoring_error AS "monitoringError", r.monitoring_config AS "monitoringConfig"`;
 
 export async function listRuns(viewer: Viewer, projectId: string): Promise<RunRow[]> {
   await can(viewer, "project.read", projectId);
