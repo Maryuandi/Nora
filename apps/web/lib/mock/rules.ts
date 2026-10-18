@@ -41,7 +41,7 @@ export function projectCanonicalLabels(state: MockState, projectId: string): str
   return [...new Set(all)].sort();
 }
 
-const isDate = (v: unknown): v is string => {
+export const isDate = (v: unknown): v is string => {
   if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
   const [y, m, d] = v.split("-").map(Number);
   const t = new Date(Date.UTC(y, m - 1, d));

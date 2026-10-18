@@ -3,9 +3,12 @@ import { isStale } from "../format";
 import { fabricate } from "./fabricate";
 import { validateMapping } from "./mapping";
 import { acceptsData } from "./permissions";
+import { starterCatalog } from "./catalog";
+import { CLIENT_CONFIRM_KINDS, CONFIG_KIND_LABEL, SINGLETON_KINDS, validateConfig, type ConfigInput } from "./configs";
+import { validateDoc, type DocInput } from "./docs";
 import { nextStatuses, previewDataset, previewRule, projectCanonicalLabels, validateRule, type RuleInput } from "./rules";
 import { projectSchema, type ProjectInput } from "./schemas";
-import type { AuditEvent, ColumnRole, LabelRule, MappingVersion, MockState, Project, ProjectStatus, Role, RuleStatus, RuleVersion, Snapshot, SnapshotStatus } from "./types";
+import type { AuditEvent, ColumnRole, ConfigKind, ConfigVersion, ContextDoc, ContextPackage, PackageRef, LabelRule, MappingVersion, MockState, Project, ProjectStatus, Role, RuleStatus, RuleVersion, Snapshot, SnapshotStatus } from "./types";
 
 export { MOCK_TODAY, initialState };
 
@@ -25,9 +28,16 @@ export type MockAction =
   | { type: "saveRule"; projectId: string; ruleKey?: string; input: RuleInput }
   | { type: "changeRuleStatus"; ruleId: string; to: RuleStatus }
   | { type: "confirmRuleClient"; ruleId: string }
+  | { type: "addDoc"; projectId: string; docKey?: string; input: DocInput }
+  | { type: "withdrawDoc"; docId: string; reason: string }
+  | { type: "saveConfig"; projectId: string; kind?: ConfigKind; key?: string; input: ConfigInput }
+  | { type: "changeConfigStatus"; configId: string; to: RuleStatus }
+  | { type: "confirmConfigClient"; configId: string }
+  | { type: "copyStarterCatalog"; projectId: string }
+  | { type: "freezePackage"; projectId: string; note?: string }
   | { type: "setViewer"; userId: string };
 
-export type ReduceResult = { state: MockState; error?: string; snapshotId?: string; duplicateOf?: string; mappingId?: string; ruleId?: string };
+export type ReduceResult = { state: MockState; error?: string; snapshotId?: string; duplicateOf?: string; mappingId?: string; ruleId?: string; docId?: string; configId?: string; packageId?: string };
 
 const MAX_BYTES = 500 * 1024 * 1024;
 // ".xes.gz" must come before ".xes".
@@ -296,6 +306,125 @@ export function reduce(state: MockState, action: MockAction): ReduceResult {
       return { state: withAudit({ ...state, rules }, { action: "aturan.konfirmasi_klien", objectType: "Aturan", objectLabel: `${rule.name} v${rule.version}`, projectId: project.id }), ruleId: rule.id };
     }
 
+    case "addDoc": {
+      const project = state.projects.find((x) => x.id === action.projectId);
+      if (!project) return fail("Proyek tidak ditemukan");
+      if (!acceptsData(project.status)) return fail("Proyek ini tidak menerima data baru");
+      const prev = action.docKey ? docVersions(state, action.docKey)[0] : undefined;
+      if (action.docKey && (!prev || prev.projectId !== project.id)) return fail("Dokumen tidak ditemukan");
+      const invalid = validateDoc(action.input)[0];
+      if (invalid) return fail(invalid.message);
+      const { title, kind, issuer, docDate, effectiveFrom, fileName, sizeBytes, text } = action.input;
+      const doc: ContextDoc = {
+        id: id("d"), docKey: prev ? prev.docKey : id("dk"), projectId: project.id, version: (prev?.version ?? 0) + 1,
+        title: title.trim(), kind, issuer: issuer.trim(), docDate, effectiveFrom, fileName, sizeBytes, ...(kind === "wawancara" ? { text } : {}),
+        status: "aktif", uploadedBy: state.viewerId, uploadedAt: now(),
+      };
+      return { state: withAudit({ ...state, docs: [...state.docs, doc] }, { action: "dokumen.unggah", objectType: "Dokumen", objectLabel: `${doc.title} v${doc.version}`, projectId: project.id }), docId: doc.id };
+    }
+
+    case "withdrawDoc": {
+      const doc = state.docs.find((x) => x.id === action.docId);
+      if (!doc) return fail("Dokumen tidak ditemukan");
+      const project = state.projects.find((x) => x.id === doc.projectId);
+      if (!project || !acceptsData(project.status)) return fail("Proyek ini tidak menerima data baru");
+      if (doc.status === "ditarik") return fail("Dokumen sudah ditarik");
+      if (!action.reason.trim()) return fail("Alasan wajib diisi");
+      const docs = state.docs.map((x) => (x === doc ? { ...x, status: "ditarik" as const, withdrawnReason: action.reason.trim() } : x));
+      return { state: withAudit({ ...state, docs }, { action: "dokumen.tarik", objectType: "Dokumen", objectLabel: `${doc.title} v${doc.version}`, projectId: project.id }), docId: doc.id };
+    }
+
+    case "saveConfig": {
+      const project = state.projects.find((x) => x.id === action.projectId);
+      if (!project) return fail("Proyek tidak ditemukan");
+      if (!acceptsData(project.status)) return fail("Proyek ini tidak menerima data baru");
+      const kind = action.input.data.kind;
+      const key = action.key ?? (SINGLETON_KINDS.includes(kind) ? `${kind}-${project.id}` : undefined);
+      const latest = key ? configVersions(state, key)[0] : undefined;
+      if (action.key && !latest) return fail("Konfigurasi tidak ditemukan");
+      if (latest && (latest.projectId !== project.id || latest.data.kind !== kind)) return fail("Konfigurasi bukan milik proyek ini");
+      if (latest?.status === "usang" && !SINGLETON_KINDS.includes(kind)) return fail("Konfigurasi usang tidak dapat diubah");
+      const invalid = validateConfig(action.input, projectCanonicalLabels(state, project.id))[0];
+      if (invalid) return fail(invalid.message);
+      if (latest && sameConfigInput(latest, action.input)) return fail("Tidak ada perubahan");
+      const fields = { name: action.input.name.trim(), data: action.input.data, needsValidation: false };
+      let written: ConfigVersion;
+      let configs: ConfigVersion[];
+      if (latest?.status === "draf") {
+        written = { ...latest, ...fields, clientConfirmed: false };
+        configs = state.configs.map((x) => (x === latest ? written : x));
+      } else {
+        written = {
+          ...fields, id: id("k"), key: key ?? id("ck"), projectId: project.id, version: (latest?.version ?? 0) + 1,
+          status: "draf", clientConfirmed: false, createdBy: state.viewerId, createdAt: now(),
+        };
+        configs = [...state.configs, written];
+      }
+      return { state: withAudit({ ...state, configs }, { action: "konfigurasi.simpan", objectType: CONFIG_KIND_LABEL[kind], objectLabel: `${written.name} v${written.version}`, projectId: project.id }), configId: written.id };
+    }
+
+    case "changeConfigStatus": {
+      const cfg = state.configs.find((x) => x.id === action.configId);
+      if (!cfg) return fail("Konfigurasi tidak ditemukan");
+      const project = state.projects.find((x) => x.id === cfg.projectId);
+      if (!project || !acceptsData(project.status)) return fail("Proyek ini tidak menerima data baru");
+      if (!nextStatuses(cfg.status).includes(action.to)) return fail("Transisi status tidak diizinkan");
+      if (action.to === "ditinjau" || action.to === "disetujui") {
+        const invalid = validateConfig(cfg, projectCanonicalLabels(state, project.id))[0];
+        if (invalid) return fail(invalid.message);
+      }
+      const updated: ConfigVersion = {
+        ...cfg, status: action.to, ...(action.to === "draf" ? { clientConfirmed: false } : {}),
+        ...(action.to === "disetujui" ? { approvedBy: state.viewerId, approvedAt: now() } : {}),
+      };
+      const configs = state.configs.map((x) => {
+        if (x === cfg) return updated;
+        return action.to === "disetujui" && x.key === cfg.key && x.status === "disetujui" ? { ...x, status: "usang" as const } : x;
+      });
+      const audit = action.to === "ditinjau" ? "konfigurasi.ajukan" : action.to === "draf" ? "konfigurasi.kembalikan" : action.to === "disetujui" ? "konfigurasi.setujui" : "konfigurasi.usangkan";
+      return { state: withAudit({ ...state, configs }, { action: audit, objectType: CONFIG_KIND_LABEL[cfg.data.kind], objectLabel: `${cfg.name} v${cfg.version}`, projectId: project.id }), configId: cfg.id };
+    }
+
+    case "confirmConfigClient": {
+      const cfg = state.configs.find((x) => x.id === action.configId);
+      if (!cfg) return fail("Konfigurasi tidak ditemukan");
+      const project = state.projects.find((x) => x.id === cfg.projectId);
+      if (!project || !acceptsData(project.status)) return fail("Proyek ini tidak menerima data baru");
+      if (!CLIENT_CONFIRM_KINDS.includes(cfg.data.kind)) return fail("Jenis konfigurasi ini tidak dikonfirmasi klien");
+      if (cfg.status !== "ditinjau" && cfg.status !== "disetujui") return fail("Hanya konfigurasi yang ditinjau atau disetujui yang bisa dikonfirmasi klien");
+      if (cfg.clientConfirmed) return fail("Konfigurasi ini sudah dikonfirmasi klien");
+      const configs = state.configs.map((x) => (x === cfg ? { ...x, clientConfirmed: true } : x));
+      return { state: withAudit({ ...state, configs }, { action: "konfigurasi.konfirmasi_klien", objectType: CONFIG_KIND_LABEL[cfg.data.kind], objectLabel: `${cfg.name} v${cfg.version}`, projectId: project.id }), configId: cfg.id };
+    }
+
+    case "copyStarterCatalog": {
+      const project = state.projects.find((x) => x.id === action.projectId);
+      if (!project) return fail("Proyek tidak ditemukan");
+      if (!acceptsData(project.status)) return fail("Proyek ini tidak menerima data baru");
+      if (state.configs.some((x) => x.projectId === project.id && ["hypothesis", "intervention", "rubric"].includes(x.data.kind))) return fail("Katalog proyek ini sudah ada");
+      const added: ConfigVersion[] = starterCatalog(project.id).map((c) => ({
+        ...c, id: id("k"), projectId: project.id, version: 1, status: "draf", clientConfirmed: false, needsValidation: true, createdBy: state.viewerId, createdAt: now(),
+      }));
+      return { state: withAudit({ ...state, configs: [...state.configs, ...added] }, { action: "katalog.salin", objectType: "Katalog", objectLabel: `Katalog awal P2P (${added.length} entri)`, projectId: project.id }) };
+    }
+
+    case "freezePackage": {
+      const project = state.projects.find((x) => x.id === action.projectId);
+      if (!project) return fail("Proyek tidak ditemukan");
+      if (!acceptsData(project.status)) return fail("Proyek ini tidak menerima data baru");
+      const refs = packageRefs(state, project.id);
+      if (!refs.some((r) => r.kind === "boundary")) return fail("Paket butuh batas proses yang disetujui");
+      if (!refs.some((r) => r.kind === "aturan")) return fail("Paket butuh minimal satu aturan yang disetujui");
+      const digest = packageHash(refs);
+      const mine = state.packages.filter((x) => x.projectId === project.id);
+      if (mine.some((x) => x.hash === digest && x.version === Math.max(...mine.map((y) => y.version)))) return fail("Tidak ada perubahan sejak paket terakhir");
+      const pkg: ContextPackage = {
+        id: id("pk"), projectId: project.id, version: Math.max(0, ...mine.map((x) => x.version)) + 1, hash: digest, refs,
+        note: (action.note ?? "").trim(), createdBy: state.viewerId, createdAt: now(),
+      };
+      return { state: withAudit({ ...state, packages: [...state.packages, pkg] }, { action: "paket.bekukan", objectType: "Paket konteks", objectLabel: `Paket konteks v${pkg.version}`, projectId: project.id }), packageId: pkg.id };
+    }
+
     case "confirmSnapshot":
     case "cancelSnapshot": {
       const snap = state.snapshots.find((x) => x.id === action.snapshotId);
@@ -341,6 +470,30 @@ export const ruleVersions = (s: MockState, ruleKey: string): RuleVersion[] =>
     .filter(({ x }) => x.ruleKey === ruleKey)
     .sort((a, b) => b.x.version - a.x.version || b.i - a.i)
     .map(({ x }) => x);
+
+export const docVersions = (s: MockState, docKey: string): ContextDoc[] =>
+  s.docs.map((x, i) => ({ x, i })).filter(({ x }) => x.docKey === docKey).sort((a, b) => b.x.version - a.x.version || b.i - a.i).map(({ x }) => x);
+
+export const configVersions = (s: MockState, key: string): ConfigVersion[] =>
+  s.configs.map((x, i) => ({ x, i })).filter(({ x }) => x.key === key).sort((a, b) => b.x.version - a.x.version || b.i - a.i).map(({ x }) => x);
+
+export const configsForProject = (s: MockState, projectId: string): ConfigVersion[] => s.configs.filter((c) => c.projectId === projectId);
+
+export const packagesForProject = (s: MockState, projectId: string): ContextPackage[] =>
+  s.packages.filter((p) => p.projectId === projectId).sort((a, b) => b.version - a.version);
+
+/** Everything a package would freeze right now: the approved version of every rule and configuration. */
+export function packageRefs(s: MockState, projectId: string): PackageRef[] {
+  return [
+    ...s.rules.filter((r) => r.projectId === projectId && r.status === "disetujui").map((r) => ({ kind: "aturan" as const, id: r.id, key: r.ruleKey, version: r.version, name: r.name })),
+    ...s.configs.filter((c) => c.projectId === projectId && c.status === "disetujui").map((c) => ({ kind: c.data.kind, id: c.id, key: c.key, version: c.version, name: c.name })),
+  ].sort((a, b) => a.id.localeCompare(b.id));
+}
+
+// Fake digest of the frozen version ids, same idea as the snapshot checksum.
+const packageHash = (refs: PackageRef[]): string => fnv(refs.map((r) => r.id).join("|"));
+
+const sameConfigInput = (a: ConfigInput, b: ConfigInput) => JSON.stringify(stable([a.name.trim(), a.data])) === JSON.stringify(stable([b.name.trim(), b.data]));
 
 // Deep canonical JSON with sorted keys, so key order never matters.
 const stable = (v: unknown): unknown =>

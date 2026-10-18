@@ -140,6 +140,45 @@ export interface RuleVersion {
   approvedBy?: string; approvedAt?: string;
 }
 
+export type DocKind = "sop" | "bpmn" | "sla" | "wawancara";
+
+export interface ContextDoc {
+  id: string; docKey: string; projectId: string; version: number; // 1, 2, ... per docKey
+  title: string; kind: DocKind; issuer: string; docDate: string; effectiveFrom: string | null;
+  fileName: string | null; sizeBytes: number; text?: string; // wawancara: text written in the app, no file
+  status: "aktif" | "ditarik"; withdrawnReason?: string;
+  uploadedBy: string; uploadedAt: string;
+}
+
+export type ConfigKind = "boundary" | "rework" | "population" | "calendar" | "bpmn" | "hypothesis" | "intervention" | "rubric";
+
+// "Syarat penerapan": a condition code can evaluate on M03 capabilities, M06 metrics or case attributes.
+export interface Condition { kind: "capability" | "metric" | "case_attr"; subject: string; op: "ada" | ">" | "<" | "=" | "!="; value: string }
+
+export type ConfigData =
+  | { kind: "boundary"; starts: string[]; ends: string[]; idleDays: number | null }
+  | { kind: "rework"; repeated: boolean; returns: { from: string; to: string }[] }
+  | { kind: "population"; completedOnly: boolean; periodFrom: string | null; periodTo: string | null; filter: RuleScope | null }
+  | { kind: "calendar"; timezone: string; workDays: number[]; startTime: string; endTime: string; holidays: { date: string; name: string }[] } // workDays: 1 = Senin .. 7 = Minggu
+  | { kind: "bpmn"; fileName: string; xml: string; mappings: { task: string; labels: string[] }[] } // task = BPMN element id
+  | { kind: "hypothesis"; statement: string; symptom: string; evidence: string; conditions: Condition[] }
+  | { kind: "intervention"; action: string; hypotheses: string[]; prerequisites: string; effort: string | null; risk: string | null; metric: string; conditions: Condition[] }
+  | { kind: "rubric"; criteria: { name: string; weight: number; scale: { value: number; definition: string }[] }[] }; // "informasi tidak cukup" is always implied
+
+export interface ConfigVersion {
+  id: string; key: string; projectId: string; version: number; // 1, 2, ... per key
+  name: string; data: ConfigData;
+  status: RuleStatus; clientConfirmed: boolean;
+  needsValidation: boolean; // starter catalog entries stay "perlu validasi Javan" until an analyst saves them
+  createdBy: string; createdAt: string; approvedBy?: string; approvedAt?: string;
+}
+
+export interface PackageRef { kind: "aturan" | ConfigKind; id: string; key: string; version: number; name: string }
+export interface ContextPackage {
+  id: string; projectId: string; version: number; hash: string; refs: PackageRef[]; note: string;
+  createdBy: string; createdAt: string;
+}
+
 export interface MockState {
   clients: Client[];
   projects: Project[];
@@ -150,5 +189,8 @@ export interface MockState {
   snapshots: Snapshot[];
   mappings: MappingVersion[];
   rules: RuleVersion[];
+  docs: ContextDoc[];
+  configs: ConfigVersion[];
+  packages: ContextPackage[];
   viewerId: string;
 }

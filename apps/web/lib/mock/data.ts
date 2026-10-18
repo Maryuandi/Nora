@@ -1,4 +1,6 @@
-import type { AuditEvent, Client, Membership, MappingVersion, MockState, Project, RuleSourceRef, RuleVersion, Snapshot, Source, User } from "./types";
+import { SAMPLE_BPMN } from "./bpmn-sample";
+import { starterCatalog } from "./catalog";
+import type { AuditEvent, ConfigVersion, ContextDoc, Client, Membership, MappingVersion, MockState, Project, RuleSourceRef, RuleVersion, Snapshot, Source, User } from "./types";
 
 export const MOCK_TODAY = "2026-10-17";
 
@@ -171,4 +173,38 @@ const rules: RuleVersion[] = [
     source: sop("Bagian 5.4", "Faktur tidak boleh dicatat lagi setelah pelunasan.") }),
 ];
 
-export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, rules, viewerId: "u-dimas" };
+const doc = (o: Partial<ContextDoc> & Pick<ContextDoc, "id" | "docKey" | "title" | "kind">): ContextDoc => ({
+  projectId: "p-p2p", version: 1, issuer: "PT Contoh Manufaktur", docDate: "2026-04-10", effectiveFrom: "2026-05-01", fileName: null, sizeBytes: 0,
+  status: "aktif", uploadedBy: "u-rina", uploadedAt: "2026-09-01T03:00:00Z", ...o,
+});
+
+const docs: ContextDoc[] = [
+  doc({ id: "d-sop-1", docKey: "dk-sop", title: "SOP Procure-to-Pay (contoh ilustratif)", kind: "sop", version: 1, fileName: "sop_p2p_v1.pdf", sizeBytes: 1_572_864, uploadedAt: "2026-09-01T03:00:00Z" }),
+  doc({ id: "d-sop-2", docKey: "dk-sop", title: "SOP Procure-to-Pay (contoh ilustratif)", kind: "sop", version: 2, docDate: "2026-09-05", fileName: "sop_p2p_v2.pdf", sizeBytes: 1_730_560, uploadedAt: "2026-09-08T03:00:00Z" }),
+  doc({ id: "d-sla", docKey: "dk-sla", title: "Perjanjian SLA Pemasok (contoh ilustratif)", kind: "sla", issuer: "Bagian Pengadaan", fileName: "sla_pemasok.docx", sizeBytes: 482_304, uploadedAt: "2026-09-03T03:00:00Z" }),
+  doc({ id: "d-wawancara", docKey: "dk-wawancara", title: "Wawancara pemilik proses pembelian", kind: "wawancara", issuer: "Sari Hartono", docDate: "2026-09-15", effectiveFrom: null, uploadedBy: "u-dimas", uploadedAt: "2026-09-15T08:00:00Z",
+    text: "Persetujuan PO di atas ambang wajib melalui dua tingkat. Barang harus diterima sebelum invoice dilunasi; pengecualian hanya untuk layanan." }),
+];
+
+const cfg = (o: Partial<ConfigVersion> & Pick<ConfigVersion, "id" | "key" | "name" | "data">): ConfigVersion => ({
+  projectId: "p-p2p", version: 1, status: "draf", clientConfirmed: false, needsValidation: false, createdBy: "u-dimas", createdAt: "2026-09-20T03:00:00Z", ...o,
+});
+const approved = { status: "disetujui" as const, approvedBy: "u-dimas", approvedAt: "2026-09-22T03:00:00Z" };
+
+const configs: ConfigVersion[] = [
+  cfg({ id: "k-boundary", key: "boundary-p-p2p", name: "Batas proses P2P", ...approved, clientConfirmed: true,
+    data: { kind: "boundary", starts: ["Create Purchase Order Item"], ends: ["Clear Invoice"], idleDays: 90 } }),
+  cfg({ id: "k-rework", key: "rework-p-p2p", name: "Rework P2P", ...approved,
+    data: { kind: "rework", repeated: true, returns: [{ from: "Record Invoice Receipt", to: "Record Goods Receipt" }] } }),
+  cfg({ id: "k-pop", key: "k-pop-selesai", name: "PO selesai 2026", status: "ditinjau", createdAt: "2026-09-25T03:00:00Z",
+    data: { kind: "population", completedOnly: true, periodFrom: "2026-01-01", periodTo: "2026-12-31", filter: null } }),
+  cfg({ id: "k-calendar", key: "calendar-p-p2p", name: "Kalender kerja Jakarta", ...approved, createdBy: "u-rina",
+    data: { kind: "calendar", timezone: "Asia/Jakarta", workDays: [1, 2, 3, 4, 5], startTime: "08:00", endTime: "17:00",
+      holidays: [{ date: "2026-08-17", name: "Hari Kemerdekaan" }, { date: "2026-12-25", name: "Hari Natal" }] } }),
+  cfg({ id: "k-bpmn", key: "k-bpmn-p2p", name: "Model P2P (contoh ilustratif)", status: "ditinjau", createdAt: "2026-09-28T03:00:00Z",
+    data: { kind: "bpmn", fileName: "p2p_model.bpmn", xml: SAMPLE_BPMN,
+      mappings: [{ task: "t1", labels: ["Create Purchase Order Item"] }, { task: "t3", labels: ["Record Goods Receipt"] }, { task: "t5", labels: ["Clear Invoice"] }] } }),
+  ...starterCatalog("p-p2p").map((c, i): ConfigVersion => cfg({ id: `k-cat-${i + 1}`, ...c, needsValidation: true, createdAt: "2026-10-01T03:00:00Z" })),
+];
+
+export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, rules, docs, configs, packages: [], viewerId: "u-dimas" };
