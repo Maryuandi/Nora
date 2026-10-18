@@ -7,12 +7,18 @@
     "dev": "tsx watch --env-file=../../.env src/main.ts"
   },
   "dependencies": {
+    "@nora/authz": "workspace:*",
     "@nora/contracts": "workspace:*",
+    "@nora/db": "workspace:*",
+    "@nora/storage": "workspace:*",
+    "@temporalio/activity": "^1.24.0",
     "@temporalio/worker": "^1.24.0",
-    "@temporalio/workflow": "^1.24.0"
+    "@temporalio/workflow": "^1.24.0",
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
+    "@types/pg": "^8.23.1",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }

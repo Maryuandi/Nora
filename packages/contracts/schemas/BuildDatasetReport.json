@@ -1,0 +1,208 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "eventCount": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "caseCount": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "excludedEventCount": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "activityLabels": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "label",
+          "count"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "periodStart": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "periodEnd": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "check": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "info"
+            ]
+          },
+          "eventCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "caseCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "eventShare": {
+            "type": "number"
+          },
+          "caseShare": {
+            "type": "number"
+          },
+          "excludedEventCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "samples": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "row": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "eventId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "caseId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "activity": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "detail": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "row",
+                "eventId",
+                "caseId",
+                "activity",
+                "detail"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "check",
+          "severity",
+          "eventCount",
+          "caseCount",
+          "eventShare",
+          "caseShare",
+          "excludedEventCount",
+          "samples"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "qualityStatus": {
+      "type": "string",
+      "enum": [
+        "ready",
+        "ready_with_notes",
+        "not_ready"
+      ]
+    },
+    "capabilities": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "warning",
+              "unavailable"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "available",
+          "level",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "eventCount",
+    "caseCount",
+    "excludedEventCount",
+    "activityLabels",
+    "periodStart",
+    "periodEnd",
+    "findings",
+    "qualityStatus",
+    "capabilities"
+  ],
+  "additionalProperties": false
+}

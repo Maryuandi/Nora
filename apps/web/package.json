@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "test": "vitest run",
-    "smoke:f01": "tsx --env-file-if-exists=../../.env scripts/smoke/f01.ts"
+    "smoke:f01": "tsx --env-file-if-exists=../../.env scripts/smoke/f01.ts",
+    "smoke:f02": "tsx --env-file-if-exists=../../.env scripts/smoke/f02.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",
@@ -17,6 +18,7 @@
     "@nora/authz": "workspace:*",
     "@nora/contracts": "workspace:*",
     "@nora/db": "workspace:*",
+    "@nora/storage": "workspace:*",
     "@phosphor-icons/react": "^2.1.10",
     "@react-stately/utils": "^3.12.1",
     "@tailwindcss/postcss": "^4.3.3",

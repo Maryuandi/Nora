@@ -1,5 +1,6 @@
 import { ApplicationFailure, proxyActivities } from "@temporalio/workflow";
-import { PingResult, TASK_QUEUE_PYTHON, type PingRequest } from "@nora/contracts";
+import { PingResult, PreviewMappingResult, TASK_QUEUE_PYTHON, type BuildDatasetInput, type IngestSnapshotInput, type PingRequest, type PreviewMappingInput } from "@nora/contracts";
+import type * as data from "./activities/data.ts";
 
 const { pythonPing } = proxyActivities<{ pythonPing(input: PingRequest): Promise<unknown> }>({
   taskQueue: TASK_QUEUE_PYTHON,
@@ -12,4 +13,51 @@ export async function pingWorkflow(input: PingRequest): Promise<PingResult> {
   // A ZodError would be retried forever as a workflow-task failure; fail the workflow instead.
   if (!r.success) throw ApplicationFailure.nonRetryable(r.error.message, "ContractMismatch");
   return r.data;
+}
+
+// Transient errors retry up to three times; corrupt files and schema errors are non-retryable in the activities.
+const ts = proxyActivities<typeof data>({ startToCloseTimeout: "30 minutes", retry: { maximumAttempts: 3, nonRetryableErrorTypes: ["Unauthorized", "NotFound", "SnapshotNotReady"] } });
+
+const py = proxyActivities<{
+  ingestSnapshot(input: IngestSnapshotInput): Promise<{ status: string }>;
+  previewMapping(input: PreviewMappingInput): Promise<unknown>;
+  buildDataset(input: BuildDatasetInput): Promise<{ qualityStatus: string }>;
+}>({ taskQueue: TASK_QUEUE_PYTHON, startToCloseTimeout: "2 hours", retry: { maximumAttempts: 3, nonRetryableErrorTypes: ["ContractMismatch", "InvalidMapping", "ProjectKeyViolation"] } });
+
+const pyPreview = proxyActivities<{ previewMapping(input: PreviewMappingInput): Promise<unknown> }>({
+  taskQueue: TASK_QUEUE_PYTHON, startToCloseTimeout: "60 seconds", retry: { maximumAttempts: 2, nonRetryableErrorTypes: ["ContractMismatch", "InvalidMapping"] },
+});
+
+const message = (err: unknown) => (err instanceof Error ? (err.cause instanceof Error ? err.cause.message : err.message) : String(err));
+
+type Job = data.JobRef;
+
+/** Workflow ID = snapshot ID, so a repeated "complete" call never starts a second ingest. */
+export async function ingestSnapshotWorkflow(job: Job & { snapshotId: string }): Promise<string> {
+  try {
+    const v = await ts.verifySnapshot(job);
+    if (v.kind === "reused") return "reused";
+    if (v.kind === "rejected") return "rejected";
+    await py.ingestSnapshot(v.input);
+    return await ts.saveIngestReport({ ...job, stagingKey: v.input.stagingKey, reportKey: v.input.reportKey });
+  } catch (err) {
+    await ts.markSnapshotFailed({ ...job, message: message(err) });
+    return "failed";
+  }
+}
+
+export async function previewMappingWorkflow(input: PreviewMappingInput): Promise<PreviewMappingResult> {
+  return PreviewMappingResult.parse(await pyPreview.previewMapping(input));
+}
+
+export async function prepareDatasetWorkflow(job: Job & { datasetVersionId: string }): Promise<string> {
+  try {
+    const input = await ts.loadDatasetBuild(job);
+    if (!input) return "skipped";
+    await py.buildDataset(input);
+    return await ts.saveDatasetReport({ ...job, reportKey: input.reportKey });
+  } catch (err) {
+    await ts.markDatasetFailed({ ...job, message: message(err) });
+    return "failed";
+  }
 }

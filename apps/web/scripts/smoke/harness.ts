@@ -21,6 +21,51 @@ function withDatabase(url: string, name: string) {
   return u.toString();
 }
 
+const REPO_DIR = fileURLToPath(new URL("../../../..", import.meta.url));
+
+/** Registers a throwaway Temporal namespace (1-day retention) so smoke workflows never touch "default". */
+export async function ensureNamespace(namespace: string): Promise<void> {
+  const { Connection } = await import("@temporalio/client");
+  const conn = await Connection.connect({ address: process.env.TEMPORAL_ADDRESS ?? "localhost:7233" });
+  try {
+    await conn.workflowService.registerNamespace({ namespace, workflowExecutionRetentionPeriod: { seconds: 86_400 } as never });
+    await new Promise((r) => setTimeout(r, 3000)); // namespace cache refresh
+  } catch (err) {
+    if (!String((err as Error).message).includes("already")) throw err;
+  } finally {
+    await conn.close();
+  }
+}
+
+/** Spawns the TS and Python workers against the smoke database and namespace; returns a stop function. */
+export function startWorkers(env: NodeJS.ProcessEnv): () => void {
+  const win = process.platform === "win32";
+  const procs: ChildProcess[] = [
+    spawn(win ? "npx.cmd" : "npx", ["tsx", "src/main.ts"], { cwd: `${REPO_DIR}apps/worker`, env, stdio: ["ignore", "pipe", "pipe"], shell: win }),
+    spawn("uv", ["run", "python", "-m", "nora_worker.main"], { cwd: `${REPO_DIR}workers/python`, env, stdio: ["ignore", "pipe", "pipe"], shell: win }),
+  ];
+  for (const p of procs) {
+    p.stderr?.on("data", (d) => { if (process.env.SMOKE_VERBOSE) process.stderr.write(d); });
+    p.stdout?.on("data", (d) => { if (process.env.SMOKE_VERBOSE) process.stdout.write(d); });
+  }
+  return () => {
+    for (const p of procs) {
+      if (win && p.pid) spawn("taskkill", ["/pid", String(p.pid), "/T", "/F"], { stdio: "ignore" });
+      else p.kill("SIGTERM");
+    }
+  };
+}
+
+export async function waitFor<T>(label: string, fn: () => Promise<T | null | undefined | false>, timeoutMs = 120_000): Promise<T> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const v = await fn();
+    if (v) return v;
+    if (Date.now() > deadline) throw new Error(`timed out waiting for ${label}`);
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+}
+
 export async function startSmoke(name: string, extraEnv: Record<string, string> = {}): Promise<Smoke> {
   const base = process.env.DATABASE_URL;
   if (!base) throw new Error("DATABASE_URL is not set (run with --env-file=../../.env)");
@@ -89,6 +134,13 @@ export class Client {
   del = <T = any>(p: string) => this.call<T>("DELETE", p);
 }
 
+/** Removes every object the smoke projects wrote; the real bucket keeps only real data. */
+async function cleanupObjects(s: Smoke): Promise<void> {
+  const { deletePrefix } = await import("@nora/storage");
+  const { rows } = await s.db.query<{ id: string }>("SELECT id FROM projects");
+  for (const r of rows) await deletePrefix(r.id, `projects/${r.id}/`);
+}
+
 let failures = 0;
 export function check(cond: unknown, label: string, detail?: unknown) {
   if (cond) console.log(`  ok   ${label}`);
@@ -98,15 +150,21 @@ export function check(cond: unknown, label: string, detail?: unknown) {
   }
 }
 
-export async function run(name: string, body: (s: Smoke) => Promise<void>, extraEnv?: Record<string, string>) {
+export async function run(name: string, body: (s: Smoke) => Promise<void>, opts: { workers?: boolean; env?: Record<string, string> } = {}) {
   console.log(`smoke ${name}`);
-  const s = await startSmoke(name, extraEnv);
+  const namespace = `nora-${name}-smoke`;
+  const env = { ...opts.env, ...(opts.workers ? { TEMPORAL_NAMESPACE: namespace } : {}) };
+  if (opts.workers) await ensureNamespace(namespace);
+  const s = await startSmoke(name, env);
+  const stopWorkers = opts.workers ? startWorkers(s.env as NodeJS.ProcessEnv) : () => {};
   try {
     await body(s);
   } catch (err) {
     failures++;
     console.error(err);
   } finally {
+    stopWorkers();
+    await cleanupObjects(s).catch((err) => console.error("object cleanup failed", err));
     await s.stop();
   }
   console.log(failures ? `${failures} check(s) failed` : "all checks passed");
