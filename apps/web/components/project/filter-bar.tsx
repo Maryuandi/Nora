@@ -48,7 +48,7 @@ export function EmptyFilterResult() {
         <FunnelSimple size={28} className="text-ink-3" aria-hidden />
         <p className="text-sm font-medium">Tidak ada kasus yang cocok</p>
         <p className="text-sm text-ink-3">Longgarkan filter: perlebar periode, kurangi syarat aktivitas, atau ubah status.</p>
-        <Button color="secondary" size="sm" onClick={resetFilter}>Atur ulang filter</Button>
+        <Button color="secondary" size="xs" onClick={resetFilter}>Atur ulang filter</Button>
       </div>
     </Card>
   );
@@ -73,7 +73,7 @@ export function FilterBar({ attrsAvailable, activities }: { attrsAvailable: bool
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Button color="secondary" size="sm" iconLeading={FunnelSimple} aria-expanded={open} aria-controls="filter-panel" onClick={() => setOpen((o) => !o)}>
+        <Button color="secondary" size="xs" iconLeading={FunnelSimple} aria-expanded={open} aria-controls="filter-panel" onClick={() => setOpen((o) => !o)}>
           Filter{chips.length > 0 ? ` (${chips.length})` : ""}
         </Button>
         {chips.map((c) => (
@@ -85,7 +85,7 @@ export function FilterBar({ attrsAvailable, activities }: { attrsAvailable: bool
             </button>
           </span>
         ))}
-        {chips.length > 0 && <Button color="link-color" size="sm" onClick={reset}>Hapus semua</Button>}
+        {chips.length > 0 && <Button color="link-color" size="xs" onClick={reset}>Hapus semua</Button>}
       </div>
 
       {open && (
@@ -123,8 +123,8 @@ export function FilterBar({ attrsAvailable, activities }: { attrsAvailable: bool
               </ul>
             )}
             <div className="flex gap-2">
-              <Button size="sm" isDisabled={errors.length > 0} onClick={() => setFilter(normalizeFilter(draft))}>Terapkan</Button>
-              <Button color="secondary" size="sm" onClick={reset}>Atur ulang</Button>
+              <Button size="xs" isDisabled={errors.length > 0} onClick={() => setFilter(normalizeFilter(draft))}>Terapkan</Button>
+              <Button color="secondary" size="xs" onClick={reset}>Atur ulang</Button>
             </div>
           </div>
         </Card>
