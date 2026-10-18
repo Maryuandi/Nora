@@ -46,9 +46,10 @@ export function DiscussionTab({ investigationId }: { investigationId: string }) 
   const mayComment = can("comment.add", project.id) && acceptsData(project.status);
   const isAnalis = can("note.add", project.id);
   const nameOf = (id: string) => state.users.find((u) => u.id === id)?.name ?? "Pengguna";
+  const linkLabel = (l: (typeof links)[number]) => `${LINK_KIND_LABEL[l.kind]}: ${linkTitle(state, project.id, l)}`;
   const targetLabel = (id: string | null) => {
     const l = links.find((x) => x.id === id);
-    return l ? `${LINK_KIND_LABEL[l.kind]}: ${linkTitle(state, project.id, l)}` : "Workspace";
+    return l ? linkLabel(l) : "Workspace";
   };
   const send = (parentId?: string) => (body: string, targetLinkId?: string) =>
     dispatch({ type: "addComment", investigationId: inv.id, body, parentId, targetLinkId: parentId ? undefined : targetLinkId });
@@ -71,7 +72,7 @@ export function DiscussionTab({ investigationId }: { investigationId: string }) 
       {mayComment && (
         <Card className="p-4">
           <CommentBox label="Mulai utas baru, sebut dengan @nama" onSend={send()}
-            targets={[{ label: "Workspace", value: "" }, ...links.map((l) => ({ label: `${LINK_KIND_LABEL[l.kind]}: ${linkTitle(state, project.id, l)}`, value: l.id }))]} />
+            targets={[{ label: "Workspace", value: "" }, ...links.map((l) => ({ label: linkLabel(l), value: l.id }))]} />
         </Card>
       )}
       {shown.length ? shown.map((c) => {

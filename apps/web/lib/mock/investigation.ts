@@ -189,9 +189,12 @@ export function linkFreshness(s: MockState, link: InvestigationLink): { latest: 
 }
 
 // ---------- Sebutan ----------
+// Token sebutan: `@nama` yang tidak menempel pada huruf/angka/_/. sebelumnya (jadi `a@b.com` dan `Dimas@Sari` bukan sebutan).
+const MENTION = /(?<![\p{L}\p{N}_.])@([\p{L}\p{N}_]+)/gu;
+
 export function extractMentions(body: string, members: User[]): string[] {
   const ids = new Set<string>();
-  for (const [, handle] of body.matchAll(/@([\p{L}\p{N}_]+)/gu)) {
+  for (const [, handle] of body.matchAll(MENTION)) {
     const m = members.find((u) => u.name.split(/\s+/)[0].toLowerCase() === handle.toLowerCase());
     if (m) ids.add(m.id);
   }
@@ -200,5 +203,13 @@ export function extractMentions(body: string, members: User[]): string[] {
 
 // Pecah badan komentar menjadi potongan teks biasa dan sebutan `@nama` agar dirender tanpa HTML mentah.
 export function splitMentions(body: string): { text: string; mention: boolean }[] {
-  return body.split(/(@[\p{L}\p{N}_]+)/u).filter(Boolean).map((text) => ({ text, mention: text.startsWith("@") }));
+  const out: { text: string; mention: boolean }[] = [];
+  let last = 0;
+  for (const m of body.matchAll(MENTION)) {
+    if (m.index > last) out.push({ text: body.slice(last, m.index), mention: false });
+    out.push({ text: m[0], mention: true });
+    last = m.index + m[0].length;
+  }
+  if (last < body.length) out.push({ text: body.slice(last), mention: false });
+  return out;
 }

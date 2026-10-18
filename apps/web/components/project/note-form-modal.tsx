@@ -7,6 +7,7 @@ import { Input } from "@/components/base/input/input";
 import { NativeSelect } from "@/components/base/select/select-native";
 import { TextArea } from "@/components/base/textarea/textarea";
 import { Banner } from "@/components/nora/banner";
+import { initialsOf } from "@/components/nora/avatar";
 import { NoraModal } from "@/components/nora/modal";
 import { NOTE_KIND_LABEL } from "@/lib/mock/investigation";
 import { useMock } from "@/lib/mock/store";
@@ -32,7 +33,9 @@ export function NoteFormModal({ open, onClose, investigationId, kind }: { open: 
     : !!f.title.trim() && !!f.body.trim();
 
   function submit() {
-    const title = kind === "wawancara" ? `Wawancara ${f.interviewee.trim()}` : f.title.trim();
+    // Mode inisial: nama lengkap tidak boleh muncul di judul (dipakai juga untuk label audit).
+    const who = f.initialsOnly ? initialsOf(f.interviewee) : f.interviewee.trim();
+    const title = kind === "wawancara" ? `Wawancara ${who}` : f.title.trim();
     const err = dispatch({
       type: "addNote", investigationId,
       note: {

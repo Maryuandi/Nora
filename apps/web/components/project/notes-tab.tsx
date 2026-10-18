@@ -30,6 +30,7 @@ function isWebUrl(s: string) {
 function HypothesisControls({ note, options, onSave }: { note: InvestigationNote; options: { id: string; label: string }[]; onSave: (to: HypothesisState, ids: string[]) => void }) {
   const [to, setTo] = useState<HypothesisState>(note.hypothesisState ?? "belum_diuji");
   const [ids, setIds] = useState<string[]>(note.supportingLinkIds ?? []);
+  const needsLinks = to !== "belum_diuji" && ids.length === 0;
   return (
     <div className="flex flex-col gap-2 rounded-md border border-line bg-canvas p-3">
       <NativeSelect label="Ubah keadaan" size="sm" value={to} onChange={(e) => setTo(e.target.value as HypothesisState)}
@@ -43,7 +44,8 @@ function HypothesisControls({ note, options, onSave }: { note: InvestigationNote
           )) : <p className="text-xs text-ink-3">Belum ada tautan di workspace ini.</p>}
         </fieldset>
       )}
-      <div><Button color="secondary" size="xs" onClick={() => onSave(to, to === "belum_diuji" ? [] : ids)}>Simpan keadaan</Button></div>
+      {needsLinks && <p className="text-xs text-ink-3">Pilih minimal satu tautan pendukung.</p>}
+      <div><Button color="secondary" size="xs" isDisabled={needsLinks} onClick={() => onSave(to, to === "belum_diuji" ? [] : ids)}>Simpan keadaan</Button></div>
     </div>
   );
 }
@@ -73,10 +75,10 @@ export function NotesTab({ investigationId }: { investigationId: string }) {
         </div>
       );
       case "bukti": return n.attachment && (
-        <p className="text-xs text-ink-3">
+        <p className="min-w-0 break-all text-xs text-ink-3">
           {n.attachment.type === "file" ? `${n.attachment.label} (${formatBytes(n.attachment.sizeBytes ?? 0)})`
             : isWebUrl(n.attachment.label)
-              ? <a href={n.attachment.label} target="_blank" rel="noreferrer noopener" className="text-accent hover:underline">{n.attachment.label}</a>
+              ? <a href={n.attachment.label} target="_blank" rel="noreferrer noopener" className="break-all text-accent hover:underline">{n.attachment.label}</a>
               : n.attachment.label}
         </p>
       );
@@ -94,7 +96,7 @@ export function NotesTab({ investigationId }: { investigationId: string }) {
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-3">
           <span>Penanggung jawab: {nameOf(n.assigneeId)}</span>
           <Pill dot={n.questionState === "terjawab" ? "bg-status-active" : "bg-status-suspended"}>{n.questionState === "terjawab" ? "Terjawab" : "Terbuka"}</Pill>
-          {open && n.questionState !== "terjawab" && (can("note.add", project.id) || n.assigneeId === viewer.id) && (
+          {open && n.questionState !== "terjawab" && can("note.add.field", project.id) && (can("note.add", project.id) || n.assigneeId === viewer.id) && (
             <Button color="secondary" size="xs" onClick={() => setError(dispatch({ type: "setQuestionState", noteId: n.id, state: "terjawab" }))}>Tandai terjawab</Button>
           )}
         </div>

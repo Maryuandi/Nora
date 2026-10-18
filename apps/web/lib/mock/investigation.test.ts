@@ -212,4 +212,47 @@ describe("splitMentions", () => {
     expect(splitMentions("halo")).toEqual([{ text: "halo", mention: false }]);
     expect(splitMentions("")).toEqual([]);
   });
+  it("@ kosong di awal bukan sebutan", () =>
+    expect(splitMentions("@ tolong cek")).toEqual([{ text: "@ tolong cek", mention: false }]));
+  it("alamat surel bukan sebutan", () =>
+    expect(splitMentions("kirim ke a@b.com ya")).toEqual([{ text: "kirim ke a@b.com ya", mention: false }]));
+  it("tanda baca setelah nama tidak ikut ditebalkan", () =>
+    expect(splitMentions("@Dimas, lihat")).toEqual([{ text: "@Dimas", mention: true }, { text: ", lihat", mention: false }]));
+  it("nama tak dikenal tetap token sebutan (reducer yang memutuskan notifikasi)", () =>
+    expect(splitMentions("cc @tidakada")).toEqual([{ text: "cc ", mention: false }, { text: "@tidakada", mention: true }]));
+  it("@@Dimas: hanya @Dimas yang ditebalkan", () =>
+    expect(splitMentions("@@Dimas")).toEqual([{ text: "@", mention: false }, { text: "@Dimas", mention: true }]));
+  it("@Dimas@Sari dibaca satu sebutan; @Sari menempel pada kata sehingga dianggap seperti surel", () =>
+    expect(splitMentions("@Dimas@Sari")).toEqual([{ text: "@Dimas", mention: true }, { text: "@Sari", mention: false }]));
+  it("extractMentions memakai aturan yang sama (surel dan token menempel diabaikan)", () => {
+    const members = [{ id: "u-dimas", name: "Dimas Pratama" }, { id: "u-sari", name: "Sari Hartono" }] as User[];
+    expect(extractMentions("a@sari.com @Dimas@Sari", members)).toEqual(["u-dimas"]);
+  });
+});
+
+describe("nextAnalysisState", () => {
+  it("menaikkan semua versi, r-sla, dan P90 18,4 -> 22,1; tidak mengubah masukan", () => {
+    const prev = analysis({ datasetVersion: "ds-2", contextPackage: "ctx-4", analysis: "analisis-3", evidencePackage: "bukti-7", ruleVersions: { "r-sla": "v2", "r-urutan": "v1" } });
+    const before = structuredClone(prev);
+    expect(nextAnalysisState(prev)).toEqual({
+      ...prev, datasetVersion: "ds-3", contextPackage: "ctx-5", analysis: "analisis-4", evidencePackage: "bukti-8",
+      ruleVersions: { "r-sla": "v3", "r-urutan": "v1" }, metricValues: { "finding_42.p90_days": 22.1 },
+    });
+    expect(prev).toEqual(before);
+  });
+  it("P90 selain 18,4 dikali 1,2 dibulatkan satu desimal", () =>
+    expect(nextAnalysisState(analysis({ metricValues: { "finding_42.p90_days": 22.1 } })).metricValues["finding_42.p90_days"]).toBe(26.5));
+});
+
+describe("splitMentions", () => {
+  it("memisahkan sebutan dari teks biasa dan menjaga urutan", () => {
+    expect(splitMentions("cc @Dimas, lihat <b>ini</b> @sari")).toEqual([
+      { text: "cc ", mention: false }, { text: "@Dimas", mention: true },
+      { text: ", lihat <b>ini</b> ", mention: false }, { text: "@sari", mention: true },
+    ]);
+  });
+  it("tanpa sebutan menghasilkan satu potongan; kosong menghasilkan larik kosong", () => {
+    expect(splitMentions("halo")).toEqual([{ text: "halo", mention: false }]);
+    expect(splitMentions("")).toEqual([]);
+  });
 });
