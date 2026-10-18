@@ -31,7 +31,7 @@ export function MonitoringTabs({ active }: { active: (typeof TABS)[number][0] })
         <Link key={suffix} href={`${base}${suffix}${keepRun && run ? `?run=${encodeURIComponent(run)}` : ""}`} aria-current={suffix === active ? "page" : undefined}
           className={cx("-mb-px whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium", suffix === active ? "border-accent text-ink" : "border-transparent text-ink-3 hover:text-ink")}>
           {label}
-          {suffix === "/monitoring/findings" && badge > 0 && <span className="ml-1.5 rounded-full bg-sidebar px-1.5 text-xs text-ink-2" aria-label={`${badge} temuan baru atau memburuk`}>{badge}</span>}
+          {suffix === "/monitoring/findings" && badge > 0 && <span className="ml-1.5 rounded-full bg-sidebar px-1.5 text-xs text-ink-2">{badge}<span className="sr-only"> temuan baru atau memburuk</span></span>}
         </Link>
       ))}
     </nav>

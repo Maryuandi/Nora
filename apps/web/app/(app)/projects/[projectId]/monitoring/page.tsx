@@ -11,7 +11,7 @@ import { PerformanceTrend } from "@/components/project/performance-trend";
 import { RunPicker, useSelectedRun } from "@/components/project/run-picker";
 import { useProject } from "@/components/project/use-project";
 import { reworkStats, runLog } from "@/lib/mock/bottleneck";
-import { evaluateRun, summarize } from "@/lib/mock/compliance";
+import { appliedRule, evaluateRun, summarize } from "@/lib/mock/compliance";
 import { backlog, metricDef, runCases, summaryCards, trend } from "@/lib/mock/metrics";
 import type { MonitoringRun } from "@/lib/mock/types";
 
@@ -62,11 +62,13 @@ function Dashboard({ run }: { run: MonitoringRun }) {
   const d = useMemo(() => {
     const cards = summaryCards(state, run);
     const log = runLog(state, run);
-    const top = new Map<string, MonitoringRun["ruleVersions"][number]>();
-    for (const v of run.ruleVersions) if ((top.get(v.ruleKey)?.version ?? 0) < v.version) top.set(v.ruleKey, v);
     return {
       cards, cases: runCases(state, run), rework: log && reworkStats(log, run.config), backlog: backlog(state, run),
-      rules: [...top.values()].map((v) => ({ v, s: summarize(evaluateRun(state, run, v.ruleKey)) })),
+      rules: [...new Set(run.ruleVersions.map((v) => v.ruleKey))].map((ruleKey) => {
+        const results = evaluateRun(state, run, ruleKey);
+        const latest = run.ruleVersions.filter((v) => v.ruleKey === ruleKey).reduce((a, b) => (b.version > a.version ? b : a));
+        return { v: appliedRule(run, results).top ?? latest, s: summarize(results) };
+      }),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- metrics read only snapshots and mappings from state
   }, [run, snapshots, mappings]);
@@ -131,7 +133,7 @@ function Dashboard({ run }: { run: MonitoringRun }) {
               <span className="text-xl font-semibold">{nf.format(bl.open)}</span> kasus terbuka<MetricInfo id="umur_terbuka" />
               <span className="text-ink-3">· {nf.format(bl.aged)} berumur &gt; {run.config.backlogAgeDays} hari</span>
             </p>
-            <p className="text-xs text-ink-3">Umur dihitung terhadap event terakhir dataset: {bl.reference}</p>
+            <p className="text-xs text-ink-3">Umur dihitung terhadap akhir data periode run: {bl.reference}</p>
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <Table aria-label="Kelompok umur kasus terbuka" size="sm">
                 <Table.Header><Table.Head id="b" isRowHeader label="UMUR" className="w-full" /><Table.Head id="c" label="KASUS" /></Table.Header>

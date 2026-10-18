@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { Table } from "@/components/application/table/table";
 import { Card } from "@/components/nora/card";
 import { MonitoringTabs } from "@/components/project/monitoring-tabs";
@@ -7,6 +8,10 @@ import { useProject } from "@/components/project/use-project";
 import { METRIC_DEFINITIONS } from "@/lib/mock/metrics";
 
 export default function MetricsPage() {
+  return <Suspense><Content /></Suspense>;
+}
+
+function Content() {
   if (!useProject()) return null;
   return (
     <div className="flex flex-col gap-4">

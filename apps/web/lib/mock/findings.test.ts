@@ -69,6 +69,22 @@ describe("findingsFor seed", () => {
     expect(a.every((f) => f.title.startsWith("Pelanggaran aturan"))).toBe(true);
     expect(b.every((f) => f.title.startsWith("Tidak sesuai dengan acuan aturan"))).toBe(true);
   });
+  it("kepatuhan names the applied version, not the latest in the run", () => {
+    const loose = { ...run1.config, complianceHighPct: 0 };
+    const k1 = findingsFor(initialState, { ...run1, config: loose }).find((f) => f.kind === "kepatuhan" && f.key === "r-sla")!;
+    expect(k1.title).not.toContain("Pelanggaran");
+    expect(k1.title).not.toContain("hari kerja");
+    expect(k1.title.startsWith("Tidak sesuai dengan acuan aturan")).toBe(true);
+    // v1 (usang) violations in run-2 keep the neutral term; only disetujui-only violations say Pelanggaran
+    const onlyV2 = { ...run2, ruleVersions: run2.ruleVersions.filter((r) => r.ruleKey !== "r-sla" || r.version === 2), config: { ...run2.config, complianceHighPct: 0 } };
+    const k2 = findingsFor(initialState, onlyV2).find((f) => f.kind === "kepatuhan" && f.key === "r-sla")!;
+    expect(k2.title.startsWith("Pelanggaran aturan")).toBe(true);
+    expect(k2.ruleVersionId).toBe("r-sla-2");
+  });
+  it("no kepatuhan/rework finding when nothing is affected", () => {
+    const zero = findingsFor(initialState, { ...run2, ruleVersions: run2.ruleVersions.filter((r) => r.ruleKey === "r-urutan"), config: { ...run2.config, complianceHighPct: 0, reworkHighPct: 0 } });
+    for (const f of zero.filter((x) => x.kind === "kepatuhan" || x.kind === "rework")) expect(f.affectedCases).toBeGreaterThan(0);
+  });
   it("each kind appears with permissive config", () => {
     const loose = { ...run2.config, bottleneckP90Days: 0, reworkHighPct: 0, complianceHighPct: 0, fitnessMin: 1.01, backlogAgeDays: 0, changePct: -100, smallSampleCases: 0 };
     const kinds = new Set(findingsFor(initialState, { ...run2, config: loose }).map((f) => f.kind));

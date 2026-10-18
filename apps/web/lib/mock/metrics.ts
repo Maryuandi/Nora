@@ -14,12 +14,12 @@ export const METRIC_DEFINITIONS: MetricDefinition[] = [
   def("kasus_terbuka", "Kasus terbuka", "Jumlah kasus yang belum selesai.", "kasus dimulai − kasus selesai", "Kasus dimulai", "kasus"),
   def("durasi_median", "Durasi median", "Lama penyelesaian kasus yang umum terjadi.", "median(end − start) atas kasus selesai, dalam hari", "Kasus selesai", "hari"),
   def("durasi_p90", "Durasi P90", "Lama penyelesaian untuk 1 dari 10 kasus yang paling lambat.", "persentil ke-90 dari (end − start) atas kasus selesai, dalam hari", "Kasus selesai", "hari"),
-  def("persen_rework", "Persentase rework", "Porsi kasus yang mengulang aktivitas yang ditetapkan sebagai rework.", "kasus dengan aktivitas rework berulang ÷ kasus dimulai × 100", "Kasus dimulai", "%"),
+  def("persen_rework", "Persentase rework", "Porsi kasus yang mengulang aktivitas yang ditetapkan sebagai rework.", "kasus dengan aktivitas rework berulang ÷ kasus di log event × 100", "Kasus di log event", "%"),
   def("persen_kepatuhan", "Persentase kepatuhan", "Porsi kasus yang sesuai dengan aturan terstruktur.", "kasus patuh ÷ kasus yang dapat dievaluasi × 100", "Kasus yang dapat dievaluasi", "%"),
   def("umur_terbuka", "Umur kasus terbuka", "Sudah berapa lama kasus yang belum selesai berjalan.", "tanggal acuan − start, atas kasus terbuka, dalam hari", "Kasus terbuka", "hari"),
   def("jeda_transisi", "Jeda transisi", "Waktu tunggu antara dua aktivitas berurutan.", "median/P90(waktu aktivitas berikutnya − waktu aktivitas sebelumnya) per transisi", "Kasus yang melewati transisi", "hari"),
   def("kontribusi_tunggu", "Kontribusi waktu tunggu", "Seberapa besar satu transisi menyumbang total waktu tunggu proses.", "total jeda transisi ÷ total jeda semua transisi × 100", "Semua transisi", "%"),
-  def("fitness", "Fitness", "Seberapa sesuai alur kasus dengan model proses acuan.", "kasus yang alurnya sesuai model ÷ kasus yang dinilai (tiruan)", "Kasus dengan model BPMN", "0–1"),
+  def("fitness", "Fitness", "Seberapa sesuai alur kasus dengan model proses acuan.", "0,5 × (1 − token hilang ÷ token dikonsumsi) + 0,5 × (1 − token tersisa ÷ token diproduksi), dibobot jumlah kasus per varian", "Kasus di log event", "0–1"),
   def("cakupan_data", "Cakupan data", "Porsi kasus yang status penyelesaiannya diketahui.", "kasus selesai ÷ kasus dimulai × 100", "Kasus dimulai", "%"),
 ];
 
@@ -93,7 +93,8 @@ export function backlog(state: MockState, run: MonitoringRun): Backlog {
   if (!project || !end) return { unknown: true };
   const snapshot = runSnapshot(state, run);
   const mapping = state.mappings.find((m) => m.id === run.mappingId);
-  const reference = snapshot?.stats?.timeTo ?? run.periodTo;
+  const timeTo = snapshot?.stats?.timeTo;
+  const reference = timeTo && timeTo < run.periodTo ? timeTo : run.periodTo;
   const open = runCases(state, run).flatMap((c) => (c.end === null ? [{ id: c.id, age: Math.round((toMs(reference) - toMs(c.start)) / DAY) }] : []))
     .sort((a, b) => b.age - a.age || (a.id < b.id ? -1 : 1));
   const bounds = run.config.ageBuckets;

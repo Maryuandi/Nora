@@ -20,6 +20,7 @@ export default function FindingsPage() {
   return <Suspense><Content /></Suspense>;
 }
 
+const nf = new Intl.NumberFormat("id-ID");
 const SELECT = "rounded-lg border border-line bg-white px-3 py-1.5 text-sm font-normal text-ink";
 
 function Content() {
@@ -61,7 +62,7 @@ function Body({ run }: { run: MonitoringRun }) {
     q.set("baseline", v);
     router.replace(`?${q}`);
   };
-  const href = (id: string) => `/projects/${project.id}/monitoring/findings/${encodeURIComponent(id)}?run=${run.id}${param ? `&baseline=${param}` : ""}`;
+  const href = (id: string) => `/projects/${project.id}/monitoring/findings/${encodeURIComponent(id)}?run=${run.id}${param ? `&baseline=${encodeURIComponent(param)}` : ""}`;
 
   return (
     <>
@@ -119,7 +120,7 @@ function Body({ run }: { run: MonitoringRun }) {
                     {fmtMeasure(st === "tidak_lagi_terdeteksi" ? null : f.measure, f.unit)}
                     <span className="text-ink-3"> vs {fmtMeasure(baselineMeasure, f.unit)}</span>
                   </Table.Cell>
-                  <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{f.affectedCases} / {f.populationCases}</Table.Cell>
+                  <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{nf.format(f.affectedCases)} / {nf.format(f.populationCases)}</Table.Cell>
                 </Table.Row>
               ))}
             </Table.Body>

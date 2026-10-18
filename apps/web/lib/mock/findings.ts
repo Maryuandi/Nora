@@ -1,5 +1,5 @@
 import { bottlenecks, reworkStats, runLog, transitionCases } from "./bottleneck";
-import { evaluateRun, summarize, termFor } from "./compliance";
+import { appliedRule, evaluateRun, summarize } from "./compliance";
 import { backlog, runCases, trend } from "./metrics";
 import { conformance } from "./replay";
 import type { MockState, MonitoringConfig, MonitoringRun } from "./types";
@@ -27,6 +27,7 @@ export const CHANGE_LABEL: Record<ChangeStatus, string> = {
 const DAY = 86_400_000;
 const MAX_CASES = 50;
 const fmt = (n: number, d = 1) => n.toLocaleString("id-ID", { minimumFractionDigits: d, maximumFractionDigits: d });
+const int = (n: number) => n.toLocaleString("id-ID");
 
 export function severityOf(f: Pick<Finding, "affectedCases" | "populationCases" | "measure" | "threshold" | "higherIsWorse">): Severity {
   const share = f.populationCases === 0 ? 0 : f.affectedCases / f.populationCases;
@@ -54,7 +55,7 @@ export function findingsFor(state: MockState, run: MonitoringRun): Finding[] {
         affectedCases: t.caseCount, populationCases: log.cases.length, caseSource: "log_event",
         supportingCaseIds: transitionCases(log, t.from, t.to).map((c) => c.caseId) });
     }
-    for (const a of reworkStats(log, cfg)?.activities.filter((x) => x.pct >= cfg.reworkHighPct) ?? []) {
+    for (const a of reworkStats(log, cfg)?.activities.filter((x) => x.pct >= cfg.reworkHighPct && x.caseIds.length > 0) ?? []) {
       add({ kind: "rework", key: a.activity, measure: a.pct, threshold: cfg.reworkHighPct, higherIsWorse: true, unit: "%",
         title: `Rework tinggi pada aktivitas ${a.activity}: ${fmt(a.pct)}% kasus mengulang`,
         affectedCases: a.caseIds.length, populationCases: log.cases.length, caseSource: "log_event", supportingCaseIds: a.caseIds });
@@ -72,14 +73,15 @@ export function findingsFor(state: MockState, run: MonitoringRun): Finding[] {
   }
 
   for (const ruleKey of new Set(run.ruleVersions.map((r) => r.ruleKey))) {
-    const latest = run.ruleVersions.filter((r) => r.ruleKey === ruleKey).reduce((a, b) => (b.version > a.version ? b : a));
     const results = evaluateRun(state, run, ruleKey);
     const s = summarize(results);
-    const rate = s.patuh + s.tidakPatuh > 0 ? (s.tidakPatuh / (s.patuh + s.tidakPatuh)) * 100 : null;
-    if (rate !== null && rate >= cfg.complianceHighPct) {
+    const { top, term } = appliedRule(run, results);
+    const evaluable = s.patuh + s.tidakPatuh;
+    const rate = evaluable > 0 ? (s.tidakPatuh / evaluable) * 100 : null;
+    if (top && rate !== null && s.tidakPatuh > 0 && rate >= cfg.complianceHighPct) {
       add({ kind: "kepatuhan", key: ruleKey, measure: rate, threshold: cfg.complianceHighPct, higherIsWorse: true, unit: "%",
-        title: `${termFor(latest)} aturan ${latest.name}: ${fmt(rate)}% kasus tidak patuh`,
-        affectedCases: s.tidakPatuh, populationCases: s.total, ruleVersionId: latest.id, caseSource: "kasus",
+        title: `${term} aturan ${top.name}: ${fmt(rate)}% kasus tidak patuh`,
+        affectedCases: s.tidakPatuh, populationCases: evaluable, ruleVersionId: top.id, caseSource: "kasus",
         supportingCaseIds: results.filter((r) => r.status === "tidak_patuh").map((r) => r.caseId) });
     }
   }
@@ -88,7 +90,7 @@ export function findingsFor(state: MockState, run: MonitoringRun): Finding[] {
   const cases = runCases(state, run);
   if (!bl.unknown && bl.aged > 0) {
     add({ kind: "backlog", key: "backlog", measure: bl.aged, threshold: 0, higherIsWorse: true, unit: "kasus",
-      title: `Backlog menua: ${bl.aged} kasus terbuka lebih dari ${cfg.backlogAgeDays} hari`,
+      title: `Backlog menua: ${int(bl.aged)} kasus terbuka lebih dari ${cfg.backlogAgeDays} hari`,
       affectedCases: bl.aged, populationCases: cases.length, caseSource: "kasus", supportingCaseIds: bl.caseIds.slice(0, bl.aged) });
   }
 
