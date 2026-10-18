@@ -33,7 +33,7 @@ export function PageHeader({
         {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
       </div>
       {stats && (
-        <dl className="-mx-8 mt-3 flex border-y border-line">
+        <dl className="-mx-8 mt-3 flex border-t border-line">
           {stats.map((s) => (
             <div key={s.label} className="border-l border-line px-10 py-4 first:border-l-0 first:pl-8">
               <dt className="text-[11px] font-medium uppercase tracking-[0.05em] text-ink-3">{s.label}</dt>
@@ -62,7 +62,7 @@ export function PageHeader({
             </Link>
           ))}
         </nav>
-      ) : (
+      ) : stats ? null : (
         <div className="h-6" />
       )}
     </header>
