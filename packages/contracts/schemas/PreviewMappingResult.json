@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "row": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "caseId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "activityRaw": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "activity": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "timeUtc": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "startTimeUtc": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resource": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "row",
+          "caseId",
+          "activityRaw",
+          "activity",
+          "timeUtc",
+          "startTimeUtc",
+          "resource",
+          "issues"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "activityValues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "raw": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "raw",
+          "count"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "totalRows": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "parsedTimestampShare": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "events",
+    "activityValues",
+    "totalRows",
+    "parsedTimestampShare"
+  ],
+  "additionalProperties": false
+}

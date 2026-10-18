@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "ready_for_mapping",
+        "needs_review",
+        "failed"
+      ]
+    },
+    "format": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "csv",
+            "xes",
+            "xes.gz",
+            "zip/csv",
+            "zip/xes"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "encoding": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "delimiter": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "rowCount": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "columns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "preview": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "propertyNames": {
+          "type": "string"
+        },
+        "additionalProperties": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "errorSamples": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "row": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "row",
+          "message"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "invalidRowCount": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "reviewReasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "suggestedMapping": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "errorCode": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "errorMessage": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "status",
+    "format",
+    "encoding",
+    "delimiter",
+    "rowCount",
+    "columns",
+    "preview",
+    "errorSamples",
+    "invalidRowCount",
+    "reviewReasons",
+    "suggestedMapping",
+    "errorCode",
+    "errorMessage"
+  ],
+  "additionalProperties": false
+}
