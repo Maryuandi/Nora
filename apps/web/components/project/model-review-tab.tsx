@@ -39,7 +39,6 @@ export function ModelReviewTab({ investigationId }: { investigationId: string })
   const mayDraft = writable && can("review.draft", project.id);
   const unreviewed = unreviewedModelOutputs(state, inv.id).length;
   const evidence = findingsForProject(state, project.id).flatMap((f) => f.evidence);
-  const analysis = state.analysisStates.find((a) => a.projectId === project.id);
   const name = (id: string) => state.users.find((u) => u.id === id)?.name ?? id;
   // Peninjauan ulang menambah entri; yang terakhir berlaku.
   const latestReview = (linkId: string) => [...state.reviews].reverse().find((r) => r.linkId === linkId);
@@ -79,7 +78,7 @@ export function ModelReviewTab({ investigationId }: { investigationId: string })
                   <p className="mt-1 text-sm text-ink-2">
                     Skor: <span className="font-medium text-ink">{score ? score.value.toLocaleString("id-ID") : "—"}</span>
                     {score && <> · Model {score.version}</>}
-                    {analysis && <> · Dataset {analysis.datasetVersion}</>}
+                    <> · Analisis {l.linkedVersion}</>
                   </p>
                 </div>
                 {mayJev && (

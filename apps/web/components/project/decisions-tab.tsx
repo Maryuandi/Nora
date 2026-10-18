@@ -89,6 +89,8 @@ export function DecisionsTab({ investigationId }: { investigationId: string }) {
                 <ul className="list-disc pl-5 text-ink-2">{flag.summary.map((s, i) => <li key={i}>{s}</li>)}</ul>
                 {writable && canDecide(role, d.status) ? (
                   <div><Button color="primary" size="xs" onClick={() => setError(dispatch({ type: "confirmDecision", decisionId: d.id }))}>Tegaskan</Button></div>
+                ) : !writable ? (
+                  <p className="text-ink-3">Proyek tidak menerima perubahan.</p>
                 ) : (
                   <p className="text-ink-3">{d.status === "dipilih" ? "Hanya pemilik proses" : "Hanya analis"} yang dapat menegaskan keputusan ini.</p>
                 )}

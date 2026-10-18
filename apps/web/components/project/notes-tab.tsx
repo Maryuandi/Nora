@@ -85,6 +85,7 @@ export function NotesTab({ investigationId }: { investigationId: string }) {
       case "hipotesis": return (
         <div className="flex flex-col gap-2">
           <Pill dot={STATE_DOT[n.hypothesisState ?? "belum_diuji"]}>{HYPOTHESIS_LABEL[n.hypothesisState ?? "belum_diuji"]}</Pill>
+          {n.findingId && <p className="text-xs text-ink-3">Temuan: {state.findings.find((f) => f.id === n.findingId)?.title ?? n.findingId}</p>}
           {!!n.supportingLinkIds?.length && (
             <p className="text-xs text-ink-3">Didasarkan pada: {n.supportingLinkIds.map((id) => links.find((l) => l.id === id)).filter((l) => l).map((l) => linkTitle(state, project.id, l!)).join(", ")}</p>
           )}
