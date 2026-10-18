@@ -59,6 +59,12 @@ const EXPECTED: Record<UiAction, Role[]> = {
   "spec.edit": ["analis"],
   "rec.view": ["administrator", "analis", "pemilik_proses"],
   "rec.edit": ["analis"],
+  "doc.view": ["administrator", "analis", "pemilik_proses"],
+  "doc.upload": ["administrator", "analis"],
+  "calendar.edit": ["administrator", "analis"],
+  "config.view": ["administrator", "analis", "pemilik_proses"],
+  "config.edit": ["analis"],
+  "config.confirm": ["pemilik_proses"],
 };
 
 describe("can", () => {

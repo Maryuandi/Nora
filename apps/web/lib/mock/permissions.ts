@@ -16,7 +16,8 @@ export type UiAction = "client.create" | "project.create" | "project.status" | "
   | "assessment.view" | "assessment.run" | "assessment.correct"
   | "classify.view" | "classify.run" | "classify.correct" | "gold.view" | "gold.edit"
   | "evaluation.view" | "evaluation.run" | "spec.view" | "spec.edit"
-  | "rec.view" | "rec.edit";
+  | "rec.view" | "rec.edit"
+  | "doc.view" | "doc.upload" | "calendar.edit" | "config.view" | "config.edit" | "config.confirm";
 
 // Button matrix from PRD M01 "Matriks Kewenangan" (UI subset).
 const ALLOWED: Record<UiAction, readonly Role[]> = {
@@ -83,6 +84,13 @@ const ALLOWED: Record<UiAction, readonly Role[]> = {
   // PRD M09: Analis compiles candidates, changes policy, runs scenarios; others read.
   "rec.view": ["administrator", "analis", "pemilik_proses"],
   "rec.edit": ["analis"],
+  // PRD M04: Administrator and Analis upload documents and prepare the calendar; only Analis creates, approves and freezes the rest.
+  "doc.view": ["administrator", "analis", "pemilik_proses"],
+  "doc.upload": ["administrator", "analis"],
+  "calendar.edit": ["administrator", "analis"],
+  "config.view": ["administrator", "analis", "pemilik_proses"],
+  "config.edit": ["analis"],
+  "config.confirm": ["pemilik_proses"],
 };
 
 export const can = (role: Role | null, action: UiAction): boolean => role !== null && ALLOWED[action].includes(role);
