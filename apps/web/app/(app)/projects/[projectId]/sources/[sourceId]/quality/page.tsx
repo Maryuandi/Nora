@@ -121,7 +121,7 @@ export default function QualityPage() {
                       <Table.Cell className="px-6">
                         <div className="flex items-center gap-2">
                           {f.examples.length > 0 && (
-                            <Button color="secondary" size="xs" aria-expanded={expanded.includes(f.id)} aria-label={`Lihat contoh ${f.title}`} onClick={() => toggle(f.id)}>
+                            <Button color="secondary" size="xs" aria-expanded={expanded.includes(f.id)} aria-controls={`contoh-${f.id}`} aria-label={`${expanded.includes(f.id) ? "Sembunyikan" : "Lihat"} contoh ${f.title}`} onClick={() => toggle(f.id)}>
                               {expanded.includes(f.id) ? "Sembunyikan" : "Lihat contoh"}
                             </Button>
                           )}
@@ -136,7 +136,7 @@ export default function QualityPage() {
             {shown.length > 0 && (
               <div className="flex flex-col gap-3 border-t border-line px-4 py-3">
                 {shown.map((f) => (
-                  <div key={f.id}>
+                  <div key={f.id} id={`contoh-${f.id}`}>
                     <h3 className="text-sm font-medium text-ink">Contoh: {f.title}</h3>
                     <ul className="mt-1 flex flex-col gap-0.5 text-sm text-ink-2">
                       {f.examples.map((ex) => <li key={ex.row} className="break-words">Snapshot {dataset.snapshot.fileName} · {ex.text}</li>)}
@@ -160,7 +160,7 @@ export default function QualityPage() {
                   <Table.Head id="reason" label="ALASAN" />
                   <Table.Head id="impact" label="DAMPAK" />
                   <Table.Head id="by" label="PEMBUAT" />
-                  <Table.Head id="revoke" label="" />
+                  <Table.Head id="revoke"><span className="sr-only">Aksi</span></Table.Head>
                 </Table.Header>
                 <Table.Body>
                   {activeRules.map((r) => (
