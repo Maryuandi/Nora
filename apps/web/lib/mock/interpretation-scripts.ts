@@ -151,8 +151,8 @@ const SCRIPTS: Record<string, ScriptClaim[]> = {
       "Opsi penyetuju cadangan dinilai cukup berdampak ({{metric:assess_71.impact_score}}) dan cukup mudah dijalankan ({{metric:assess_71.feasibility_score}}), dengan risiko {{metric:assess_71.risk_score}}.",
     ]),
     c("terukur", "fakta_terukur", ["assess_71"], [
-      "Penilaian atas {{metric:assess_71.cases}} menghasilkan skor dampak {{metric:assess_71.impact_score}}, kelayakan {{metric:assess_71.feasibility_score}}, dan risiko {{metric:assess_71.risk_score}}.",
-      "Dari {{metric:assess_71.cases}} yang dinilai, skor dampaknya {{metric:assess_71.impact_score}} dan risikonya {{metric:assess_71.risk_score}}.",
+      "Penilaian atas {{metric:assess_71.cases}} menghasilkan dampak {{metric:assess_71.impact_score}}, kelayakan {{metric:assess_71.feasibility_score}}, dan risiko {{metric:assess_71.risk_score}}.",
+      "Dari {{metric:assess_71.cases}} yang dinilai, dampaknya {{metric:assess_71.impact_score}} dan risikonya {{metric:assess_71.risk_score}}.",
     ]),
     c("terukur", "fakta_terukur", ["baseline_71"], [
       "Sebagai pembanding, durasi persetujuan pada persentil kesembilan puluh adalah {{metric:baseline_71.p90_days}} dengan pelanggaran {{metric:baseline_71.breach_pct}}.",
@@ -189,24 +189,24 @@ const SCRIPTS: Record<string, ScriptClaim[]> = {
   ],
   compare_81: [
     c("ringkasan", "interpretasi", ["compare_81"], [
-      "Dari {{metric:compare_81.candidates}}, peringkat pertama memperoleh skor {{metric:compare_81.top_score}}, unggul {{metric:compare_81.gap}} atas peringkat kedua.",
-      "Dari {{metric:compare_81.candidates}} yang dibandingkan, yang teratas mendapat skor {{metric:compare_81.top_score}}, selisih {{metric:compare_81.gap}} dari yang kedua.",
+      "Dari {{metric:compare_81.candidates}}, peringkat pertama memperoleh {{metric:compare_81.top_score}}, unggul {{metric:compare_81.gap}} atas peringkat kedua.",
+      "Dari {{metric:compare_81.candidates}} yang dibandingkan, yang teratas mendapat {{metric:compare_81.top_score}}, selisih {{metric:compare_81.gap}} dari yang kedua.",
     ]),
     c("terukur", "fakta_terukur", ["score_21", "score_22", "score_23"], [
-      "Skor tiap kandidat berturut-turut {{metric:score_21.score}}, {{metric:score_22.score}}, dan {{metric:score_23.score}}.",
-      "Skor ketiganya: {{metric:score_21.score}}, {{metric:score_22.score}}, dan {{metric:score_23.score}}.",
+      "Nilai tiap kandidat berturut-turut {{metric:score_21.score}}, {{metric:score_22.score}}, dan {{metric:score_23.score}}.",
+      "Nilai ketiganya: {{metric:score_21.score}}, {{metric:score_22.score}}, dan {{metric:score_23.score}}.",
     ]),
     c("terukur", "fakta_terukur", ["score_21", "score_22"], [
       "Perkiraan penghematan durasi kandidat teratas {{metric:score_21.saving_days}}, dibanding {{metric:score_22.saving_days}} untuk peringkat kedua.",
       "Kandidat teratas diperkirakan menghemat {{metric:score_21.saving_days}}, yang kedua {{metric:score_22.saving_days}}.",
     ]),
     c("dasar_bukti", "fakta_terukur", ["rule_prior_81"], [
-      "Aturan prioritas mensyaratkan selisih skor minimal {{metric:rule_prior_81.min_gap}} agar kandidat yang belum tervalidasi boleh mengungguli kandidat tervalidasi.",
-      "Aturan prioritas: kandidat yang belum teruji hanya boleh di atas yang sudah teruji bila selisih skornya minimal {{metric:rule_prior_81.min_gap}}.",
+      "Aturan prioritas mensyaratkan selisih minimal {{metric:rule_prior_81.min_gap}} agar kandidat yang belum tervalidasi boleh mengungguli kandidat tervalidasi.",
+      "Aturan prioritas: kandidat yang belum teruji hanya boleh di atas yang sudah teruji bila selisihnya minimal {{metric:rule_prior_81.min_gap}}.",
     ]),
     c("interpretasi", "interpretasi", ["compare_81", "jev_81"], [
-      "Kandidat teratas unggul atas yang lain dan selisihnya melampaui ambang aturan; penilaian Jev {{metric:jev_81.score}} mendukung urutan ini.",
-      "Kandidat teratas unggul dan selisihnya cukup besar menurut aturan. Penilaian model {{metric:jev_81.score}} sejalan.",
+      "Kandidat teratas sudah tervalidasi dan unggul {{metric:compare_81.gap}}; tidak ada kandidat yang belum tervalidasi di peringkat atasnya, sehingga aturan prioritas terpenuhi. Penilaian Jev {{metric:jev_81.score}} mendukung urutan ini.",
+      "Kandidat teratas sudah teruji dan unggul {{metric:compare_81.gap}}. Tidak ada kandidat yang belum teruji di atasnya, jadi aturan prioritas terpenuhi. Penilaian model {{metric:jev_81.score}} sejalan.",
     ]),
     c("interpretasi", "interpretasi", ["compare_81", "cand_99"], [
       "Urutan ini konsisten dengan hasil perbandingan sebelumnya.",
@@ -251,8 +251,8 @@ const SCRIPTS: Record<string, ScriptClaim[]> = {
       "Batas waktu layanan (SLA) adalah {{metric:rule_sla_91.sla_limit}}.",
     ]),
     c("interpretasi", "interpretasi", ["scenario_91", "rule_sla_91", "jev_91"], [
-      "Skenario tampaknya menurunkan antrean, dan durasi skenario berada di bawah batas SLA {{metric:rule_sla_91.sla_limit}}; penilaian Jev {{metric:jev_91.score}}.",
-      "Skenario tampaknya memperpendek antrean sampai di bawah batas {{metric:rule_sla_91.sla_limit}}. Penilaian model {{metric:jev_91.score}}.",
+      "Skenario tampaknya menurunkan antrean: durasi turun di bawah batas SLA {{metric:rule_sla_91.sla_limit}}, tetapi {{metric:scenario_91.scenario_breach}} kasus masih telat. Penilaian Jev {{metric:jev_91.score}} mendukung dugaan ini.",
+      "Skenario tampaknya memperpendek antrean: durasi turun di bawah batas {{metric:rule_sla_91.sla_limit}}, tetapi {{metric:scenario_91.scenario_breach}} kasus masih telat. Penilaian model {{metric:jev_91.score}} mendukung.",
     ]),
     c("interpretasi", "rekomendasi_tervalidasi", ["cand_31"], [
       "Kandidat tervalidasi: tambah penyetuju cadangan untuk PO bernilai rendah.",
@@ -281,8 +281,8 @@ const SCRIPTS: Record<string, ScriptClaim[]> = {
       "Uji coba kecil diusulkan: {{metric:pilot_95.duration_weeks}}, di {{metric:pilot_95.scope_units}}, sekitar {{metric:pilot_95.sample_cases}}.",
     ]),
     c("terukur", "fakta_terukur", ["baseline_95"], [
-      "Basis perbandingan mencakup {{metric:baseline_95.cases}} dengan pelanggaran SLA {{metric:baseline_95.breach_pct}}.",
-      "Pembandingnya {{metric:baseline_95.cases}}, dengan {{metric:baseline_95.breach_pct}} yang telat dari batas waktu (SLA).",
+      "Basis perbandingan mencakup {{metric:baseline_95.cases}} dengan rework {{metric:baseline_95.rework_pct}}.",
+      "Pembandingnya {{metric:baseline_95.cases}}, dengan {{metric:baseline_95.rework_pct}} yang harus dikerjakan ulang (rework).",
     ]),
     c("terukur", "fakta_terukur", ["baseline_95"], [
       "Sampel uji coba setara {{metric:baseline_95.sample_share}} dari seluruh kasus basis.",
@@ -301,7 +301,7 @@ const SCRIPTS: Record<string, ScriptClaim[]> = {
       "Opsi yang sudah teruji: tambahkan pemeriksaan otomatis saat verifikasi faktur.",
     ], "cand_41"),
     c("hipotesis_terbuka", "hipotesis", ["pilot_95", "cand_42"], [
-      "Pelatihan ulang tim verifikasi mungkin ikut menurunkan pelanggaran, tetapi belum tervalidasi.",
+      "Pelatihan ulang tim verifikasi mungkin ikut menurunkan rework, tetapi belum tervalidasi.",
       "Pelatihan ulang tim verifikasi mungkin ikut membantu. Opsi ini belum diuji.",
     ]),
     c("asumsi", "interpretasi", ["pilot_95"], [

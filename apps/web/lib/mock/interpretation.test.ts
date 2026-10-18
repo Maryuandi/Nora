@@ -223,9 +223,13 @@ describe("generator skrip", () => {
     }
   });
 
-  it("target baru: rekomendasi hanya pada kandidat tervalidasi, serta memuat bukti tak terpakai bila ada", () => {
+  it("target baru: rekomendasi hanya pada kandidat tervalidasi; bukti tak dirujuk sesuai harapan", () => {
+    const expected: Record<string, string[]> = {
+      assess_71: ["case_71"], compare_81: [], scenario_91: ["case_91"], pilot_95: [],
+    };
     for (const f of [f71, f81, f91, f95]) for (const aud of AUD) {
       const last = runCheckedGeneration(f, aud).at(-1)!;
+      expect(unreferencedEvidence(last.sections, f).map((e) => e.id), f.id).toEqual(expected[f.id]);
       const recs = last.sections.flatMap((s) => s.claims).filter((c) => c.type === "rekomendasi_tervalidasi");
       expect(recs.length, f.id).toBeGreaterThan(0);
       for (const r of recs) expect(f.evidence.find((e) => e.id === r.candidateId)?.validated, f.id).toBe(true);

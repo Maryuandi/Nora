@@ -35,7 +35,8 @@ export default function InterpretationsPage() {
   const findings = findingsForProject(state, project.id);
   const all = interpretationsForProject(state, project.id);
   const kindOf = (id: string) => findings.find((f) => f.id === id)?.kind;
-  const rows = all.filter((i) => (!status || i.status === status) && (!kind || kindOf(i.findingId) === kind));
+  const byKind = all.filter((i) => !kind || kindOf(i.findingId) === kind);
+  const rows = byKind.filter((i) => !status || i.status === status);
   const mayRequest = can("interpretation.request", project.id);
   const open = acceptsData(project.status);
 
@@ -45,7 +46,7 @@ export default function InterpretationsPage() {
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex rounded-lg border border-line bg-sidebar p-0.5" role="tablist" aria-label="Filter status">
             {FILTERS.map((f) => {
-              const count = f.id ? all.filter((i) => i.status === f.id).length : all.length;
+              const count = f.id ? byKind.filter((i) => i.status === f.id).length : byKind.length;
               return (
                 <button key={f.label} role="tab" aria-selected={status === f.id} onClick={() => setStatus(f.id)}
                   className={cx("rounded-md px-3 py-1 text-sm", status === f.id ? "bg-white font-medium text-ink shadow-[0_0_0_1px_var(--color-line)]" : "text-ink-2 hover:text-ink")}>

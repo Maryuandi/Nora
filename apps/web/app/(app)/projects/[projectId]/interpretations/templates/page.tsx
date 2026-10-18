@@ -43,7 +43,7 @@ export default function PromptTemplatesPage() {
                 <Fragment key={key}>
                   <tr className="border-b border-line last:border-0">
                     <td className="px-6 py-2 text-sm font-medium text-ink">
-                      <button type="button" aria-expanded={expanded} onClick={() => setOpenKey(expanded ? null : key)} className="inline-flex items-center gap-2 hover:underline">
+                      <button type="button" id={`tpl-btn-${key}`} aria-expanded={expanded} aria-controls={`tpl-panel-${key}`} onClick={() => setOpenKey(expanded ? null : key)} className="inline-flex items-center gap-2 hover:underline">
                         <CaretDown size={12} aria-hidden className={cx("text-ink-3 transition-transform", !expanded && "-rotate-90")} />
                         {TARGET_KIND_LABEL[t.kind]}
                       </button>
@@ -54,7 +54,7 @@ export default function PromptTemplatesPage() {
                   </tr>
                   {expanded && (
                     <tr className="border-b border-line bg-sidebar">
-                      <td colSpan={4} className="px-6 py-3 text-sm">
+                      <td colSpan={4} id={`tpl-panel-${key}`} className="px-6 py-3 text-sm">
                         <p className="font-medium text-ink">Peran</p>
                         <p className="mb-3 text-ink-2">{t.role}</p>
                         <p className="font-medium text-ink">Aturan</p>

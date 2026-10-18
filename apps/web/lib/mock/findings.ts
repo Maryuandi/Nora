@@ -5,7 +5,7 @@ const kand = (id: string, title: string, validated: boolean): EvidenceItem => ({
   id, kind: "kandidat", title, detail: `Kandidat tindakan: ${title}.`, measured: false, validated,
 });
 const jev = (id: string, score: number): EvidenceItem => ({
-  id, kind: "hasil_jev", title: "Skor penilaian Jev", detail: "Penilaian model terhadap temuan ini.", measured: false,
+  id, kind: "hasil_jev", title: "Skor penilaian Jev", detail: "Penilaian model terhadap target ini.", measured: false,
   metrics: { score: m(score, "skor", "jev-1") },
 });
 const aturan = (id: string, title: string, quote: string, metrics?: EvidenceItem["metrics"]): EvidenceItem => ({
@@ -89,7 +89,7 @@ export const FINDINGS: MockFinding[] = [
         detail: "Skor dan perkiraan penghematan durasi kandidat pemeriksaan otomatis faktur.",
         metrics: { score: m(0.81, "skor", "m09-1"), rank: m(1, "peringkat", "m09-1"), saving_days: m(6.2, "hari kerja", "m09-1") } },
       { id: "score_22", kind: "metrik", title: "Skor kandidat peringkat kedua", measured: true,
-        detail: "Skor dan perkiraan penghematan durasi kandidat penyetuju cadangan.",
+        detail: "Skor dan perkiraan penghematan durasi kandidat persetujuan bertingkat berdasarkan nilai PO.",
         metrics: { score: m(0.66, "skor", "m09-1"), rank: m(2, "peringkat", "m09-1"), saving_days: m(3.8, "hari kerja", "m09-1") } },
       { id: "score_23", kind: "metrik", title: "Skor kandidat peringkat ketiga", measured: true,
         detail: "Skor dan perkiraan penghematan durasi kandidat penjadwalan ulang persetujuan.",
@@ -98,7 +98,7 @@ export const FINDINGS: MockFinding[] = [
         { min_gap: m(0.1, "skor", "v1") }),
       jev("jev_81", 0.7),
       kand("cand_21", "Tambah pemeriksaan otomatis saat verifikasi faktur", true),
-      kand("cand_22", "Penyetuju cadangan untuk PO bernilai rendah", false),
+      kand("cand_22", "Persetujuan bertingkat berdasarkan nilai PO", false),
       kand("cand_23", "Penjadwalan ulang persetujuan pada akhir pekan", false),
     ],
   },
@@ -110,7 +110,7 @@ export const FINDINGS: MockFinding[] = [
       { id: "scenario_91", kind: "metrik", title: "Hasil simulasi basis dan skenario", measured: true,
         detail: "Hasil simulasi atas kasus PO periode lalu: basis dibandingkan skenario dengan penyetuju tambahan.",
         metrics: { base_days: m(18.4, "hari kerja", "sim-3"), scenario_days: m(12.1, "hari kerja", "sim-3"),
-          base_breach: m(27.5, "%", "sim-3"), scenario_breach: m(11.3, "%", "sim-3"), cases: m(1240, "kasus", "sim-3") } },
+          base_breach: m(27.5, "%", "sim-3"), scenario_breach: m(8.6, "%", "sim-3"), cases: m(1240, "kasus", "sim-3") } },
       { id: "param_91", kind: "metrik", title: "Parameter skenario", measured: false,
         detail: "Asumsi masukan simulasi: jumlah penyetuju tambahan.",
         metrics: { extra_approvers: m(2, "orang", "sim-3") } },
@@ -133,7 +133,7 @@ export const FINDINGS: MockFinding[] = [
         metrics: { duration_weeks: m(6, "minggu", "m09-2"), sample_cases: m(180, "kasus", "m09-2"), scope_units: m(1, "departemen", "m09-2") } },
       { id: "baseline_95", kind: "metrik", title: "Basis perbandingan uji coba", measured: true,
         detail: "Keadaan dasar seluruh kasus verifikasi faktur sebagai pembanding hasil uji coba.",
-        metrics: { cases: m(1240, "kasus"), breach_pct: m(27.5, "%"), sample_share: m(14.5, "%") } },
+        metrics: { cases: m(860, "kasus"), rework_pct: m(18.2, "%"), sample_share: m(20.9, "%") } },
       aturan("rule_pilot_95", "Batas uji coba perubahan proses", "Uji coba perubahan proses dibatasi paling lama delapan minggu per tahap.",
         { max_weeks: m(8, "minggu", "v1") }),
       jev("jev_95", 0.55),
