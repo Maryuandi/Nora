@@ -144,11 +144,6 @@ describe("penolakan umum", () => {
     expect(r.error).toBeDefined();
     expect(r.state).toBe(s);
   });
-  it("aksi M11 yang belum diimplementasi mengembalikan galat, bukan diam-diam", () => {
-    const s = s0();
-    const r = reduce(s, { type: "createProposal", investigationId: "inv-1", ruleKey: "r-sla", note: "x" });
-    expect(r).toEqual({ state: s, error: "Belum didukung" });
-  });
 });
 
 const MB20 = 20 * 1024 * 1024;
@@ -648,5 +643,53 @@ describe("confirmDecision", () => {
     expect(r.error).toBeUndefined();
     expect(flagsForProject(r.state, P)).toEqual([]);
     expect(r.state.flags[0]).toMatchObject({ decisionId, clearedBy: "u-sari" });
+  });
+});
+
+describe("createProposal", () => {
+  const propose = (s: MockState, over: Record<string, unknown> = {}) =>
+    reduce(s, { type: "createProposal", investigationId: "inv-1", ruleKey: "r-sla", note: "Perjelas batas SLA menjadi 10 hari kerja", ...over } as MockAction);
+  it("Dimas: versi aturan baru ditinjau, catatan jadi deskripsi, usulan tersimpan, tiga audit", () => {
+    const s = s0();
+    const r = propose(s);
+    expect(r.error).toBeUndefined();
+    const rule = r.state.rules.find((x) => x.id === r.ruleId)!;
+    expect(rule).toMatchObject({ ruleKey: "r-sla", version: 3, status: "ditinjau", description: "Perjelas batas SLA menjadi 10 hari kerja", projectId: P });
+    expect(r.state.proposals).toHaveLength(1);
+    expect(r.state.proposals[0]).toMatchObject({ id: r.proposalId, investigationId: "inv-1", ruleId: rule.id, note: "Perjelas batas SLA menjadi 10 hari kerja", by: "u-dimas" });
+    const a = audits(s, r.state);
+    expect(a.map((e) => e.action)).toEqual(["usulan.buat", "aturan.ajukan", "aturan.simpan"]);
+    expect(a[0]).toMatchObject({ objectType: "Usulan", projectId: P });
+    expect(a[0].objectLabel).toContain("v3");
+  });
+  it("catatan kosong, aturan proyek lain, aturan tak dikenal, workspace tak dikenal -> galat, state sama", () => {
+    const s = s0();
+    s.rules.push({ ...s.rules.find((x) => x.id === "r-sla-2")!, id: "r-o2c-1", ruleKey: "r-o2c", projectId: "p-o2c", version: 1 });
+    for (const over of [{ note: "  " }, { ruleKey: "r-o2c" }, { ruleKey: "nope" }, { investigationId: "nope" }]) {
+      const r = propose(s, over);
+      expect(r.error).toBeDefined();
+      expect(r.state).toBe(s);
+    }
+  });
+  it("usulan kedua, atau versi terbaru sudah ditinjau -> Sudah ada usulan berjalan", () => {
+    const first = propose(s0()).state;
+    const r = propose(first);
+    expect(r).toEqual({ state: first, error: "Sudah ada usulan berjalan" });
+  });
+  it("gagal di langkah kedua (aturan tak lolos validasi) -> state awal utuh", () => {
+    const s = s0();
+    s.rules.find((x) => x.id === "r-sla-2")!.params = { type: "sla", from: "Tidak Ada", to: "Record Goods Receipt", limit: 14, unit: "kerja" };
+    const r = propose(s);
+    expect(r.error).toBeDefined();
+    expect(r.state).toBe(s);
+  });
+  it("Sari (pemilik proses) boleh; Rina (administrator) tidak; proyek ditangguhkan tidak", () => {
+    const s = s0();
+    expect(propose(as(s, "u-sari")).error).toBeUndefined();
+    const rina = as(s, "u-rina");
+    expect(propose(rina).state).toBe(rina);
+    const held = s0();
+    held.projects.find((p) => p.id === P)!.status = "ditangguhkan";
+    expect(propose(held).state).toBe(held);
   });
 });

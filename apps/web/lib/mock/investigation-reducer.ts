@@ -5,9 +5,9 @@ import {
 } from "./investigation";
 import { id, now, withAudit } from "./mutate";
 import { acceptsData, can, type UiAction } from "./permissions";
-import type { MockAction, ReduceResult } from "./reducer";
+import { ruleVersions, type MockAction, type ReduceResult } from "./reducer";
 import type {
-  Decision, DecisionStatus, HypothesisState, Investigation, InvestigationLink, InvestigationNote, InvestigationStatus, LinkKind,
+  ContextProposal, Decision, DecisionStatus, HypothesisState, Investigation, InvestigationLink, InvestigationNote, InvestigationStatus, LinkKind,
   MockState, ModelReview, Notification, Project, RejectReason, RevalidationFlag, Role,
 } from "./types";
 
@@ -111,7 +111,7 @@ const clearFlags = (state: MockState, decisionIds: Set<string>): RevalidationFla
 export function reduceInvestigation(
   state: MockState,
   action: MockAction,
-  _reduceRoot: (s: MockState, a: MockAction) => ReduceResult,
+  reduceRoot: (s: MockState, a: MockAction) => ReduceResult,
 ): ReduceResult | null {
   const fail = (error: string): ReduceResult => ({ state, error });
   const addLink = (links: InvestigationLink[], investigationId: string, kind: LinkKind, targetId: string, linkedVersion: string) => {
@@ -388,9 +388,24 @@ export function reduceInvestigation(
       return { state: withAudit(next, { action: "analisis.simulasi", objectType: "Analisis", objectLabel: label, projectId: c.project.id }) };
     }
 
-    // Diganti Task 9; jangan sampai tertelan diam-diam.
-    case "createProposal":
-      return fail("Belum didukung");
+    case "createProposal": {
+      const c = ctx(state, action.investigationId, "proposal.create");
+      if (typeof c === "string") return fail(c);
+      const note = action.note.trim();
+      if (!note) return fail("Catatan usulan wajib diisi");
+      const latest = ruleVersions(state, action.ruleKey)[0];
+      if (!latest || latest.projectId !== c.project.id) return fail("Aturan tidak ditemukan di proyek ini");
+      if (latest.status === "draf" || latest.status === "ditinjau") return fail("Sudah ada usulan berjalan");
+      const { name, params, scope, effectiveFrom, effectiveTo, source } = latest;
+      const saved = reduceRoot(state, { type: "saveRule", projectId: c.project.id, ruleKey: latest.ruleKey, input: { name, description: note, params, scope, effectiveFrom, effectiveTo, source } });
+      if (saved.error || !saved.ruleId) return fail(saved.error ?? "Aturan gagal disimpan");
+      const sent = reduceRoot(saved.state, { type: "changeRuleStatus", ruleId: saved.ruleId, to: "ditinjau" });
+      if (sent.error) return fail(sent.error);
+      const rule = sent.state.rules.find((r) => r.id === saved.ruleId)!;
+      const proposal: ContextProposal = { id: id("prop"), investigationId: c.inv.id, ruleId: rule.id, note, by: state.viewerId, at: now() };
+      const next = { ...sent.state, proposals: [...sent.state.proposals, proposal] };
+      return { state: withAudit(next, { action: "usulan.buat", objectType: "Usulan", objectLabel: `${c.inv.title}: ${rule.name} v${rule.version}`, projectId: c.project.id }), investigationId: c.inv.id, ruleId: rule.id, proposalId: proposal.id };
+    }
 
     default:
       return null;
