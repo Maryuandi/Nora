@@ -1,44 +1,22 @@
 import "server-only";
-import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
-import { promisify } from "node:util";
+import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import type { Db } from "@nora/db";
 import type { z } from "zod";
 import { audit } from "./audit";
 import { db, withTx } from "./db";
 import { conflict, HttpError } from "./http";
+import { hashPassword, verifyPassword } from "./password";
 import type { ActivateInput, LoginInput, SetupInput } from "./schemas";
-
-const scrypt = promisify(scryptCb) as (pw: string, salt: Buffer, len: number, opts: { N: number; r: number; p: number }) => Promise<Buffer>;
 
 export const SESSION_COOKIE = "nora_session";
 const SESSION_DAYS = 14;
-const SCRYPT = { N: 16384, r: 8, p: 1 };
 
 export interface Viewer {
   id: string;
   email: string;
   name: string;
   globalRole: "admin" | "member";
-}
-
-export async function hashPassword(password: string): Promise<string> {
-  const salt = randomBytes(16);
-  const hash = await scrypt(password, salt, 32, SCRYPT);
-  return `scrypt$${SCRYPT.N}$${SCRYPT.r}$${SCRYPT.p}$${salt.toString("base64url")}$${hash.toString("base64url")}`;
-}
-
-export async function verifyPassword(password: string, stored: string | null): Promise<boolean> {
-  const parts = stored?.split("$");
-  if (!parts || parts.length !== 6 || parts[0] !== "scrypt") {
-    // Spend comparable time so unknown accounts are not distinguishable by latency.
-    await scrypt(password, randomBytes(16), 32, SCRYPT);
-    return false;
-  }
-  const [, N, r, p, salt, hash] = parts as [string, string, string, string, string, string];
-  const expected = Buffer.from(hash, "base64url");
-  const actual = await scrypt(password, Buffer.from(salt, "base64url"), expected.length, { N: +N, r: +r, p: +p });
-  return timingSafeEqual(actual, expected);
 }
 
 export const newToken = () => randomBytes(32).toString("base64url");
