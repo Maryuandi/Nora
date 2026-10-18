@@ -197,3 +197,60 @@ export async function addAnalyst(s: Smoke, admin: Client, projectId: string, ema
   }
   return analyst;
 }
+
+export async function uploadFile(c: Client, projectId: string, sourceId: string, name: string, body: Uint8Array | string) {
+  const bytes = typeof body === "string" ? new TextEncoder().encode(body) : body;
+  const init = await c.post(`/api/lite/projects/${projectId}/sources/${sourceId}/uploads`, { fileName: name, size: bytes.length });
+  if (init.status !== 201) throw new Error(`upload init ${init.status} ${JSON.stringify(init.body)}`);
+  const put = await fetch(init.body.upload.url, { method: "PUT", headers: init.body.upload.headers, body: bytes as unknown as BodyInit });
+  return { snapshotId: init.body.snapshotId as string, putStatus: put.status, url: init.body.upload.url as string, headers: init.body.upload.headers };
+}
+
+export async function waitSnapshot(c: Client, projectId: string, snapshotId: string) {
+  return waitFor(`snapshot ${snapshotId}`, async () => {
+    const r = await c.get(`/api/lite/projects/${projectId}/snapshots/${snapshotId}`);
+    return ["awaiting_upload", "validating"].includes(r.body.status) ? null : r.body;
+  });
+}
+
+export async function waitDataset(c: Client, projectId: string, id: string) {
+  return waitFor(`dataset ${id}`, async () => {
+    const r = await c.get(`/api/lite/projects/${projectId}/datasets/${id}`);
+    return ["processing", "draft"].includes(r.body.status) ? null : r.body;
+  }, 180_000);
+}
+
+/** Source → upload → complete → mapping → dataset → publish; returns the published dataset. */
+export async function publishCsv(c: Client, projectId: string, csv: string, config: unknown, name = "ERP"): Promise<any> {
+  const src = await c.post(`/api/lite/projects/${projectId}/sources`, { name });
+  const up = await uploadFile(c, projectId, src.body.id, `${name}.csv`, csv);
+  await c.post(`/api/lite/projects/${projectId}/snapshots/${up.snapshotId}/complete`);
+  const snap = await waitSnapshot(c, projectId, up.snapshotId);
+  if (snap.status !== "ready_for_mapping") throw new Error(`snapshot ${snap.status}: ${snap.errorMessage}`);
+  const m = await c.post(`/api/lite/projects/${projectId}/mappings`, { sourceId: src.body.id, config });
+  const d = await c.post(`/api/lite/projects/${projectId}/datasets`, { snapshotId: up.snapshotId, mappingVersionId: m.body.id });
+  const ds = await waitDataset(c, projectId, d.body.id);
+  const pub = await c.post(`/api/lite/projects/${projectId}/datasets/${d.body.id}/publish`);
+  if (pub.status !== 200) throw new Error(`publish ${pub.status} ${JSON.stringify(pub.body)} quality=${ds.qualityStatus}`);
+  return { ...ds, sourceId: src.body.id, snapshotId: up.snapshotId, mappingVersionId: m.body.id };
+}
+
+/** Deterministic purchase-to-pay log: approval waits grow with case index, every 4th case reworks. */
+export function p2pCsv(cases = 120): string {
+  const rows = ["case_id,activity,timestamp,user,branch"];
+  const base = Date.UTC(2026, 0, 5, 1, 0);
+  for (let i = 1; i <= cases; i++) {
+    let t = base + i * 3_600_000;
+    const at = (h: number) => (t += h * 3_600_000, new Date(t).toISOString().replace("T", " ").slice(0, 16));
+    const seq: [string, number, string][] = [["Create PO", 0, "ana"], ["Approve PO", 2 + (i % 10) * 6, "bob"]];
+    if (i % 4 === 0) seq.push(["Request Change", 1, "ana"], ["Approve PO", 3, "bob"]);
+    seq.push(["Receive Goods", 24, "cici"], ["Pay Invoice", 48 + (i % 5) * 24, i % 7 === 0 ? "bob" : "dedi"]);
+    for (const [a, h, u] of seq) rows.push(`PO-${String(i).padStart(4, "0")},${a},${at(h)},${u},${i % 3 ? "Jakarta" : "Bandung"}`);
+  }
+  return rows.join("\n") + "\n";
+}
+
+export const P2P_CONFIG = {
+  columns: { caseId: "case_id", activity: "activity", timestamp: "timestamp", resource: "user", caseAttributes: ["branch"], eventAttributes: [], objectRefs: [] },
+  timestampFormat: "%Y-%m-%d %H:%M", timezone: "UTC", labelMap: {}, repairRules: [],
+};

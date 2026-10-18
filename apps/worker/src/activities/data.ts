@@ -147,7 +147,7 @@ async function activeProcessBoundary(projectId: string): Promise<{ startActiviti
   const exists = (await db().query("SELECT to_regclass('context_packages') IS NOT NULL AS ok")).rows[0]?.ok;
   if (!exists) return null;
   const row = (await db().query(
-    `SELECT b.start_activities, b.end_activities FROM context_packages c JOIN process_boundaries b ON b.id = c.process_boundary_id
+    `SELECT b.payload->'startActivities' AS start_activities, b.payload->'endActivities' AS end_activities FROM context_packages c JOIN process_boundaries b ON b.id = c.process_boundary_id
       WHERE c.project_id = $1 AND c.status = 'active' ORDER BY c.activated_at DESC LIMIT 1`,
     [projectId],
   )).rows[0];

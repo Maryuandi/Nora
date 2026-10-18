@@ -24,6 +24,11 @@ export async function putJson(projectId: string, key: string, value: unknown): P
   await s3().send(new PutObjectCommand({ Bucket: bucket(), Key: key, Body: JSON.stringify(value), ContentType: "application/json" }));
 }
 
+export async function putObject(projectId: string, key: string, body: Uint8Array, contentType: string): Promise<void> {
+  assertProjectKey(projectId, key);
+  await s3().send(new PutObjectCommand({ Bucket: bucket(), Key: key, Body: body, ContentType: contentType, IfNoneMatch: "*" }));
+}
+
 export async function getJson<T = unknown>(projectId: string, key: string): Promise<T> {
   assertProjectKey(projectId, key);
   const res = await s3().send(new GetObjectCommand({ Bucket: bucket(), Key: key }));

@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { BuildDatasetInput, BuildDatasetReport, IngestReport, IngestSnapshotInput, PreviewMappingInput, PreviewMappingResult } from "./dataset.ts";
+import { PreviewRuleInput, PreviewRuleResult, ValidateBpmnInput, ValidateBpmnResult } from "./context.ts";
 import { PingRequest, PingResult } from "./ping.ts";
 
+export * from "./context.ts";
 export * from "./dataset.ts";
 export * from "./ping.ts";
 export * from "./queues.ts";
@@ -17,5 +19,9 @@ export function exportSchemas(): Record<string, object> {
     PreviewMappingResult: z.toJSONSchema(PreviewMappingResult),
     BuildDatasetInput: z.toJSONSchema(BuildDatasetInput),
     BuildDatasetReport: z.toJSONSchema(BuildDatasetReport),
+    ValidateBpmnInput: z.toJSONSchema(ValidateBpmnInput),
+    ValidateBpmnResult: z.toJSONSchema(ValidateBpmnResult),
+    PreviewRuleInput: z.toJSONSchema(PreviewRuleInput),
+    PreviewRuleResult: z.toJSONSchema(PreviewRuleResult),
   };
 }

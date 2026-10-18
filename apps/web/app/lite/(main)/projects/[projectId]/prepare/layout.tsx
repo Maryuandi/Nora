@@ -4,7 +4,7 @@ export default async function PrepareLayout({ children, params }: { children: Re
   const { projectId } = await params;
   return (
     <>
-      <PrepareTabs projectId={projectId} tabs={[{ label: "Data", path: "" }]} />
+      <PrepareTabs projectId={projectId} tabs={[{ label: "Data", path: "" }, { label: "Konteks & BPMN", path: "context" }]} />
       {children}
     </>
   );

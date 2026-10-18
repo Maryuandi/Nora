@@ -10,8 +10,10 @@ from temporalio.exceptions import ApplicationError
 
 from nora_worker import storage
 from nora_worker.contracts import load_schema
-from nora_worker.dataset import build_dataset, preview_mapping
+from nora_worker.bpmn import validate_bpmn
+from nora_worker.dataset import build_dataset, connect, lit, preview_mapping
 from nora_worker.ingest import ingest_file
+from nora_worker.rules import evaluate_rule, summarize
 
 
 def _validate(payload: dict, schema: str) -> None:
@@ -73,3 +75,23 @@ def build_dataset_activity(payload: dict) -> dict:
         storage.upload(pid, payload["casesKey"], cases)
         storage.put_json(pid, payload["reportKey"], report)
     return {"qualityStatus": report["qualityStatus"]}
+
+
+@activity.defn(name="validateBpmn")
+def validate_bpmn_activity(payload: dict) -> dict:
+    _validate(payload, "ValidateBpmnInput")
+    with _Workdir() as wd:
+        path = storage.download(payload["projectId"], payload["objectKey"], wd / "model.bpmn")
+        return validate_bpmn(path)
+
+
+@activity.defn(name="previewRule")
+def preview_rule_activity(payload: dict) -> dict:
+    _validate(payload, "PreviewRuleInput")
+    with _Workdir() as wd:
+        events = storage.download(payload["projectId"], payload["eventsKey"], wd / "events.parquet")
+        con = connect(wd, "UTC")
+        con.execute(f"CREATE TEMP VIEW ev AS SELECT * FROM read_parquet({lit(events.as_posix())})")
+        rows = evaluate_rule(con, payload["rule"], payload["maxCases"])
+        con.close()
+        return summarize(rows)

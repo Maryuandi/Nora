@@ -14,7 +14,8 @@
     "db:migrate": "pnpm --filter @nora/db migrate",
     "db:expire-contracts": "pnpm --filter @nora/db expire-contracts",
     "smoke:f01": "pnpm --filter web smoke:f01",
-    "smoke:f02": "pnpm --filter web smoke:f02"
+    "smoke:f02": "pnpm --filter web smoke:f02",
+    "smoke:f03": "pnpm --filter web smoke:f03"
   },
   "devDependencies": {
     "concurrently": "^10.0.6"
