@@ -26,11 +26,11 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
     { label: "Sumber data", icon: Database, href: `${base}/sources`, count: sources },
     { label: "Konteks", icon: Scales, href: `${base}/context/rules`, count: rules },
     { label: "Analisis", icon: FlowArrow, href: `${base}/analysis/map` },
-    { label: "Monitoring", icon: Pulse, href: `${base}/monitoring/compliance`, count: runsForProject(state, project.id).length },
+    { label: "Monitoring", icon: Pulse, href: `${base}/monitoring`, count: runsForProject(state, project.id).length },
     { label: "Anggota", icon: UsersThree, href: `${base}/members`, count: members },
     { label: "Audit log", icon: ClockCounterClockwise, href: `${base}/audit`, count: audit },
     ...(can("project.status", project.id) ? [{ label: "Pengaturan", icon: GearSix, href: `${base}/settings` }] : []),
-  ].map((t) => ({ ...t, active: t.href === `${base}/sources` ? path.startsWith(t.href) || path.startsWith(`${base}/snapshots`) : t.href === `${base}/context/rules` ? path.startsWith(`${base}/context`) : t.href === `${base}/analysis/map` ? path.startsWith(`${base}/analysis`) : t.href === `${base}/monitoring/compliance` ? path.startsWith(`${base}/monitoring`) : path === t.href }));
+  ].map((t) => ({ ...t, active: t.href === `${base}/sources` ? path.startsWith(t.href) || path.startsWith(`${base}/snapshots`) : t.href === `${base}/context/rules` ? path.startsWith(`${base}/context`) : t.href === `${base}/analysis/map` ? path.startsWith(`${base}/analysis`) : t.href === `${base}/monitoring` ? path.startsWith(`${base}/monitoring`) : path === t.href }));
 
   return (
     <>
