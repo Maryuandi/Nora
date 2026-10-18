@@ -1,7 +1,8 @@
 import { CheckCircle, CircleDashed, Eye, Question, XCircle } from "@phosphor-icons/react";
 import { Pill } from "@/components/nora/badges";
 import { STATUS_LABEL } from "@/lib/mock/assessment";
-import type { AssessmentStatus } from "@/lib/mock/types";
+import { CLASS_STATUS_LABEL } from "@/lib/mock/classification";
+import type { AssessmentStatus, ClassStatus } from "@/lib/mock/types";
 
 const ICON = { otomatis: CheckCircle, perlu_review: Eye, informasi_tidak_cukup: Question, gagal: XCircle, tertunda: CircleDashed } as const;
 const TONE: Record<AssessmentStatus, string> = {
@@ -14,6 +15,16 @@ export function AssessmentStatusBadge({ status }: { status: AssessmentStatus }) 
     <Pill>
       <I size={14} weight="fill" className={TONE[status]} aria-hidden />
       {STATUS_LABEL[status]}
+    </Pill>
+  );
+}
+
+export function ClassStatusBadge({ status }: { status: ClassStatus }) {
+  const I = ICON[status];
+  return (
+    <Pill>
+      <I size={14} weight="fill" className={TONE[status]} aria-hidden />
+      {CLASS_STATUS_LABEL[status]}
     </Pill>
   );
 }
