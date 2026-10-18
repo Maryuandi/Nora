@@ -10,7 +10,7 @@ import { Card } from "@/components/nora/card";
 import { formatDateTime } from "@/lib/format";
 import { acceptsData } from "@/lib/mock/permissions";
 import { rulesForProject } from "@/lib/mock/reducer";
-import { latestByKey } from "@/lib/mock/rules";
+import { isProposalBlocked, latestByKey } from "@/lib/mock/rules";
 import { useMock } from "@/lib/mock/store";
 
 /** Usulan perubahan aturan konteks (M04) dari workspace ini. */
@@ -23,7 +23,8 @@ export function ProposalsSection({ investigationId }: { investigationId: string 
   const project = inv && state.projects.find((p) => p.id === inv.projectId);
   if (!inv || !project) return null;
   const rules = latestByKey(rulesForProject(state, project.id));
-  const selected = ruleKey || rules[0]?.ruleKey || "";
+  const open = rules.filter((r) => !isProposalBlocked(r));
+  const selected = open.some((r) => r.ruleKey === ruleKey) ? ruleKey : open[0]?.ruleKey ?? "";
   const proposals = state.proposals.filter((p) => p.investigationId === inv.id);
   const mayPropose = can("proposal.create", project.id) && acceptsData(project.status);
   const name = (id: string) => state.users.find((u) => u.id === id)?.name ?? id;
@@ -44,7 +45,9 @@ export function ProposalsSection({ investigationId }: { investigationId: string 
         <Card className="flex flex-col gap-3 p-4">
           {error && <Banner tone="warning">{error}</Banner>}
           <NativeSelect label="Aturan" size="sm" value={selected} onChange={(e) => { setRuleKey(e.target.value); setError(undefined); }}
-            options={rules.map((r) => ({ label: `${r.name} (v${r.version})`, value: r.ruleKey }))} />
+            options={rules.map((r) => isProposalBlocked(r)
+              ? { label: `${r.name} (v${r.version}) (usulan berjalan)`, value: r.ruleKey, disabled: true }
+              : { label: `${r.name} (v${r.version})`, value: r.ruleKey })} />
           <TextArea label="Catatan usulan" isRequired rows={3} value={note} onChange={setNote} />
           <div className="flex justify-end">
             <Button color="primary" size="xs" onClick={submit} isDisabled={!selected || !note.trim()}>Kirim usulan</Button>

@@ -6,11 +6,12 @@ import { reduceInvestigation, type InvestigationAction } from "./investigation-r
 import { validateMapping } from "./mapping";
 import { id, now, withAudit } from "./mutate";
 import { acceptsData } from "./permissions";
-import { nextStatuses, previewDataset, previewRule, projectCanonicalLabels, validateRule, type RuleInput } from "./rules";
+import { nextStatuses, previewDataset, previewRule, projectCanonicalLabels, ruleVersions, validateRule, type RuleInput } from "./rules";
 import { projectSchema, type ProjectInput } from "./schemas";
 import type { Audience, Investigation, Notification, RevalidationFlag, CheckKey, ColumnRole, Interpretation, MockFinding, LabelRule, MappingVersion, MockState, Project, ProjectStatus, Role, RuleStatus, RuleVersion, Snapshot, SnapshotStatus } from "./types";
 
 export { MOCK_TODAY, initialState };
+export { ruleVersions } from "./rules"; // dipindah ke rules.ts agar investigation-reducer tak mengimpor nilai dari sini
 
 export type MockAction =
   | { type: "createClient"; input: { name: string; sector: string; contact: string } }
@@ -370,14 +371,6 @@ const canon = (m: Pick<MappingVersion, "roles" | "timeFormat" | "timezone" | "la
 const sameConfig = (a: MappingVersion, b: Pick<MappingVersion, "roles" | "timeFormat" | "timezone" | "labels">) => canon(a) === canon(b);
 
 export const rulesForProject = (s: MockState, projectId: string): RuleVersion[] => s.rules.filter((r) => r.projectId === projectId);
-
-// Newest version first; equal versions fall back to insertion order (later first).
-export const ruleVersions = (s: MockState, ruleKey: string): RuleVersion[] =>
-  s.rules
-    .map((x, i) => ({ x, i }))
-    .filter(({ x }) => x.ruleKey === ruleKey)
-    .sort((a, b) => b.x.version - a.x.version || b.i - a.i)
-    .map(({ x }) => x);
 
 // Deep canonical JSON with sorted keys, so key order never matters.
 const stable = (v: unknown): unknown =>

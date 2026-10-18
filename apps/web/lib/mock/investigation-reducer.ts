@@ -5,7 +5,8 @@ import {
 } from "./investigation";
 import { id, now, withAudit } from "./mutate";
 import { acceptsData, can, type UiAction } from "./permissions";
-import { ruleVersions, type MockAction, type ReduceResult } from "./reducer";
+import type { MockAction, ReduceResult } from "./reducer";
+import { isProposalBlocked, ruleVersions } from "./rules";
 import type {
   ContextProposal, Decision, DecisionStatus, HypothesisState, Investigation, InvestigationLink, InvestigationNote, InvestigationStatus, LinkKind,
   MockState, ModelReview, Notification, Project, RejectReason, RevalidationFlag, Role,
@@ -65,16 +66,21 @@ function attachmentError(a: NonNullable<InvestigationNote["attachment"]>): strin
   }
 }
 
+// Sumber yang sama dengan linkFreshness: versi di analisis proyek, atau disetujui terbaru (bukan draf/ditinjau).
 const currentRuleVersion = (state: MockState, projectId: string, ruleKey: string): string | null => {
-  const v = state.rules.filter((r) => r.projectId === projectId && r.ruleKey === ruleKey).map((r) => r.version);
-  return v.length ? `v${Math.max(...v)}` : null;
+  const mine = ruleVersions(state, ruleKey).filter((r) => r.projectId === projectId);
+  if (!mine.length) return null;
+  const pinned = state.analysisStates.find((a) => a.projectId === projectId)?.ruleVersions[ruleKey];
+  if (pinned) return pinned;
+  const approved = mine.find((r) => r.status === "disetujui");
+  return approved ? `v${approved.version}` : null;
 };
 const evidenceOf = (state: MockState, projectId: string) =>
   state.findings.filter((f) => f.projectId === projectId).flatMap((f) => f.evidence);
 
 // Judul objek untuk label audit; kembali ke id bila tak ditemukan.
 function targetTitle(state: MockState, projectId: string, kind: LinkKind, targetId: string): string {
-  if (kind === "aturan") return state.rules.find((r) => r.ruleKey === targetId)?.name ?? targetId;
+  if (kind === "aturan") return ruleVersions(state, targetId)[0]?.name ?? targetId;
   if (kind === "interpretasi") return state.findings.find((f) => f.id === state.interpretations.find((i) => i.id === targetId)?.findingId)?.title ?? targetId;
   return evidenceOf(state, projectId).find((e) => e.id === targetId)?.title ?? targetId;
 }
@@ -175,7 +181,7 @@ export function reduceInvestigation(
       if (!link) return fail("Tautan tidak ditemukan");
       const c = ctx(state, link.investigationId, "investigation.link");
       if (typeof c === "string") return fail(c);
-      if (state.decisions.some((d) => d.targetLinkId === link.id)) return fail("Tautan sudah punya keputusan dan tidak bisa dilepas");
+      if (state.decisions.some((d) => d.targetLinkId === link.id || d.replacedByLinkId === link.id)) return fail("Tautan terkait keputusan dan tidak bisa dilepas");
       const label = `${c.inv.title}: ${LINK_KIND_LABEL[link.kind]} ${targetTitle(state, c.project.id, link.kind, link.targetId)}`;
       return { state: withAudit({ ...state, links: state.links.filter((l) => l !== link) }, { action: "investigasi.lepas", objectType: "Investigasi", objectLabel: label, projectId: c.project.id }), investigationId: c.inv.id, linkId: link.id };
     }
@@ -395,7 +401,7 @@ export function reduceInvestigation(
       if (!note) return fail("Catatan usulan wajib diisi");
       const latest = ruleVersions(state, action.ruleKey)[0];
       if (!latest || latest.projectId !== c.project.id) return fail("Aturan tidak ditemukan di proyek ini");
-      if (latest.status === "draf" || latest.status === "ditinjau") return fail("Sudah ada usulan berjalan");
+      if (isProposalBlocked(latest)) return fail("Sudah ada usulan berjalan");
       const { name, params, scope, effectiveFrom, effectiveTo, source } = latest;
       const saved = reduceRoot(state, { type: "saveRule", projectId: c.project.id, ruleKey: latest.ruleKey, input: { name, description: note, params, scope, effectiveFrom, effectiveTo, source } });
       if (saved.error || !saved.ruleId) return fail(saved.error ?? "Aturan gagal disimpan");

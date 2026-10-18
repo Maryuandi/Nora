@@ -46,7 +46,7 @@ export function LinksTab({ investigationId }: { investigationId: string }) {
             <Table.Body>
               {links.map((l) => {
                 const { latest, stale } = linkFreshness(state, l);
-                const hasDecision = state.decisions.some((d) => d.targetLinkId === l.id);
+                const hasDecision = state.decisions.some((d) => d.targetLinkId === l.id || d.replacedByLinkId === l.id);
                 return (
                   <Table.Row key={l.id} id={l.id}>
                     <Table.Cell className="px-6 text-sm whitespace-nowrap text-ink-2">{LINK_KIND_LABEL[l.kind]}</Table.Cell>
@@ -66,7 +66,7 @@ export function LinksTab({ investigationId }: { investigationId: string }) {
                           <Button color="secondary" size="xs" onClick={() => setError(dispatch({ type: "refreshLink", linkId: l.id }))}>Perbarui tautan</Button>
                         )}
                         {mayLink && (
-                          <span title={hasDecision ? "Tautan sudah punya keputusan dan tidak bisa dilepas" : undefined}>
+                          <span title={hasDecision ? "Tautan terkait keputusan dan tidak bisa dilepas" : undefined}>
                             <Button color="secondary" size="xs" iconLeading={LinkBreak} aria-label="Lepas tautan" isDisabled={hasDecision}
                               onClick={() => setError(dispatch({ type: "unlinkObject", linkId: l.id }))} />
                           </span>

@@ -71,6 +71,27 @@ describe("linkObject / unlinkObject", () => {
     expect(ok.state.links.some((l) => l.id === "ln-1-4")).toBe(false);
     expect(audits(s, ok.state).map((e) => e.action)).toEqual(["investigasi.lepas"]);
   });
+  it("unlink: kandidat pengganti pada keputusan digantikan juga tidak bisa dilepas", () => {
+    const s = s0();
+    s.decisions.push({ ...s.decisions[0], id: "dc-x", investigationId: "inv-1", targetLinkId: "ln-1-3", status: "digantikan", replacedByLinkId: "ln-1-4" });
+    const r = reduce(s, { type: "unlinkObject", linkId: "ln-1-4" });
+    expect(r.error).toBeDefined();
+    expect(r.state).toBe(s);
+  });
+  it("tautan aturan baru memakai versi analisis (v2), bukan usulan ditinjau terbaru; label audit memakai nama versi terbaru", () => {
+    const proposed = reduce(s0(), { type: "createProposal", investigationId: "inv-1", ruleKey: "r-sla", note: "Perjelas batas SLA" });
+    expect(proposed.error).toBeUndefined();
+    const s = proposed.state;
+    s.links = s.links.filter((l) => l.kind !== "aturan");
+    const r = reduce(s, { type: "linkObject", investigationId: "inv-1", kind: "aturan", targetId: "r-sla" });
+    expect(r.error).toBeUndefined();
+    const link = r.state.links.find((l) => l.id === r.linkId)!;
+    expect(link.linkedVersion).toBe("v2");
+    expect(linkFreshness(r.state, link).stale).toBe(false);
+    const label = audits(s, r.state)[0].objectLabel;
+    expect(label).toContain(s.rules.find((x) => x.id === "r-sla-2")!.name);
+    expect(label).not.toContain(s.rules.find((x) => x.id === "r-sla-1")!.name);
+  });
 });
 
 describe("refreshLink", () => {
