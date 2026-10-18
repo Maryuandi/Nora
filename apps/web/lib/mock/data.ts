@@ -1,6 +1,7 @@
-import { FINDINGS } from "./findings";
+import { FINDINGS } from "./interpretation-targets";
 import { runCheckedGeneration, statusOf } from "./interpretation";
-import type { AnalysisState, Audience, AuditEvent, Client, Comment, Decision, Interpretation, Investigation, InvestigationLink, InvestigationNote, Notification, Membership, MappingVersion, MockState, Project, RuleSourceRef, RuleVersion, Snapshot, Source, User } from "./types";
+import { copyConfig } from "./metrics";
+import type { AnalysisState, Audience, AuditEvent, Client, Comment, Decision, Interpretation, Investigation, InvestigationLink, InvestigationNote, Notification, Membership, MappingVersion, MockState, MonitoringConfig, MonitoringRun, Project, RuleSourceRef, RuleVersion, Snapshot, Source, User } from "./types";
 
 export const MOCK_TODAY = "2026-10-17";
 
@@ -108,12 +109,18 @@ const PREVIEW = Array.from({ length: 12 }, (_, i) => [
   ["user_017", "user_042", "user_008", "batch_01"][i % 4],
 ]);
 
+// sn-1 also carries a vendor column (case_attr in the seed mapping) so M05b attribute filters are available on the seed.
+// Sample names are the first 3 of VENDORS in eventlog.ts (duplicated: eventlog.ts imports mapping/rules, so importing it here risks a cycle).
+const SAP_VENDORS = ["PT Sinar Jaya", "CV Mitra Abadi", "PT Nusantara Pratama"];
+const SAP_COLUMNS = [...COLUMNS, { name: "vendor", samples: SAP_VENDORS }];
+const SAP_PREVIEW = PREVIEW.map((r, i) => [...r, SAP_VENDORS[Math.floor(i / 4)]]);
+
 const snapshots: Snapshot[] = [
   { id: "sn-1", sourceId: "s-p2p-sap", projectId: "p-p2p", fileName: "sap_p2p_okt2026.csv", sizeBytes: 12_582_912, format: "csv", checksum: "9f3a1c7e0b42",
     uploadedBy: "u-dimas", uploadedAt: "2026-10-15T07:30:00Z", status: "siap_dipetakan",
     stats: { rows: 57_195, rejected: 312, encoding: "UTF-8", delimiter: ",", timeFrom: "2026-01-02", timeTo: "2026-10-14", latestEventAt: "2026-10-14",
       newEvents: 57_195, duplicateEvents: 0, conflictEvents: 0 },
-    columns: COLUMNS, preview: PREVIEW },
+    columns: SAP_COLUMNS, preview: SAP_PREVIEW },
   { id: "sn-2", sourceId: "s-p2p-sap", projectId: "p-p2p", fileName: "sap_p2p_rusak_sep.csv", sizeBytes: 5_242_880, format: "csv", checksum: "c04b88d2a9e1",
     uploadedBy: "u-anton", uploadedAt: "2026-10-16T09:10:00Z", status: "perlu_tinjauan",
     stats: { rows: 23_831, rejected: 1_906, encoding: "UTF-8", delimiter: ";", timeFrom: "2026-09-01", timeTo: "2026-09-30", latestEventAt: "2026-09-30",
@@ -140,7 +147,7 @@ const snapshots: Snapshot[] = [
 
 const mappings: MappingVersion[] = [
   { id: "m-1", sourceId: "s-p2p-sap", snapshotId: "sn-1", projectId: "p-p2p", version: 1,
-    roles: { case_id: "case_id", activity: "activity", timestamp: "timestamp_end", resource: "resource" },
+    roles: { case_id: "case_id", activity: "activity", timestamp: "timestamp_end", resource: "resource", vendor: "case_attr" },
     timeFormat: "YYYY-MM-DD HH:mm:ss", timezone: "Asia/Jakarta",
     labels: [{ raw: "create purchase order item", canonical: "Create Purchase Order Item" }, { raw: "Record Goods Receipt ", canonical: "Record Goods Receipt" },
       { raw: "Cancel Invoice Receipt", canonical: null }],
@@ -155,11 +162,11 @@ const rule = (o: Partial<RuleVersion> & Pick<RuleVersion, "id" | "ruleKey" | "ve
 
 const rules: RuleVersion[] = [
   rule({ id: "r-sla-1", ruleKey: "r-sla", version: 1, name: "Create Purchase Order Item ke Record Goods Receipt ≤ 14 hari kalender", status: "usang", effectiveTo: "2026-09-10",
-    description: "Batas awal sebelum direvisi.", createdAt: "2026-09-01T03:00:00Z",
+    description: "Batas awal sebelum direvisi.", createdAt: "2026-09-01T03:00:00Z", approvedBy: "u-dimas", approvedAt: "2026-09-02T03:00:00Z",
     params: { type: "sla", from: "Create Purchase Order Item", to: "Record Goods Receipt", limit: 14, unit: "kalender" },
     source: sop("Bagian 4.2", "Barang harus diterima paling lambat 14 hari sejak PO dibuat.") }),
   rule({ id: "r-sla-2", ruleKey: "r-sla", version: 2, name: "Create Purchase Order Item ke Record Goods Receipt ≤ 14 hari kerja", status: "disetujui",
-    description: "Satuan diperjelas menjadi hari kerja.", createdAt: "2026-09-10T03:00:00Z", approvedBy: "u-dimas", approvedAt: "2026-09-12T03:00:00Z", clientConfirmed: true,
+    description: "Satuan diperjelas menjadi hari kerja.", createdAt: "2026-09-10T03:00:00Z", effectiveFrom: "2026-09-11", approvedBy: "u-dimas", approvedAt: "2026-09-12T03:00:00Z", clientConfirmed: true,
     params: { type: "sla", from: "Create Purchase Order Item", to: "Record Goods Receipt", limit: 14, unit: "kerja" },
     source: sop("Bagian 4.2", "Barang harus diterima paling lambat 14 hari kerja sejak PO dibuat.") }),
   rule({ id: "r-urutan", ruleKey: "r-urutan", version: 1, name: "Record Goods Receipt sebelum Clear Invoice", status: "ditinjau",
@@ -171,6 +178,23 @@ const rules: RuleVersion[] = [
   rule({ id: "r-terlarang", ruleKey: "r-terlarang", version: 1, name: "Tidak ada Record Invoice Receipt setelah Clear Invoice", status: "draf", createdAt: "2026-10-14T03:00:00Z",
     params: { type: "terlarang", activity: "Record Invoice Receipt" },
     source: sop("Bagian 5.4", "Faktur tidak boleh dicatat lagi setelah pelunasan.") }),
+];
+
+const p2pConfig: MonitoringConfig = {
+  projectId: "p-p2p", version: 1, bottleneckTopN: 3, bottleneckP90Days: 5,
+  reworkActivities: ["Record Goods Receipt", "Record Invoice Receipt", "Clear Invoice"],
+  reworkHighPct: 15, complianceHighPct: 5, fitnessMin: 0.9, backlogAgeDays: 30, ageBuckets: [7, 30, 90],
+  changePct: 20, minCasesChange: 30, minGroupCases: 100, smallSampleCases: 30,
+  bpmnModel: { name: "P2P standar", activities: ["Create Purchase Order Item", "Record Goods Receipt", "Record Invoice Receipt", "Clear Invoice"] },
+  updatedBy: "u-dimas", updatedAt: "2026-07-20T08:00:00Z",
+};
+const RUN_RULES = ["r-sla-1", "r-sla-2", "r-urutan"];
+const frozen = (ids: string[]) => rules.filter((r) => ids.includes(r.id)).map((r) => ({ ...r }));
+const runs: MonitoringRun[] = [
+  { id: "run-1", projectId: "p-p2p", sourceId: "s-p2p-sap", snapshotId: "sn-1", mappingId: "m-1", periodFrom: "2026-05-01", periodTo: "2026-07-31",
+    ruleVersionIds: RUN_RULES, ruleVersions: frozen(RUN_RULES), calendar: "bawaan_tiruan", config: copyConfig(p2pConfig), createdBy: "u-dimas", createdAt: "2026-08-01T03:00:00Z" },
+  { id: "run-2", projectId: "p-p2p", sourceId: "s-p2p-sap", snapshotId: "sn-1", mappingId: "m-1", periodFrom: "2026-08-01", periodTo: "2026-10-14",
+    ruleVersionIds: RUN_RULES, ruleVersions: frozen(RUN_RULES), calendar: "bawaan_tiruan", config: copyConfig(p2pConfig), createdBy: "u-anton", createdAt: "2026-10-15T09:00:00Z" },
 ];
 
 const seedDraft = (n: string, findingId: string, audience: Audience, createdAt: string): Interpretation => {
@@ -245,4 +269,7 @@ const decisions: Decision[] = [
       metricValues: { "finding_42.p90_days": 18.4 }, ruleVersions: { "r-sla": "v2" } } },
 ];
 
-export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, rules, findings: FINDINGS, interpretations, investigations, links, notes, comments, notifications, reviews: [], decisions, flags: [], proposals: [], analysisStates, viewerId: "u-dimas" };
+export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, rules,
+  runs, monitoringConfigs: [p2pConfig], repairRules: [], datasetVersions: [], savedViews: [],
+  findings: FINDINGS, interpretations, investigations, links, notes, comments, notifications, reviews: [], decisions, flags: [], proposals: [], analysisStates,
+  viewerId: "u-dimas" };

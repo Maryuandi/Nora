@@ -1,14 +1,19 @@
 import { MOCK_TODAY, initialState } from "./data";
 import { isStale } from "../format";
+import { participatingVersions } from "./compliance";
 import { fabricate } from "./fabricate";
 import { AUDIENCE_LABEL, CHECK_LABEL, isOverridable, runCheckedGeneration, statusOf, violationKey } from "./interpretation";
 import { reduceInvestigation, type InvestigationAction } from "./investigation-reducer";
+import { configFor, copyConfig } from "./metrics";
 import { validateMapping } from "./mapping";
+import { normalizeFilter, validateFilter, type FilterSpec } from "./analysis";
+import { eventLogFor } from "./eventlog";
 import { id, now, withAudit } from "./mutate";
-import { acceptsData } from "./permissions";
+import { acceptsData, can } from "./permissions";
 import { nextStatuses, previewDataset, previewRule, projectCanonicalLabels, ruleVersions, validateRule, type RuleInput } from "./rules";
+import { ACTION_LABEL, CHECK_META, buildCapabilities, buildQualityReport, datasetHash, excludedAfter, qualityDataset, repairImpact } from "./quality";
 import { projectSchema, type ProjectInput } from "./schemas";
-import type { Audience, Investigation, Notification, RevalidationFlag, CheckKey, ColumnRole, Interpretation, MockFinding, LabelRule, MappingVersion, MockState, Project, ProjectStatus, Role, RuleStatus, RuleVersion, Snapshot, SnapshotStatus } from "./types";
+import type { Audience, AuditEvent, CheckId, CheckKey, ColumnRole, DatasetVersion, Interpretation, Investigation, LabelRule, MappingVersion, MockFinding, MockState, MonitoringConfig, MonitoringRun, Notification, Project, ProjectStatus, RepairAction, RepairRule, RevalidationFlag, Role, RuleStatus, RuleVersion, SavedView, Snapshot, SnapshotStatus, Source } from "./types";
 
 export { MOCK_TODAY, initialState };
 export { ruleVersions } from "./rules"; // dipindah ke rules.ts agar investigation-reducer tak mengimpor nilai dari sini
@@ -31,11 +36,19 @@ export type MockAction =
   | { type: "confirmRuleClient"; ruleId: string }
   | { type: "requestInterpretation"; projectId: string; findingId: string; audience: Audience }
   | { type: "overrideCheck"; interpretationId: string; check: CheckKey; claimId?: string; reason: string }
+  | { type: "runMonitoring"; projectId: string; sourceId: string; periodFrom: string; periodTo: string }
+  | { type: "updateMonitoringConfig"; projectId: string; patch: Partial<Omit<MonitoringConfig, "projectId" | "version" | "updatedBy" | "updatedAt">> }
+  | { type: "addRepairRule"; sourceId: string; check: CheckId; action: RepairAction; reason: string; confirmLarge?: boolean }
+  | { type: "revokeRepairRule"; ruleId: string }
+  | { type: "publishDataset"; sourceId: string; note?: string }
+  | { type: "saveView"; projectId: string; name: string; note?: string; filter: FilterSpec; mode: SavedView["mode"]; selection: SavedView["selection"]; activityPct: number; transitionPct: number }
   | { type: "setViewer"; userId: string }
   | InvestigationAction;
 
-export type ReduceResult = { state: MockState; error?: string; snapshotId?: string; duplicateOf?: string; mappingId?: string; ruleId?: string; interpretationId?: string;
-  investigationId?: string; linkId?: string; noteId?: string; commentId?: string; decisionId?: string; proposalId?: string };
+export type ReduceResult = {
+  state: MockState; error?: string; snapshotId?: string; duplicateOf?: string; mappingId?: string; datasetId?: string; repairRuleId?: string; ruleId?: string; runId?: string; savedViewId?: string;
+  interpretationId?: string; investigationId?: string; linkId?: string; noteId?: string; commentId?: string; decisionId?: string; proposalId?: string;
+};
 
 const MAX_BYTES = 500 * 1024 * 1024;
 // ".xes.gz" must come before ".xes".
@@ -285,6 +298,47 @@ export function reduce(state: MockState, action: MockAction): ReduceResult {
       return { state: withAudit({ ...state, rules }, { action: audit, objectType: "Aturan", objectLabel: `${rule.name} v${rule.version}`, projectId: project.id }), ruleId: rule.id };
     }
 
+    case "runMonitoring": {
+      const project = state.projects.find((x) => x.id === action.projectId);
+      if (!project) return fail("Proyek tidak ditemukan");
+      if (!acceptsData(project.status)) return fail("Proyek ini tidak menerima data baru");
+      const source = state.sources.find((x) => x.id === action.sourceId && x.projectId === project.id);
+      if (!source) return fail("Sumber tidak ditemukan");
+      const runnable = runnableSources(state, project.id).find((x) => x.source.id === source.id);
+      if (!runnable) return fail("Sumber belum punya pemetaan dan snapshot siap");
+      const { periodFrom, periodTo } = action;
+      const validDate = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d) && !Number.isNaN(Date.parse(d));
+      if (!validDate(periodFrom) || !validDate(periodTo) || periodFrom > periodTo) return fail("Periode tidak valid");
+      const versions = participatingVersions(state, project.id);
+      if (versions.length === 0) return fail("Belum ada aturan disetujui atau ditinjau");
+      const run: MonitoringRun = {
+        id: id("run"), projectId: project.id, sourceId: source.id, snapshotId: runnable.snapshot.id, mappingId: runnable.mapping.id,
+        periodFrom, periodTo, ruleVersionIds: versions.map((v) => v.id), ruleVersions: versions.map((v) => ({ ...v })), calendar: "bawaan_tiruan", config: copyConfig(configFor(state, project.id)), createdBy: state.viewerId, createdAt: now(),
+      };
+      return { state: withAudit({ ...state, runs: [...state.runs, run] }, { action: "monitoring.jalankan", objectType: "Monitoring", objectLabel: `${source.name} ${periodFrom}–${periodTo}`, projectId: project.id }), runId: run.id };
+    }
+
+    case "updateMonitoringConfig": {
+      const project = state.projects.find((x) => x.id === action.projectId);
+      if (!project) return fail("Proyek tidak ditemukan");
+      if (viewerRole(state, project.id) !== "analis") return fail("Hanya analis yang dapat mengubah ambang");
+      const patch = action.patch;
+      const isInt = (v: unknown) => Number.isInteger(v) && (v as number) >= 1;
+      const num = (v: unknown, ok: (n: number) => boolean) => typeof v === "number" && Number.isFinite(v) && ok(v);
+      const present = <K extends keyof typeof patch>(...keys: K[]) => keys.filter((k) => patch[k] !== undefined);
+      if (present("bottleneckTopN", "backlogAgeDays", "minCasesChange", "minGroupCases", "smallSampleCases").some((k) => !isInt(patch[k]))
+        || (patch.bottleneckP90Days !== undefined && !num(patch.bottleneckP90Days, (n) => n > 0))) return fail("Nilai ambang harus bilangan positif");
+      if (present("reworkHighPct", "complianceHighPct", "changePct").some((k) => !num(patch[k], (n) => n >= 0 && n <= 100))) return fail("Persentase harus 0–100");
+      if (patch.fitnessMin !== undefined && !num(patch.fitnessMin, (n) => n >= 0 && n <= 1)) return fail("Fitness minimum harus 0–1");
+      const b = patch.ageBuckets;
+      if (b !== undefined && (b.length < 1 || b.length > 5 || !b.every(isInt) || b.some((v, i) => i > 0 && v <= b[i - 1]))) return fail("Kelompok umur harus naik dan positif");
+      if (patch.reworkActivities !== undefined && patch.reworkActivities !== null && patch.reworkActivities.length === 0) return fail("Pilih minimal satu aktivitas rework");
+      const config = copyConfig({ ...configFor(state, project.id), ...patch, version: configFor(state, project.id).version + 1, updatedBy: state.viewerId, updatedAt: now() });
+      const monitoringConfigs = state.monitoringConfigs.some((c) => c.projectId === project.id)
+        ? state.monitoringConfigs.map((c) => (c.projectId === project.id ? config : c)) : [...state.monitoringConfigs, config];
+      return { state: withAudit({ ...state, monitoringConfigs }, { action: "monitoring.ambang.ubah", objectType: "Monitoring", objectLabel: `Ambang monitoring v${config.version}`, projectId: project.id }) };
+    }
+
     case "confirmRuleClient": {
       const rule = state.rules.find((x) => x.id === action.ruleId);
       if (!rule) return fail("Aturan tidak ditemukan");
@@ -331,6 +385,94 @@ export function reduce(state: MockState, action: MockAction): ReduceResult {
       return { state: withAudit(next, { action: "interpretation.kesampingkan", objectType: "Interpretation", objectLabel: `${finding?.title ?? interp.findingId} · ${CHECK_LABEL[action.check]} — ${reason}`, projectId: project.id }), interpretationId: interp.id };
     }
 
+    case "addRepairRule": {
+      const source = state.sources.find((x) => x.id === action.sourceId);
+      const project = source && state.projects.find((x) => x.id === source.projectId);
+      if (!source || !project) return fail("Sumber tidak ditemukan");
+      if (!acceptsData(project.status)) return fail("Proyek ini tidak menerima perubahan");
+      const dataset = qualityDataset(state, source.id);
+      if (!dataset) return fail("Belum ada data yang siap dinilai");
+      const reason = action.reason.trim();
+      if (!reason) return fail("Alasan wajib diisi");
+      const active = repairRulesForSource(state, source.id, true);
+      const report = buildQualityReport(dataset, active);
+      const finding = report.findings.find((f) => f.id === action.check);
+      const exclusion = action.action !== "terima";
+      if (finding?.status === "tidak_diketahui") {
+        if (exclusion) return fail("Aksi pengecualian tidak berlaku untuk temuan yang belum diketahui");
+      } else if (finding?.status !== "ditemukan") return fail("Tidak ada masalah untuk ditangani");
+      if (active.some((r) => r.check === action.check)) return fail("Sudah ada aturan perbaikan aktif untuk pemeriksaan ini");
+      const impact = exclusion && finding?.status === "ditemukan" ? repairImpact(report, action.check) : { events: 0, cases: 0 };
+      // excluded > 20% of totalEvents, written as an integer comparison so exactly 20% stays exact.
+      if (exclusion && excludedAfter(report, active, { check: action.check, ...impact }).events * 5 > report.totalEvents && action.confirmLarge !== true)
+        return fail("Aturan ini mengecualikan lebih dari 20% event; konfirmasi tambahan diperlukan");
+      const rule: RepairRule = {
+        id: id("rp"), sourceId: source.id, projectId: project.id, check: action.check, action: action.action, reason,
+        impactEvents: impact.events, impactCases: impact.cases, active: true, createdBy: state.viewerId, createdAt: now(),
+      };
+      const next = { ...state, repairRules: [...state.repairRules, rule] };
+      return { state: withAudit(next, { action: "perbaikan.tambah", objectType: "Perbaikan", objectLabel: `${CHECK_META[rule.check].title} (${ACTION_LABEL[rule.action]})`, projectId: project.id }), repairRuleId: rule.id };
+    }
+
+    case "revokeRepairRule": {
+      const rule = state.repairRules.find((x) => x.id === action.ruleId);
+      const project = rule && state.projects.find((x) => x.id === rule.projectId);
+      if (!rule || !project) return fail("Aturan tidak ditemukan");
+      if (!acceptsData(project.status)) return fail("Proyek ini tidak menerima perubahan");
+      if (!rule.active) return fail("Aturan sudah dicabut");
+      const revoked: RepairRule = { ...rule, active: false, revokedBy: state.viewerId, revokedAt: now() };
+      const next = { ...state, repairRules: state.repairRules.map((x) => (x === rule ? revoked : x)) };
+      return { state: withAudit(next, { action: "perbaikan.cabut", objectType: "Perbaikan", objectLabel: `${CHECK_META[rule.check].title} (${ACTION_LABEL[rule.action]})`, projectId: project.id }) };
+    }
+
+    case "publishDataset": {
+      const source = state.sources.find((x) => x.id === action.sourceId);
+      const project = source && state.projects.find((x) => x.id === source.projectId);
+      if (!source || !project) return fail("Sumber tidak ditemukan");
+      if (!acceptsData(project.status)) return fail("Proyek ini tidak menerima perubahan");
+      const dataset = qualityDataset(state, source.id);
+      if (!dataset) return fail("Belum ada data yang siap dinilai");
+      const active = repairRulesForSource(state, source.id, true);
+      const report = buildQualityReport(dataset, active);
+      if (report.verdict === "belum_layak") return fail(`Data belum layak diterbitkan: ${report.reasons[0] ?? "periksa laporan kualitas"}`);
+      const repairRuleIds = active.map((r) => r.id).sort();
+      const hash = datasetHash(dataset.snapshot.id, dataset.mapping.id, repairRuleIds);
+      const latest = latestDataset(state, source.id);
+      if (latest && latest.hash === hash) return fail(`Tidak ada perubahan dari v${latest.version}`);
+      const version = Math.max(0, ...state.datasetVersions.filter((d) => d.sourceId === source.id).map((d) => d.version)) + 1;
+      const ds: DatasetVersion = {
+        id: id("ds"), sourceId: source.id, projectId: project.id, version, snapshotId: dataset.snapshot.id, mappingId: dataset.mapping.id,
+        repairRuleIds, hash, verdict: report.verdict, eventsIncluded: report.eventsIncluded, casesIncluded: report.casesIncluded,
+        capabilities: buildCapabilities(dataset, report), ...(action.note?.trim() ? { note: action.note.trim() } : {}),
+        createdBy: state.viewerId, createdAt: now(),
+      };
+      const next = { ...state, datasetVersions: [...state.datasetVersions, ds] };
+      return { state: withAudit(next, { action: "dataset.terbit", objectType: "Dataset", objectLabel: `${source.name} v${version}`, projectId: project.id }), datasetId: ds.id };
+    }
+
+    case "saveView": {
+      const project = state.projects.find((x) => x.id === action.projectId);
+      if (!project) return fail("Proyek tidak ditemukan");
+      if (!acceptsData(project.status)) return fail("Proyek ini tidak menerima perubahan");
+      const current = eventLogFor(state, project.id);
+      if (!current) return fail("Belum ada data yang siap dinilai");
+      if (!can(viewerRole(state, project.id), "view.save")) return fail("Peranmu tidak dapat menyimpan tampilan");
+      const name = (action.name ?? "").trim(), note = action.note?.trim();
+      if (!name) return fail("Nama wajib diisi");
+      if (name.length > 80) return fail("Nama terlalu panjang");
+      if (note && note.length > 500) return fail("Catatan terlalu panjang");
+      const [invalid] = validateFilter(action.filter);
+      if (invalid) return fail(invalid);
+      const view: SavedView = {
+        id: id("sv"), projectId: project.id, name, ...(note ? { note } : {}), filter: normalizeFilter(action.filter), mode: action.mode, selection: action.selection,
+        activityPct: action.activityPct, transitionPct: action.transitionPct,
+        sourceId: current.log.source.sourceId, snapshotId: current.snapshot.id, mappingVersion: current.mappingVersion,
+        createdBy: state.viewerId, createdAt: now(),
+      };
+      const next = { ...state, savedViews: [...state.savedViews, view] };
+      return { state: withAudit(next, { action: "tampilan.simpan", objectType: "Tampilan", objectLabel: name, projectId: project.id }), savedViewId: view.id };
+    }
+
     case "confirmSnapshot":
     case "cancelSnapshot": {
       const snap = state.snapshots.find((x) => x.id === action.snapshotId);
@@ -364,6 +506,22 @@ export const mappingsForSource = (s: MockState, sourceId: string): MappingVersio
     .map(({ x }) => x);
 
 export const latestMapping = (s: MockState, sourceId: string): MappingVersion | null => mappingsForSource(s, sourceId)[0] ?? null;
+
+export const repairRulesForSource = (s: MockState, sourceId: string, onlyActive = false): RepairRule[] =>
+  s.repairRules
+    .map((x, i) => ({ x, i }))
+    .filter(({ x }) => x.sourceId === sourceId && (!onlyActive || x.active))
+    .sort((a, b) => b.x.createdAt.localeCompare(a.x.createdAt) || b.i - a.i)
+    .map(({ x }) => x);
+
+export const datasetVersionsForSource = (s: MockState, sourceId: string): DatasetVersion[] =>
+  s.datasetVersions
+    .map((x, i) => ({ x, i }))
+    .filter(({ x }) => x.sourceId === sourceId)
+    .sort((a, b) => b.x.version - a.x.version || b.i - a.i)
+    .map(({ x }) => x);
+
+export const latestDataset = (s: MockState, sourceId: string): DatasetVersion | null => datasetVersionsForSource(s, sourceId)[0] ?? null;
 
 // Structural comparison; roles and labels are order-insensitive, note is ignored.
 const canon = (m: Pick<MappingVersion, "roles" | "timeFormat" | "timezone" | "labels">) =>
@@ -422,4 +580,19 @@ export function contractEndingSoon(p: Project, today = MOCK_TODAY): boolean {
   if (p.status !== "aktif" || !p.contractEnd) return false;
   const days = (Date.parse(p.contractEnd) - Date.parse(today)) / 86_400_000;
   return days >= 0 && days <= 14;
+}
+
+export const runsForProject = (s: MockState, projectId: string): MonitoringRun[] =>
+  s.runs
+    .map((x, i) => ({ x, i }))
+    .filter(({ x }) => x.projectId === projectId)
+    .sort((a, b) => b.x.createdAt.localeCompare(a.x.createdAt) || b.i - a.i)
+    .map(({ x }) => x);
+
+export function runnableSources(s: MockState, projectId: string): { source: Source; snapshot: Snapshot; mapping: MappingVersion }[] {
+  return s.sources.filter((x) => x.projectId === projectId).flatMap((source) => {
+    const snapshot = snapshotsForSource(s, source.id).find((x) => x.status === "siap_dipetakan");
+    const mapping = latestMapping(s, source.id);
+    return snapshot && mapping ? [{ source, snapshot, mapping }] : [];
+  });
 }

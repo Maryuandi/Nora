@@ -7,7 +7,11 @@ export type UiAction = "client.create" | "project.create" | "project.status" | "
   | "interpretation.view" | "interpretation.request" | "interpretation.override"
   | "investigation.view" | "investigation.create" | "investigation.link" | "investigation.status"
   | "note.add" | "note.add.field" | "comment.add" | "review.jev" | "review.draft"
-  | "decision.analytic" | "decision.select" | "proposal.create";
+  | "decision.analytic" | "decision.select" | "proposal.create"
+  | "monitoring.view" | "monitoring.run" | "monitoring.configure"
+  | "analysis.view"
+  | "quality.view" | "repair.edit" | "dataset.publish"
+  | "view.save";
 
 // Button matrix from PRD M01 "Matriks Kewenangan" (UI subset).
 const ALLOWED: Record<UiAction, readonly Role[]> = {
@@ -45,6 +49,15 @@ const ALLOWED: Record<UiAction, readonly Role[]> = {
   "decision.analytic": ["analis"],
   "decision.select": ["pemilik_proses"],
   "proposal.create": ["analis", "pemilik_proses"],
+  "monitoring.view": ["administrator", "analis", "pemilik_proses"],
+  "monitoring.run": ["analis"],
+  "monitoring.configure": ["analis"],
+  "analysis.view": ["administrator", "analis", "pemilik_proses"],
+  "quality.view": ["administrator", "analis", "pemilik_proses"],
+  "repair.edit": ["administrator", "analis"],
+  "dataset.publish": ["analis"],
+  // PRD M05: Analis and Administrator save views; Pemilik Proses only reads them.
+  "view.save": ["administrator", "analis"],
 };
 
 export const can = (role: Role | null, action: UiAction): boolean => role !== null && ALLOWED[action].includes(role);

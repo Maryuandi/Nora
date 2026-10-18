@@ -1,12 +1,12 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { ClockCounterClockwise, Database, GearSix, MagnifyingGlassPlus, Scales, Sparkle, SquaresFour, UsersThree } from "@phosphor-icons/react";
+import { ClockCounterClockwise, Database, FlowArrow, GearSix, MagnifyingGlassPlus, Pulse, Scales, Sparkle, SquaresFour, UsersThree } from "@phosphor-icons/react";
 import { StatusBadge } from "@/components/nora/badges";
 import { NotFoundPanel } from "@/components/not-found-panel";
 import { formatPeriod } from "@/components/project-card";
 import { useProject } from "@/components/project/use-project";
-import { interpretationsForProject, investigationsForProject, rulesForProject } from "@/lib/mock/reducer";
+import { interpretationsForProject, investigationsForProject, rulesForProject, runsForProject } from "@/lib/mock/reducer";
 import { latestByKey } from "@/lib/mock/rules";
 import { PageHeader } from "@/components/shell/page-header";
 import { PublishTabs } from "@/components/shell/sidebar-tabs";
@@ -28,12 +28,14 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
     { label: "Ringkasan", icon: SquaresFour, href: base },
     { label: "Sumber data", icon: Database, href: `${base}/sources`, count: sources },
     { label: "Konteks", icon: Scales, href: `${base}/context/rules`, count: rules },
+    { label: "Analisis", icon: FlowArrow, href: `${base}/analysis/map` },
+    { label: "Monitoring", icon: Pulse, href: `${base}/monitoring`, count: runsForProject(state, project.id).length },
     { label: "Interpretasi", icon: Sparkle, href: `${base}/interpretations`, count: interpretations },
     { label: "Investigasi", icon: MagnifyingGlassPlus, href: `${base}/investigations`, count: investigations },
     { label: "Anggota", icon: UsersThree, href: `${base}/members`, count: members },
     { label: "Audit log", icon: ClockCounterClockwise, href: `${base}/audit`, count: audit },
     ...(can("project.status", project.id) ? [{ label: "Pengaturan", icon: GearSix, href: `${base}/settings` }] : []),
-  ].map((t) => ({ ...t, active: t.href === `${base}/sources` ? path.startsWith(t.href) || path.startsWith(`${base}/snapshots`) : t.href === `${base}/context/rules` ? path.startsWith(`${base}/context`) : t.href === `${base}/interpretations` || t.href === `${base}/investigations` ? path.startsWith(t.href) : path === t.href }));
+  ].map((t) => ({ ...t, active: t.href === `${base}/sources` ? path.startsWith(t.href) || path.startsWith(`${base}/snapshots`) : t.href === `${base}/context/rules` ? path.startsWith(`${base}/context`) : t.href === `${base}/analysis/map` ? path.startsWith(`${base}/analysis`) : t.href === `${base}/monitoring` ? path.startsWith(`${base}/monitoring`) : t.href === `${base}/interpretations` || t.href === `${base}/investigations` ? path.startsWith(t.href) : path === t.href }));
 
   return (
     <>

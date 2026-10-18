@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FINDINGS } from "./findings";
+import { FINDINGS } from "./interpretation-targets";
 import {
   CHECKS, SECTION_ORDER, TARGET_KIND_LABEL, formatMetric, kindsPresent, generateAttempt, isOverridable, resolvePlaceholders, runChecks,
   runCheckedGeneration, statusOf, unreferencedEvidence, violationKey,

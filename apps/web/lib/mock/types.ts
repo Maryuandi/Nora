@@ -1,3 +1,5 @@
+import type { FilterSpec } from "./analysis";
+
 export type Role = "administrator" | "analis" | "pemilik_proses";
 export type ProjectStatus = "draft" | "aktif" | "ditangguhkan" | "berakhir" | "diarsipkan";
 export type AuditResult = "sukses" | "ditolak" | "gagal";
@@ -140,6 +142,41 @@ export interface RuleVersion {
   approvedBy?: string; approvedAt?: string;
 }
 
+export type CaseStatus = "patuh" | "tidak_patuh" | "tidak_dapat_dievaluasi";
+
+export interface BpmnModel { name: string; activities: string[] } // model sekuensial tiruan
+export interface MonitoringConfig {
+  projectId: string; version: number;
+  bottleneckTopN: number;
+  bottleneckP90Days: number;
+  reworkActivities: string[] | null; // null = definisi rework belum ditetapkan
+  reworkHighPct: number;
+  complianceHighPct: number;
+  fitnessMin: number; // 0–1
+  backlogAgeDays: number;
+  ageBuckets: number[]; // naik ketat
+  changePct: number;
+  minCasesChange: number;
+  minGroupCases: number;
+  smallSampleCases: number;
+  bpmnModel: BpmnModel | null;
+  updatedBy: string | null; updatedAt: string | null;
+}
+
+export interface MonitoringRun {
+  id: string; projectId: string;
+  sourceId: string; snapshotId: string; mappingId: string;
+  periodFrom: string; periodTo: string; // YYYY-MM-DD, inklusif
+  ruleVersionIds: string[]; // dibekukan saat run
+  ruleVersions: RuleVersion[]; // salinan beku versi aturan saat run (hasil tidak berubah bila aturan diedit)
+  calendar: "bawaan_tiruan"; // Senin–Jumat, tanpa libur
+  config: MonitoringConfig; // salinan beku pengaturan saat run
+  createdBy: string; createdAt: string;
+}
+
+export interface MockCase { id: string; start: string; end: string | null } // end null = masih terbuka
+export interface CaseResult { caseId: string; start: string; status: CaseStatus; reason?: string; atRisk?: boolean; ruleVersionId: string | null }
+
 export interface MockState {
   clients: Client[];
   projects: Project[];
@@ -162,6 +199,11 @@ export interface MockState {
   flags: RevalidationFlag[];
   proposals: ContextProposal[];
   analysisStates: AnalysisState[];
+  runs: MonitoringRun[];
+  monitoringConfigs: MonitoringConfig[];
+  repairRules: RepairRule[];
+  datasetVersions: DatasetVersion[];
+  savedViews: SavedView[];
   viewerId: string;
 }
 
@@ -265,4 +307,40 @@ export interface ContextProposal { id: string; investigationId: string; ruleId: 
 export interface AnalysisState {
   projectId: string; datasetVersion: string; contextPackage: string; analysis: string; evidencePackage: string;
   metricValues: Record<string, number>; ruleVersions: Record<string, string>;
+}
+
+export type CheckId =
+  | "nilai_hilang" | "waktu_tidak_wajar" | "duplikasi" | "urutan_ambigu"
+  | "kasus_belum_selesai" | "waktu_mulai_selesai" | "label_belum_dipetakan" | "di_luar_periode";
+export type Severity = "tinggi" | "sedang" | "info";
+export type RepairAction = "kecualikan_event" | "kecualikan_kasus" | "terima";
+
+export interface RepairRule {
+  id: string; sourceId: string; projectId: string;
+  check: CheckId; action: RepairAction; reason: string;
+  impactEvents: number; impactCases: number; // computed at creation
+  active: boolean; // false = revoked
+  createdBy: string; createdAt: string; revokedBy?: string; revokedAt?: string;
+}
+
+export type CapabilityStatus = "tersedia" | "terbatas" | "tidak_tersedia";
+export interface Capability { id: string; label: string; status: CapabilityStatus; explanation: string }
+
+export interface DatasetVersion {
+  id: string; sourceId: string; projectId: string; version: number; // per source
+  snapshotId: string; mappingId: string; repairRuleIds: string[]; // active rules at publish
+  hash: string; // 12 hex, deterministic
+  verdict: "siap" | "siap_catatan" | "belum_layak";
+  eventsIncluded: number; casesIncluded: number;
+  capabilities: Capability[]; note?: string;
+  createdBy: string; createdAt: string;
+}
+
+export interface SavedView {
+  id: string; projectId: string; name: string; note?: string;
+  filter: FilterSpec; mode: "frekuensi" | "performa";
+  selection: { kind: "node" | "edge" | "variant"; id: string } | null;
+  activityPct: number; transitionPct: number;
+  sourceId: string; snapshotId: string; mappingVersion: number; // data the view was saved against
+  createdBy: string; createdAt: string;
 }

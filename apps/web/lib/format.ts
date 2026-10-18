@@ -4,6 +4,13 @@ export const formatDate = (d: string) => new Date(d).toLocaleDateString("id-ID",
 export const formatDateTime = (d: string) =>
   new Date(d).toLocaleString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
 
+/** Event wall-clock time in the mapping's IANA zone, with zone label (e.g. "GMT+7"). Bad zone falls back to UTC; bad date gives "-". */
+export const formatEventTime = (iso: string, timeZone: string): string => {
+  if (!Number.isFinite(Date.parse(iso))) return "-";
+  const opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", timeZoneName: "short" };
+  try { return new Date(iso).toLocaleString("id-ID", { ...opts, timeZone }); } catch { return new Date(iso).toLocaleString("id-ID", { ...opts, timeZone: "UTC" }); }
+};
+
 export const formatBytes = (n: number): string => {
   const units = ["B", "KB", "MB", "GB"];
   let i = 0;
@@ -14,3 +21,21 @@ export const formatBytes = (n: number): string => {
 export const daysSince = (iso: string, today = MOCK_TODAY): number => Math.floor((Date.parse(today) - Date.parse(iso)) / 86_400_000);
 
 export const isStale = (iso: string, today?: string): boolean => daysSince(iso, today) > 30;
+
+// One decimal only below 10; the rounded value (not the raw one) decides the unit so 59.99 min -> "1 jam".
+const compactNumber = (n: number): number => (n < 10 ? Math.round(n * 10) / 10 : Math.round(n));
+const show = (n: number): string => n.toLocaleString("id-ID");
+
+export const formatDuration = (ms: number): string => {
+  if (!Number.isFinite(ms) || ms < 0) return "-";
+  if (ms < 60_000) return "< 1 menit";
+  const minutes = Math.round(ms / 60_000);
+  if (minutes < 60) return `${minutes} menit`;
+  const hours = compactNumber(ms / 3_600_000);
+  if (hours < 24) return `${show(hours)} jam`;
+  return `${show(compactNumber(ms / 86_400_000))} hari`;
+};
+
+/** "from - to" on the mapping's time zone; "-" when either bound is not a finite ms value. */
+export const formatRange = (fromMs: number, toMs: number, tz: string): string =>
+  Number.isFinite(fromMs) && Number.isFinite(toMs) ? `${formatEventTime(new Date(fromMs).toISOString(), tz)} - ${formatEventTime(new Date(toMs).toISOString(), tz)}` : "-";

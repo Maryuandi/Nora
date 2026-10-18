@@ -35,6 +35,14 @@ const EXPECTED: Record<UiAction, Role[]> = {
   "decision.analytic": ["analis"],
   "decision.select": ["pemilik_proses"],
   "proposal.create": ["analis", "pemilik_proses"],
+  "monitoring.view": ["administrator", "analis", "pemilik_proses"],
+  "monitoring.run": ["analis"],
+  "monitoring.configure": ["analis"],
+  "analysis.view": ["administrator", "analis", "pemilik_proses"],
+  "quality.view": ["administrator", "analis", "pemilik_proses"],
+  "repair.edit": ["administrator", "analis"],
+  "dataset.publish": ["analis"],
+  "view.save": ["administrator", "analis"],
 };
 
 describe("can", () => {

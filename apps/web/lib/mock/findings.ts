@@ -1,144 +1,134 @@
-import type { EvidenceItem, MockFinding } from "./types";
+import { bottlenecks, reworkStats, runLog, transitionCases } from "./bottleneck";
+import { evaluateRun, summarize, termFor } from "./compliance";
+import { backlog, runCases, trend } from "./metrics";
+import { conformance } from "./replay";
+import type { MockState, MonitoringConfig, MonitoringRun } from "./types";
 
-const m = (value: number, unit: string, version = "run-2") => ({ value, unit, version });
-const kand = (id: string, title: string, validated: boolean): EvidenceItem => ({
-  id, kind: "kandidat", title, detail: `Kandidat tindakan: ${title}.`, measured: false, validated,
-});
-const jev = (id: string, score: number): EvidenceItem => ({
-  id, kind: "hasil_jev", title: "Skor penilaian Jev", detail: "Penilaian model terhadap target ini.", measured: false,
-  metrics: { score: m(score, "skor", "jev-1") },
-});
-const aturan = (id: string, title: string, quote: string, metrics?: EvidenceItem["metrics"]): EvidenceItem => ({
-  id, kind: "aturan", title, detail: quote, measured: false, ...(metrics ? { metrics } : {}),
-});
+export type FindingKind = "bottleneck" | "rework" | "kepatuhan" | "penyimpangan_model" | "backlog" | "tren_memburuk";
+export type ChangeStatus = "baru" | "memburuk" | "stabil" | "membaik" | "tidak_lagi_terdeteksi";
+export type Severity = "rendah" | "sedang" | "tinggi";
 
-export const FINDINGS: MockFinding[] = [
-  {
-    id: "finding_42", projectId: "p-p2p", kind: "temuan", limitedContext: false,
-    title: "Antrean persetujuan PO melebihi SLA",
-    summary: "Persetujuan PO sering melewati batas waktu penerimaan barang.",
-    evidence: [
-      { id: "finding_42", kind: "temuan", title: "Antrean persetujuan PO melebihi SLA", measured: true,
-        detail: "Durasi persetujuan PO pada persentil ke-90 melampaui batas SLA.",
-        metrics: { p90_days: m(18.4, "hari kerja"), breach_pct: m(27.5, "%"), cases: m(1240, "kasus") } },
-      aturan("rule_sla_1", "SLA penerimaan barang", "Barang harus diterima paling lambat 14 hari kerja sejak PO dibuat.",
-        { sla_limit: m(14, "hari kerja", "v2") }),
-      { id: "case_sample", kind: "kasus", title: "Contoh kasus PO terlambat", measured: true,
-        detail: "Contoh kasus PO yang melewati batas SLA." },
-      jev("jev_42", 0.82),
-      kand("cand_1", "Tambah penyetuju cadangan untuk PO bernilai rendah", true),
-      kand("cand_2", "Otomatisasi persetujuan PO di bawah ambang", false),
-    ],
-  },
-  {
-    id: "finding_57", projectId: "p-p2p", kind: "temuan", limitedContext: false,
-    title: "Rework pada verifikasi faktur",
-    summary: "Verifikasi faktur sering diulang sebelum selesai.",
-    evidence: [
-      { id: "finding_57", kind: "temuan", title: "Rework pada verifikasi faktur", measured: true,
-        detail: "Banyak kasus kembali ke langkah verifikasi faktur lebih dari sekali.",
-        metrics: { rework_pct: m(18.2, "%"), loops: m(3.1, "kali per kasus"), cases: m(860, "kasus") } },
-      aturan("rule_urut_1", "Urutan pelunasan faktur", "Faktur hanya boleh dilunasi setelah penerimaan barang dicatat."),
-      jev("jev_57", 0.74),
-      kand("cand_3", "Tambah pemeriksaan otomatis saat verifikasi faktur", true),
-      kand("cand_4", "Pelatihan ulang tim verifikasi", false),
-    ],
-  },
-  {
-    id: "finding_63", projectId: "p-p2p", kind: "temuan", limitedContext: true,
-    title: "Penyimpangan urutan pembayaran",
-    summary: "Sebagian pembayaran terjadi sebelum faktur diverifikasi.",
-    evidence: [
-      { id: "finding_63", kind: "temuan", title: "Penyimpangan urutan pembayaran", measured: true,
-        detail: "Sebagian kasus membayar sebelum verifikasi faktur selesai.",
-        metrics: { out_of_order_pct: m(6.4, "%"), cases: m(310, "kasus") } },
-      aturan("rule_urut_2", "Urutan pembayaran", "Pembayaran hanya setelah faktur diverifikasi."),
-      jev("jev_63", 0.61),
-      kand("cand_5", "Kunci pembayaran sebelum verifikasi faktur", true),
-    ],
-  },
-  {
-    id: "assess_71", projectId: "p-p2p", kind: "penilaian_kandidat", limitedContext: false,
-    title: "Penilaian kandidat penyetuju cadangan PO",
-    summary: "Hasil penilaian M08 untuk kandidat penyetuju cadangan: dampak, kelayakan, dan risiko.",
-    evidence: [
-      { id: "assess_71", kind: "metrik", title: "Penilaian kandidat penyetuju cadangan PO", measured: true,
-        detail: "Skor dampak, kelayakan, dan risiko kandidat penyetuju cadangan untuk PO bernilai rendah.",
-        metrics: { impact_score: m(0.78, "skor", "m08-2"), feasibility_score: m(0.64, "skor", "m08-2"), risk_score: m(0.35, "skor", "m08-2"), cases: m(1240, "kasus", "m08-2") } },
-      { id: "baseline_71", kind: "metrik", title: "Keadaan dasar durasi persetujuan PO", measured: true,
-        detail: "Durasi persetujuan PO pada keadaan saat ini sebelum kandidat diterapkan.",
-        metrics: { p90_days: m(18.4, "hari kerja"), breach_pct: m(27.5, "%") } },
-      aturan("rule_sla_71", "SLA penerimaan barang", "Barang harus diterima paling lambat 14 hari kerja sejak PO dibuat.",
-        { sla_limit: m(14, "hari kerja", "v2") }),
-      { id: "case_71", kind: "kasus", title: "Contoh kasus PO yang menunggu penyetuju", measured: true,
-        detail: "Contoh kasus PO bernilai rendah yang menunggu penyetuju utama berhari-hari." },
-      jev("jev_71", 0.78),
-      kand("cand_11", "Tambah penyetuju cadangan untuk PO bernilai rendah", true),
-      kand("cand_12", "Persetujuan bertingkat berdasarkan nilai PO", false),
-    ],
-  },
-  {
-    id: "compare_81", projectId: "p-p2p", kind: "perbandingan", limitedContext: false,
-    title: "Perbandingan dan prioritas tiga kandidat perbaikan",
-    summary: "Peringkat dan skor tiga kandidat perbaikan proses pengadaan; satu sudah tervalidasi.",
-    evidence: [
-      { id: "compare_81", kind: "metrik", title: "Ringkasan perbandingan tiga kandidat", measured: true,
-        detail: "Perbandingan skor tiga kandidat perbaikan proses pengadaan.",
-        metrics: { candidates: m(3, "kandidat", "m09-1"), top_score: m(0.81, "skor", "m09-1"), second_score: m(0.66, "skor", "m09-1"), gap: m(0.15, "skor", "m09-1") } },
-      { id: "score_21", kind: "metrik", title: "Skor kandidat peringkat pertama", measured: true,
-        detail: "Skor dan perkiraan penghematan durasi kandidat pemeriksaan otomatis faktur.",
-        metrics: { score: m(0.81, "skor", "m09-1"), rank: m(1, "peringkat", "m09-1"), saving_days: m(6.2, "hari kerja", "m09-1") } },
-      { id: "score_22", kind: "metrik", title: "Skor kandidat peringkat kedua", measured: true,
-        detail: "Skor dan perkiraan penghematan durasi kandidat persetujuan bertingkat berdasarkan nilai PO.",
-        metrics: { score: m(0.66, "skor", "m09-1"), rank: m(2, "peringkat", "m09-1"), saving_days: m(3.8, "hari kerja", "m09-1") } },
-      { id: "score_23", kind: "metrik", title: "Skor kandidat peringkat ketiga", measured: true,
-        detail: "Skor dan perkiraan penghematan durasi kandidat penjadwalan ulang persetujuan.",
-        metrics: { score: m(0.48, "skor", "m09-1"), rank: m(3, "peringkat", "m09-1"), saving_days: m(1.9, "hari kerja", "m09-1") } },
-      aturan("rule_prior_81", "Aturan prioritas kandidat", "Kandidat yang belum tervalidasi tidak boleh diprioritaskan di atas kandidat tervalidasi kecuali selisih skornya jelas.",
-        { min_gap: m(0.1, "skor", "v1") }),
-      jev("jev_81", 0.7),
-      kand("cand_21", "Tambah pemeriksaan otomatis saat verifikasi faktur", true),
-      kand("cand_22", "Persetujuan bertingkat berdasarkan nilai PO", false),
-      kand("cand_23", "Penjadwalan ulang persetujuan pada akhir pekan", false),
-    ],
-  },
-  {
-    id: "scenario_91", projectId: "p-p2p", kind: "skenario", limitedContext: false,
-    title: "Skenario penambahan penyetuju pada persetujuan PO",
-    summary: "Perbandingan basis dan skenario: durasi persetujuan dan pelanggaran SLA.",
-    evidence: [
-      { id: "scenario_91", kind: "metrik", title: "Hasil simulasi basis dan skenario", measured: true,
-        detail: "Hasil simulasi atas kasus PO periode lalu: basis dibandingkan skenario dengan penyetuju tambahan.",
-        metrics: { base_days: m(18.4, "hari kerja", "sim-3"), scenario_days: m(12.1, "hari kerja", "sim-3"),
-          base_breach: m(27.5, "%", "sim-3"), scenario_breach: m(8.6, "%", "sim-3"), cases: m(1240, "kasus", "sim-3") } },
-      { id: "param_91", kind: "metrik", title: "Parameter skenario", measured: false,
-        detail: "Asumsi masukan simulasi: jumlah penyetuju tambahan.",
-        metrics: { extra_approvers: m(2, "orang", "sim-3") } },
-      aturan("rule_sla_91", "SLA penerimaan barang", "Barang harus diterima paling lambat 14 hari kerja sejak PO dibuat.",
-        { sla_limit: m(14, "hari kerja", "v2") }),
-      { id: "case_91", kind: "kasus", title: "Contoh kasus hasil simulasi", measured: true,
-        detail: "Contoh kasus PO yang melewati SLA pada basis tetapi selesai tepat waktu pada skenario." },
-      jev("jev_91", 0.69),
-      kand("cand_31", "Tambah penyetuju cadangan untuk PO bernilai rendah", true),
-      kand("cand_32", "Batasi antrean persetujuan per penyetuju", false),
-    ],
-  },
-  {
-    id: "pilot_95", projectId: "p-p2p", kind: "uji_coba", limitedContext: true,
-    title: "Usulan uji coba pemeriksaan faktur otomatis",
-    summary: "Usulan uji coba terbatas: ruang lingkup, durasi, dan ukuran sampel kecil.",
-    evidence: [
-      { id: "pilot_95", kind: "metrik", title: "Parameter usulan uji coba", measured: false,
-        detail: "Usulan uji coba pada satu departemen dengan sampel kecil.",
-        metrics: { duration_weeks: m(6, "minggu", "m09-2"), sample_cases: m(180, "kasus", "m09-2"), scope_units: m(1, "departemen", "m09-2") } },
-      { id: "baseline_95", kind: "metrik", title: "Basis perbandingan uji coba", measured: true,
-        detail: "Keadaan dasar seluruh kasus verifikasi faktur sebagai pembanding hasil uji coba.",
-        metrics: { cases: m(860, "kasus"), rework_pct: m(18.2, "%"), sample_share: m(20.9, "%") } },
-      aturan("rule_pilot_95", "Batas uji coba perubahan proses", "Uji coba perubahan proses dibatasi paling lama delapan minggu per tahap.",
-        { max_weeks: m(8, "minggu", "v1") }),
-      jev("jev_95", 0.55),
-      kand("cand_41", "Tambah pemeriksaan otomatis saat verifikasi faktur", true),
-      kand("cand_42", "Pelatihan ulang tim verifikasi", false),
-    ],
-  },
-];
+export interface Finding {
+  id: string; runId: string; kind: FindingKind; key: string; title: string;
+  measure: number; threshold: number; higherIsWorse: boolean; unit: "hari" | "%" | "kasus" | "fitness";
+  affectedCases: number; populationCases: number; severity: Severity;
+  ruleVersionId?: string; supportingCaseIds: string[]; // maks 50
+  caseSource: "log_event" | "kasus";
+}
+
+export const FINDING_KIND_LABEL: Record<FindingKind, string> = {
+  bottleneck: "Indikasi bottleneck", rework: "Rework tinggi", kepatuhan: "Ketidakpatuhan aturan/SLA",
+  penyimpangan_model: "Penyimpangan model", backlog: "Backlog menua", tren_memburuk: "Tren memburuk",
+};
+export const CHANGE_LABEL: Record<ChangeStatus, string> = {
+  baru: "Baru", memburuk: "Memburuk", stabil: "Stabil", membaik: "Membaik", tidak_lagi_terdeteksi: "Tidak lagi terdeteksi",
+};
+
+const DAY = 86_400_000;
+const MAX_CASES = 50;
+const fmt = (n: number, d = 1) => n.toLocaleString("id-ID", { minimumFractionDigits: d, maximumFractionDigits: d });
+
+export function severityOf(f: Pick<Finding, "affectedCases" | "populationCases" | "measure" | "threshold" | "higherIsWorse">): Severity {
+  const share = f.populationCases === 0 ? 0 : f.affectedCases / f.populationCases;
+  const ratio = f.threshold === 0 || f.measure === 0 ? 1 : f.higherIsWorse ? f.measure / f.threshold : f.threshold / f.measure;
+  const score = share * Math.min(ratio, 3);
+  return score >= 0.5 ? "tinggi" : score >= 0.15 ? "sedang" : "rendah";
+}
+
+const memo = new WeakMap<MonitoringRun, Finding[]>();
+
+export function findingsFor(state: MockState, run: MonitoringRun): Finding[] {
+  const hit = memo.get(run);
+  if (hit) return hit;
+  const cfg = run.config;
+  const out: Finding[] = [];
+  const add = (f: Omit<Finding, "id" | "runId" | "severity" | "supportingCaseIds"> & { supportingCaseIds: string[] }) =>
+    out.push({ ...f, id: `${run.id}:${f.kind}:${f.key}`, runId: run.id, supportingCaseIds: f.supportingCaseIds.slice(0, MAX_CASES), severity: severityOf(f) });
+
+  const log = runLog(state, run);
+  if (log) {
+    const b = bottlenecks(log, cfg);
+    for (const t of b.transitions.filter((x) => x.indicated)) {
+      add({ kind: "bottleneck", key: t.id, measure: t.p90Ms / DAY, threshold: cfg.bottleneckP90Days, higherIsWorse: true, unit: "hari",
+        title: `Indikasi bottleneck pada transisi ${t.from} → ${t.to}: P90 ${fmt(t.p90Ms / DAY)} hari, ${fmt(t.sharePct)}% total waktu tunggu`,
+        affectedCases: t.caseCount, populationCases: log.cases.length, caseSource: "log_event",
+        supportingCaseIds: transitionCases(log, t.from, t.to).map((c) => c.caseId) });
+    }
+    for (const a of reworkStats(log, cfg)?.activities.filter((x) => x.pct >= cfg.reworkHighPct) ?? []) {
+      add({ kind: "rework", key: a.activity, measure: a.pct, threshold: cfg.reworkHighPct, higherIsWorse: true, unit: "%",
+        title: `Rework tinggi pada aktivitas ${a.activity}: ${fmt(a.pct)}% kasus mengulang`,
+        affectedCases: a.caseIds.length, populationCases: log.cases.length, caseSource: "log_event", supportingCaseIds: a.caseIds });
+    }
+    if (cfg.bpmnModel) {
+      const c = conformance(log, cfg.bpmnModel);
+      if (c.fitness < cfg.fitnessMin) {
+        const fitIds = new Set(c.variants.filter((v) => v.fitness === 1).flatMap((v) => v.caseIds));
+        add({ kind: "penyimpangan_model", key: "model", measure: c.fitness, threshold: cfg.fitnessMin, higherIsWorse: false, unit: "fitness",
+          title: `Penyimpangan dari model BPMN ${cfg.bpmnModel.name}: fitness ${fmt(c.fitness, 2)}`,
+          affectedCases: c.cases - c.fitCases, populationCases: c.cases, caseSource: "log_event",
+          supportingCaseIds: c.variants.flatMap((v) => v.caseIds).filter((id) => !fitIds.has(id)) });
+      }
+    }
+  }
+
+  for (const ruleKey of new Set(run.ruleVersions.map((r) => r.ruleKey))) {
+    const latest = run.ruleVersions.filter((r) => r.ruleKey === ruleKey).reduce((a, b) => (b.version > a.version ? b : a));
+    const results = evaluateRun(state, run, ruleKey);
+    const s = summarize(results);
+    const rate = s.patuh + s.tidakPatuh > 0 ? (s.tidakPatuh / (s.patuh + s.tidakPatuh)) * 100 : null;
+    if (rate !== null && rate >= cfg.complianceHighPct) {
+      add({ kind: "kepatuhan", key: ruleKey, measure: rate, threshold: cfg.complianceHighPct, higherIsWorse: true, unit: "%",
+        title: `${termFor(latest)} aturan ${latest.name}: ${fmt(rate)}% kasus tidak patuh`,
+        affectedCases: s.tidakPatuh, populationCases: s.total, ruleVersionId: latest.id, caseSource: "kasus",
+        supportingCaseIds: results.filter((r) => r.status === "tidak_patuh").map((r) => r.caseId) });
+    }
+  }
+
+  const bl = backlog(state, run);
+  const cases = runCases(state, run);
+  if (!bl.unknown && bl.aged > 0) {
+    add({ kind: "backlog", key: "backlog", measure: bl.aged, threshold: 0, higherIsWorse: true, unit: "kasus",
+      title: `Backlog menua: ${bl.aged} kasus terbuka lebih dari ${cfg.backlogAgeDays} hari`,
+      affectedCases: bl.aged, populationCases: cases.length, caseSource: "kasus", supportingCaseIds: bl.caseIds.slice(0, bl.aged) });
+  }
+
+  const months = trend(cases, "bulan", cfg.smallSampleCases).filter((m) => !m.small);
+  const first = months[0], last = months[months.length - 1];
+  if (first && last && first !== last && first.medianDays !== null && last.medianDays !== null && first.medianDays > 0) {
+    const pct = ((last.medianDays - first.medianDays) / first.medianDays) * 100;
+    if (pct > cfg.changePct) {
+      add({ kind: "tren_memburuk", key: "durasi", measure: last.medianDays, threshold: first.medianDays * (1 + cfg.changePct / 100), higherIsWorse: true, unit: "hari",
+        title: `Tren memburuk: median durasi kasus naik ${fmt(pct)}% dari ${first.bucket} ke ${last.bucket}`,
+        affectedCases: last.started, populationCases: cases.length, caseSource: "kasus", supportingCaseIds: [] });
+    }
+  }
+  memo.set(run, out);
+  return out;
+}
+
+export function baselineFor(state: MockState, run: MonitoringRun): MonitoringRun | null {
+  const prev = state.runs.filter((r) => r.projectId === run.projectId && r.sourceId === run.sourceId && r.periodTo < run.periodFrom);
+  return prev.reduce<MonitoringRun | null>((best, r) => (!best || r.periodTo > best.periodTo || (r.periodTo === best.periodTo && r.createdAt > best.createdAt) ? r : best), null);
+}
+
+export interface FindingChange { finding: Finding; status: ChangeStatus; baselineMeasure: number | null; smallSample: boolean }
+
+const STATUS_ORDER: ChangeStatus[] = ["memburuk", "baru", "stabil", "membaik", "tidak_lagi_terdeteksi"];
+const SEVERITY_ORDER: Severity[] = ["tinggi", "sedang", "rendah"];
+
+export function compareFindings(current: Finding[], baseline: Finding[] | null, config: MonitoringConfig): FindingChange[] {
+  const base = new Map((baseline ?? []).map((f) => [`${f.kind}:${f.key}`, f]));
+  const out: FindingChange[] = current.map((f) => {
+    const b = base.get(`${f.kind}:${f.key}`);
+    if (!b) return { finding: f, status: "baru", baselineMeasure: null, smallSample: false };
+    base.delete(`${f.kind}:${f.key}`);
+    if (f.populationCases < config.minCasesChange || b.populationCases < config.minCasesChange) return { finding: f, status: "stabil", baselineMeasure: b.measure, smallSample: true };
+    const rel = b.measure === 0 ? (f.measure > 0 ? Infinity : 0) : ((f.measure - b.measure) / Math.abs(b.measure)) * 100;
+    const worse = f.higherIsWorse ? rel : -rel;
+    const status: ChangeStatus = worse > config.changePct ? "memburuk" : worse < -config.changePct ? "membaik" : "stabil";
+    return { finding: f, status, baselineMeasure: b.measure, smallSample: false };
+  });
+  for (const b of base.values()) out.push({ finding: b, status: "tidak_lagi_terdeteksi", baselineMeasure: b.measure, smallSample: false });
+  return out.sort((a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status)
+    || SEVERITY_ORDER.indexOf(a.finding.severity) - SEVERITY_ORDER.indexOf(b.finding.severity));
+}
