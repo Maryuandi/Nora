@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { initialState as s } from "./data";
 import { buildDfg, casesForNode, eventLogFor, type EventLog, type LogCase } from "./eventlog";
 import {
-  applyFilter, buildVariants, caseById, casesForSelection, describeFilter, eventGaps, filteredLogFor, groupCases, isEmptyFilter, normalizeFilter, objectGroups, provenance,
+  applyFilter, buildVariants, caseById, casesForSelection, describeFilter, eventGaps, filteredLogFor, groupCases, isEmptyFilter, mergedTimeline, normalizeFilter, objectGroups, provenance,
   validateFilter, variantIdOf, variantsTo80, VENDORS, type FilterSpec,
 } from "./analysis";
 
@@ -245,6 +245,32 @@ describe("objects", () => {
     expect(caseById(log, "constructor")).toBeUndefined();
   });
   it("empty log", () => expect(objectGroups(mk([]))).toEqual([]));
+});
+
+describe("mergedTimeline", () => {
+  const cases = () => mk([
+    { id: "b", acts: ["A", "B", "C"], po: "PO-1", start: D0 + DAY, days: 2 },
+    { id: "a", acts: ["A", "B"], po: "PO-1", start: D0, days: 1 },
+    { id: "c", acts: ["X"], po: "PO-1", start: D0 + DAY },
+  ]).cases;
+  it("one row per event across all cases, time non-decreasing", () => {
+    const rows = mergedTimeline(cases());
+    expect(rows).toHaveLength(6);
+    for (let i = 1; i < rows.length; i++) expect(Date.parse(rows[i].event.time)).toBeGreaterThanOrEqual(Date.parse(rows[i - 1].event.time));
+  });
+  it("ties ordered by caseId then index", () => {
+    // a.B, b.A and c.X all at D0 + DAY
+    const rows = mergedTimeline(cases());
+    expect(rows.map((r) => `${r.caseId}${r.index}`)).toEqual(["a0", "a1", "b0", "c0", "b1", "b2"]);
+  });
+  it("deterministic regardless of input order, does not mutate", () => {
+    const cs = cases();
+    const before = JSON.stringify(cs);
+    const fwd = mergedTimeline(cs), rev = mergedTimeline([...cs].reverse());
+    expect(rev).toEqual(fwd);
+    expect(JSON.stringify(cs)).toBe(before);
+  });
+  it("empty input gives []", () => expect(mergedTimeline([])).toEqual([]));
 });
 
 describe("provenance", () => {

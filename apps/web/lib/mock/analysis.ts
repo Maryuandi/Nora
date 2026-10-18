@@ -195,6 +195,13 @@ export function casesForSelection(filtered: EventLog, dfg: Dfg, sel: { kind: "no
 }
 
 export const groupCases = (log: EventLog, po: string): LogCase[] => log.cases.filter((c) => c.objects.po === po);
+/** Every event of the given cases in one list, by event time; ties by caseId then index (deterministic, inputs untouched). */
+export function mergedTimeline(cases: LogCase[]): { caseId: string; event: LogEvent; index: number }[] {
+  return cases
+    .flatMap((c) => c.events.map((event, index) => ({ caseId: c.id, event, index })))
+    .sort((a, b) => Date.parse(a.event.time) - Date.parse(b.event.time) || byText(a.caseId, b.caseId) || a.index - b.index);
+}
+
 export const caseById = (log: EventLog, id: string): LogCase | undefined => log.cases.find((c) => c.id === id);
 
 /** Gap to the previous event per event (first = null); clamped at 0 so out-of-order rows never show a negative gap. */
