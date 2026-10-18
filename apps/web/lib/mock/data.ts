@@ -107,12 +107,16 @@ const PREVIEW = Array.from({ length: 12 }, (_, i) => [
   ["user_017", "user_042", "user_008", "batch_01"][i % 4],
 ]);
 
+// sn-1 also carries a vendor column (case_attr in the seed mapping) so M05b attribute filters are available on the seed.
+const SAP_COLUMNS = [...COLUMNS, { name: "vendor", samples: ["PT Sinar Jaya", "CV Mitra Abadi", "PT Bumi Logistik"] }];
+const SAP_PREVIEW = PREVIEW.map((r, i) => [...r, ["PT Sinar Jaya", "CV Mitra Abadi", "PT Bumi Logistik"][Math.floor(i / 4)]]);
+
 const snapshots: Snapshot[] = [
   { id: "sn-1", sourceId: "s-p2p-sap", projectId: "p-p2p", fileName: "sap_p2p_okt2026.csv", sizeBytes: 12_582_912, format: "csv", checksum: "9f3a1c7e0b42",
     uploadedBy: "u-dimas", uploadedAt: "2026-10-15T07:30:00Z", status: "siap_dipetakan",
     stats: { rows: 57_195, rejected: 312, encoding: "UTF-8", delimiter: ",", timeFrom: "2026-01-02", timeTo: "2026-10-14", latestEventAt: "2026-10-14",
       newEvents: 57_195, duplicateEvents: 0, conflictEvents: 0 },
-    columns: COLUMNS, preview: PREVIEW },
+    columns: SAP_COLUMNS, preview: SAP_PREVIEW },
   { id: "sn-2", sourceId: "s-p2p-sap", projectId: "p-p2p", fileName: "sap_p2p_rusak_sep.csv", sizeBytes: 5_242_880, format: "csv", checksum: "c04b88d2a9e1",
     uploadedBy: "u-anton", uploadedAt: "2026-10-16T09:10:00Z", status: "perlu_tinjauan",
     stats: { rows: 23_831, rejected: 1_906, encoding: "UTF-8", delimiter: ";", timeFrom: "2026-09-01", timeTo: "2026-09-30", latestEventAt: "2026-09-30",
@@ -139,7 +143,7 @@ const snapshots: Snapshot[] = [
 
 const mappings: MappingVersion[] = [
   { id: "m-1", sourceId: "s-p2p-sap", snapshotId: "sn-1", projectId: "p-p2p", version: 1,
-    roles: { case_id: "case_id", activity: "activity", timestamp: "timestamp_end", resource: "resource" },
+    roles: { case_id: "case_id", activity: "activity", timestamp: "timestamp_end", resource: "resource", vendor: "case_attr" },
     timeFormat: "YYYY-MM-DD HH:mm:ss", timezone: "Asia/Jakarta",
     labels: [{ raw: "create purchase order item", canonical: "Create Purchase Order Item" }, { raw: "Record Goods Receipt ", canonical: "Record Goods Receipt" },
       { raw: "Cancel Invoice Receipt", canonical: null }],

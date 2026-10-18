@@ -6,8 +6,8 @@ import type { EventLog, LogCase } from "./eventlog";
 
 const model = { name: "m", activities: ["A", "B", "C", "D"] };
 const mkCase = (id: string, acts: string[]): LogCase => ({
-  id, events: acts.map((activity, i) => ({ activity, activityRaw: activity, time: new Date(i * 1000).toISOString(), resource: "r" })),
-  startMs: 0, endMs: 0, durationMs: 0,
+  id, events: acts.map((activity, i) => ({ activity, activityRaw: activity, time: new Date(i * 1000).toISOString(), resource: "r", rowRef: 2 })),
+  startMs: 0, endMs: 0, durationMs: 0, attrs: { vendor: "PT Sinar Jaya" }, objects: { po: "PO-4500001" }, complete: true,
 });
 const mkLog = (traces: string[][]): EventLog => ({ cases: traces.map((t, i) => mkCase(`c${i}`, t)), activities: [], source: { sourceId: "s", snapshotId: "n", mappingVersion: 1 } });
 

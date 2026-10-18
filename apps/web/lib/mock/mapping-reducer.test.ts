@@ -7,7 +7,7 @@ type Save = Extract<MockAction, { type: "saveMapping" }>;
 // Same configuration as seed m-1 (v1 on s-p2p-sap / sn-1), fully confirmed.
 const save = (over: Partial<Save> = {}): Save => ({
   type: "saveMapping", sourceId: "s-p2p-sap", snapshotId: "sn-1",
-  roles: { case_id: "case_id", activity: "activity", timestamp: "timestamp_end", resource: "resource" },
+  roles: { case_id: "case_id", activity: "activity", timestamp: "timestamp_end", resource: "resource", vendor: "case_attr" },
   timeFormat: "YYYY-MM-DD HH:mm:ss", timezone: "Asia/Jakarta",
   labels: [{ raw: "create purchase order item", canonical: "Create Purchase Order Item" }, { raw: "Record Goods Receipt ", canonical: "Record Goods Receipt" },
     { raw: "Cancel Invoice Receipt", canonical: null }],

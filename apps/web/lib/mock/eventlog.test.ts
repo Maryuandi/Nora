@@ -3,7 +3,7 @@ import { initialState as s } from "./data";
 import { activityLabels } from "./mapping";
 import {
   buildDfg, buildEventLog, casesForEdge, casesForNode, defaultSimplify, END_ID, eventLogFor, pageOf, processActivities, simplify, sortCases,
-  START_ID, type EventLog, type LogCase,
+  START_ID, VENDORS, type EventLog, type LogCase,
 } from "./eventlog";
 import type { MappingVersion, Snapshot } from "./types";
 
@@ -38,9 +38,9 @@ function mk(cases: [string, number][][], activities?: string[]): EventLog {
     source: { sourceId: "s-t", snapshotId: "sn-t", mappingVersion: 1 },
     cases: cases.map((c, i) => {
       const startMs = 1_000_000 * (i + 1);
-      const events = c.map(([activity, off]) => ({ activity, activityRaw: activity, time: new Date(startMs + off).toISOString(), resource: "user_01" }));
+      const events = c.map(([activity, off]) => ({ activity, activityRaw: activity, time: new Date(startMs + off).toISOString(), resource: "user_01", rowRef: 2 }));
       const endMs = startMs + c[c.length - 1][1];
-      return { id: `C-${String(i + 1).padStart(4, "0")}`, events, startMs, endMs, durationMs: endMs - startMs };
+      return { id: `C-${String(i + 1).padStart(4, "0")}`, events, startMs, endMs, durationMs: endMs - startMs, attrs: { vendor: "PT Sinar Jaya" }, objects: { po: "PO-4500001" }, complete: true };
     }),
   };
 }
@@ -116,6 +116,7 @@ describe("buildEventLog", () => {
   });
   it("gaps are between 1 hour and 18 days", () => {
     for (const c of log.cases) for (let i = 1; i < c.events.length; i++) {
+      if (c.events[i].flag === "ambigu") continue; // M05b: forced same-time ties (see "M05b attributes")
       const g = Date.parse(c.events[i].time) - Date.parse(c.events[i - 1].time);
       expect(g).toBeGreaterThanOrEqual(HOUR);
       expect(g).toBeLessThanOrEqual(18 * DAY);
@@ -295,9 +296,9 @@ describe("simplify", () => {
 
 describe("sortCases / pageOf", () => {
   const cs: LogCase[] = [
-    { id: "a", events: [1, 2, 3].map(() => ({ activity: "x", activityRaw: "x", time: "", resource: "" })), startMs: 30, endMs: 40, durationMs: 10 },
-    { id: "b", events: [1].map(() => ({ activity: "x", activityRaw: "x", time: "", resource: "" })), startMs: 10, endMs: 60, durationMs: 50 },
-    { id: "c", events: [1, 2, 3].map(() => ({ activity: "x", activityRaw: "x", time: "", resource: "" })), startMs: 20, endMs: 30, durationMs: 10 },
+    { id: "a", events: [1, 2, 3].map(() => ({ activity: "x", activityRaw: "x", time: "", resource: "", rowRef: 2 })), startMs: 30, endMs: 40, durationMs: 10, attrs: { vendor: "V" }, objects: { po: "P" }, complete: true },
+    { id: "b", events: [1].map(() => ({ activity: "x", activityRaw: "x", time: "", resource: "", rowRef: 2 })), startMs: 10, endMs: 60, durationMs: 50, attrs: { vendor: "V" }, objects: { po: "P" }, complete: true },
+    { id: "c", events: [1, 2, 3].map(() => ({ activity: "x", activityRaw: "x", time: "", resource: "", rowRef: 2 })), startMs: 20, endMs: 30, durationMs: 10, attrs: { vendor: "V" }, objects: { po: "P" }, complete: true },
   ];
   const ids = (x: LogCase[]) => x.map((c) => c.id);
   it("sorts by the three keys in both directions", () => {
@@ -348,5 +349,82 @@ describe("eventLogFor", () => {
   });
   it("memoizes per snapshot and mapping", () => {
     expect(eventLogFor(s, "p-p2p")!.log).toBe(eventLogFor(s, "p-p2p")!.log);
+  });
+});
+
+describe("M05b attributes on the mock log", () => {
+  const log = buildEventLog(sn1, m1)!;
+  const stages = processActivities(sn1, m1);
+  const lastStage = stages[3];
+  it("is deterministic (twice-built logs are equal)", () => expect(buildEventLog(sn1, m1)).toEqual(log));
+  it("vendor is one of the 5 fixed vendors and several vendors occur", () => {
+    expect(VENDORS).toHaveLength(5);
+    expect(log.cases.every((c) => VENDORS.includes(c.attrs.vendor))).toBe(true);
+    expect(new Set(log.cases.map((c) => c.attrs.vendor)).size).toBeGreaterThan(2);
+  });
+  it("po is shared by 2-4 consecutive cases (last group may be shorter)", () => {
+    const sizes = new Map<string, number>();
+    for (const c of log.cases) sizes.set(c.objects.po, (sizes.get(c.objects.po) ?? 0) + 1);
+    expect(log.cases.every((c) => /^PO-45000\d+$/.test(c.objects.po))).toBe(true);
+    const all = [...sizes.values()];
+    expect(all.slice(0, -1).every((n) => n >= 2 && n <= 4)).toBe(true);
+    expect(all[all.length - 1]).toBeLessThanOrEqual(4);
+    expect(new Set(all).size).toBeGreaterThan(1);
+    // consecutive: a PO never reappears after another PO started
+    const seq = log.cases.map((c) => c.objects.po);
+    expect(seq.filter((p, i) => i === 0 || p !== seq[i - 1])).toHaveLength(sizes.size);
+  });
+  it("rowRef within 2..rows+1", () => {
+    const rows = sn1.stats!.rows;
+    for (const c of log.cases) for (const e of c.events) {
+      expect(Number.isInteger(e.rowRef)).toBe(true);
+      expect(e.rowRef).toBeGreaterThanOrEqual(2);
+      expect(e.rowRef).toBeLessThanOrEqual(rows + 1);
+    }
+  });
+  it("flags are rare, ambigu only on ties with the previous event", () => {
+    let events = 0, flagged = 0, ambig = 0;
+    for (const c of log.cases) c.events.forEach((e, j) => {
+      events++;
+      if (!e.flag) return;
+      flagged++;
+      if (e.flag === "ambigu") { ambig++; expect(j).toBeGreaterThan(0); expect(e.time).toBe(c.events[j - 1].time); }
+      else expect(["kualitas", "dikecualikan"]).toContain(e.flag);
+    });
+    expect(flagged / events).toBeLessThanOrEqual(0.08);
+    expect(flagged).toBeGreaterThan(0);
+    expect(ambig).toBeGreaterThan(0);
+  });
+  it("tied events keep start, end and duration", () => {
+    for (const c of log.cases) {
+      expect(c.startMs).toBe(Date.parse(c.events[0].time));
+      expect(c.endMs).toBe(Date.parse(c.events[c.events.length - 1].time));
+    }
+  });
+  it("complete = last activity is the last process stage", () => {
+    expect(log.cases.every((c) => c.complete === (c.events[c.events.length - 1].activity === lastStage))).toBe(true);
+    expect(log.cases.some((c) => c.complete)).toBe(true);
+    expect(log.cases.every((c) => c.complete)).toBe(true); // seed has no noise label, so every seed case reaches the last stage
+    const stg = ["Alpha", "Beta", "Gamma"];
+    const noisy = buildEventLog(snap(stg, { stats: { ...snap(stg).stats!, rows: 2400 } }), mapping())!;
+    expect(noisy.cases.some((c) => !c.complete)).toBe(true); // a case ending on a noise label is still running
+    expect(noisy.cases.every((c) => c.complete === (c.events[c.events.length - 1].activity === "Gamma"))).toBe(true);
+  });
+  it("0-case log is fine", () => {
+    const empty = buildEventLog(snap(SEED, { stats: { ...snap(SEED).stats!, rows: 0 } }), mapping())!;
+    expect(empty.cases).toEqual([]);
+  });
+});
+
+describe("eventLogFor M05b fields", () => {
+  it("exposes snapshot, mapping and attrsAvailable (seed has a case_attr column)", () => {
+    const r = eventLogFor(s, "p-p2p")!;
+    expect(r.snapshot.id).toBe("sn-1");
+    expect(r.mapping.id).toBe("m-1");
+    expect(r.attrsAvailable).toBe(true);
+  });
+  it("attrsAvailable false without case_attr columns", () => {
+    const st = { ...s, mappings: [{ ...m1, id: "m-noattr", roles: { case_id: "case_id", activity: "activity", timestamp: "timestamp_end" } as const }] };
+    expect(eventLogFor(st as typeof s, "p-p2p")!.attrsAvailable).toBe(false);
   });
 });

@@ -92,7 +92,7 @@ describe("backlog", () => {
 });
 
 describe("groups", () => {
-  it("lists mapped attribute columns", () => expect(groupAttributes(initialState, run1)).toEqual(["resource"]));
+  it("lists mapped attribute columns", () => expect(groupAttributes(initialState, run1)).toEqual(["resource", "vendor"]));
   it("splits cases deterministically by weighted values", () => {
     const g = compareGroups(initialState, run1, "resource").groups;
     expect(g.map((x) => x.label)).toEqual(["user_017", "user_042", "batch_01"]);

@@ -7,9 +7,9 @@ import type { EventLog, LogCase } from "./eventlog";
 const DAY = 86_400_000;
 // events at day offsets; case duration = last - first
 const mkCase = (id: string, evs: [string, number][]): LogCase => {
-  const events = evs.map(([activity, d]) => ({ activity, activityRaw: activity, time: new Date(d * DAY).toISOString(), resource: "r" }));
+  const events = evs.map(([activity, d]) => ({ activity, activityRaw: activity, time: new Date(d * DAY).toISOString(), resource: "r", rowRef: 2 }));
   const startMs = evs[0][1] * DAY, endMs = evs[evs.length - 1][1] * DAY;
-  return { id, events, startMs, endMs, durationMs: endMs - startMs };
+  return { id, events, startMs, endMs, durationMs: endMs - startMs, attrs: { vendor: "PT Sinar Jaya" }, objects: { po: "PO-4500001" }, complete: true };
 };
 const mkLog = (cases: LogCase[]): EventLog => ({ cases, activities: [], source: { sourceId: "s", snapshotId: "n", mappingVersion: 1 } });
 const cfg = { ...defaultConfig("x"), bottleneckTopN: 1, bottleneckP90Days: 5 };

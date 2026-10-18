@@ -2,8 +2,16 @@ import { activityLabels, hash, suggestRoles } from "./mapping";
 import { previewDataset } from "./rules";
 import type { MappingVersion, MockState, Snapshot } from "./types";
 
-export interface LogEvent { activity: string; activityRaw: string; time: string; resource: string }
-export interface LogCase { id: string; events: LogEvent[]; startMs: number; endMs: number; durationMs: number }
+export interface LogEvent {
+  activity: string; activityRaw: string; time: string; resource: string;
+  rowRef: number; // source row number, deterministic in 2..stats.rows+1
+  flag?: "kualitas" | "dikecualikan" | "ambigu";
+}
+export interface LogCase {
+  id: string; events: LogEvent[]; startMs: number; endMs: number; durationMs: number;
+  attrs: { vendor: string }; objects: { po: string };
+  complete: boolean; // last event is the last process stage
+}
 export interface EventLog { cases: LogCase[]; activities: string[]; source: { sourceId: string; snapshotId: string; mappingVersion: number } }
 export interface DfgNode { id: string; label: string; caseCount: number; eventCount: number }
 export interface DfgEdge { id: string; from: string; to: string; count: number; caseCount: number; medianMs: number; p90Ms: number }
@@ -12,6 +20,8 @@ export interface Dfg { nodes: DfgNode[]; edges: DfgEdge[]; totalCases: number }
 // shortcut: activity labels literally named "__start"/"__end" or containing "→" would collide with node/edge ids; unsupported in the mock.
 export const START_ID = "__start";
 export const END_ID = "__end";
+
+export const VENDORS: readonly string[] = ["PT Sinar Jaya", "CV Mitra Abadi", "PT Nusantara Pratama", "UD Karya Mandiri", "PT Bumi Logistik"];
 
 const MAX_ACTIVITIES = 8;
 const MAX_CASES = 400;
@@ -91,22 +101,42 @@ export function buildEventLog(snapshot: Snapshot, mapping: MappingVersion): Even
   const from = parseMs(snapshot.stats?.timeFrom, FALLBACK_FROM);
   const to = Math.max(from, parseMs(snapshot.stats?.timeTo, FALLBACK_TO));
 
+  // New attributes use their own hash seeds (`:vendor`, `:po`, `:flag`, `:row`, `:tie`) so the M05a draws above stay untouched.
+  let poGroup = 0, poLeft = 0;
   const cases: LogCase[] = Array.from({ length: n }, (_, i) => {
     const h = hash(`${snapshot.checksum}:${i}`);
     const path = pathFor(stages, h % 100, hash(`${snapshot.checksum}:${i}:pick`));
     // Rare noise label (about 1 in 40 cases) appended after the last stage; never part of the main stage order.
     if (extras.length > 0 && hash(`${snapshot.checksum}:${i}:x`) % 40 === 0) path.push(extras[0]);
     let t = from + Math.floor((i * (to - from)) / n);
+    // About 2% of cases get one event that ties with the previous one (never the last event or the bottleneck pair); such a case ends one gap earlier.
+    const tie = path.length >= 3 && hash(`${snapshot.checksum}:${i}:tie`) % 50 === 0 ? 1 + (hash(`${snapshot.checksum}:${i}:tiej`) % (path.length - 2)) : -1;
     const events: LogEvent[] = path.map((activity, j) => {
-      if (j > 0) {
+      const bottleneck = j > 0 && path[j - 1] === stages[1] && activity === stages[2];
+      const tied = j === tie && !bottleneck; // the tied event adds no gap, so the later gaps keep their M05a size
+      if (j > 0 && !tied) {
         const gap = HOUR + (hash(`${snapshot.checksum}:${i}:${j}`) % (6 * DAY - HOUR + 1));
-        t += path[j - 1] === stages[1] && activity === stages[2] ? gap * 3 : gap; // intentional bottleneck: 2nd -> 3rd activity
+        t += bottleneck ? gap * 3 : gap; // intentional bottleneck: 2nd -> 3rd activity
       }
-      return { activity, activityRaw: activity, time: new Date(t).toISOString(), resource: `user_0${1 + (hash(`${snapshot.checksum}:${i}:r${j}`) % 4)}` };
+      const time = new Date(t).toISOString();
+      const fh = hash(`${snapshot.checksum}:${i}:${j}:flag`) % 100;
+      const flag = tied ? "ambigu" : fh < 1 ? "kualitas" : fh < 3 ? "dikecualikan" : undefined;
+      return {
+        activity, activityRaw: activity, time, resource: `user_0${1 + (hash(`${snapshot.checksum}:${i}:r${j}`) % 4)}`,
+        rowRef: 2 + (hash(`${snapshot.checksum}:${i}:${j}:row`) % Math.max(1, rows)),
+        ...(flag ? { flag } : {}),
+      } as LogEvent;
     });
+    if (poLeft === 0) { poGroup++; poLeft = 2 + (hash(`${snapshot.checksum}:po:${poGroup}`) % 3); }
+    poLeft--;
     const startMs = Date.parse(events[0].time);
     const endMs = Date.parse(events[events.length - 1].time);
-    return { id: `C-${String(i + 1).padStart(4, "0")}`, events, startMs, endMs, durationMs: endMs - startMs };
+    return {
+      id: `C-${String(i + 1).padStart(4, "0")}`, events, startMs, endMs, durationMs: endMs - startMs,
+      attrs: { vendor: VENDORS[hash(`${snapshot.checksum}:${i}:vendor`) % VENDORS.length] },
+      objects: { po: `PO-45000${String(poGroup).padStart(2, "0")}` },
+      complete: path[path.length - 1] === stages[stages.length - 1],
+    };
   });
   return {
     cases,
@@ -211,7 +241,10 @@ export function pageOf<T>(items: T[], page: number, size: number): { items: T[];
 }
 
 // ---- project entry ----
-type EventLogResult = { log: EventLog; dfg: Dfg; sourceLabel: string; mappingVersion: number; hasStartTime: boolean };
+export type EventLogResult = {
+  log: EventLog; dfg: Dfg; sourceLabel: string; mappingVersion: number; hasStartTime: boolean;
+  attrsAvailable: boolean; snapshot: Snapshot; mapping: MappingVersion;
+};
 const memo = new Map<string, EventLogResult | null>();
 
 export function eventLogFor(state: MockState, projectId: string): EventLogResult | null {
@@ -224,6 +257,7 @@ export function eventLogFor(state: MockState, projectId: string): EventLogResult
   const result = log && {
     log, dfg: buildDfg(log), sourceLabel: `${name} · pemetaan v${ds.mapping.version}`, mappingVersion: ds.mapping.version,
     hasStartTime: Object.values(ds.mapping.roles).includes("timestamp_start"),
+    attrsAvailable: Object.values(ds.mapping.roles).includes("case_attr"), snapshot: ds.snapshot, mapping: ds.mapping,
   };
   memo.set(key, result);
   return result;
