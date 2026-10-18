@@ -25,9 +25,9 @@ const NUMBERS = [
 
 export default function SettingsPage() {
   const ctx = useProject();
+  const [saved, setSaved] = useState<number | null>(null); // lives here so it survives the Form remount
   if (!ctx) return null;
   const config = configFor(ctx.state, ctx.project.id);
-  const [saved, setSaved] = useState<number | null>(null); // lives here so it survives the Form remount
   // Remount when a save bumps the version so the form reflects stored values.
   return (
     <div className="flex flex-col gap-4">
