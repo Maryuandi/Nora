@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FINDINGS } from "./findings";
 import {
-  CHECKS, SECTION_ORDER, TARGET_KIND_LABEL, formatMetric, generateAttempt, isOverridable, resolvePlaceholders, runChecks,
+  CHECKS, SECTION_ORDER, TARGET_KIND_LABEL, formatMetric, kindsPresent, generateAttempt, isOverridable, resolvePlaceholders, runChecks,
   runCheckedGeneration, statusOf, unreferencedEvidence, violationKey,
 } from "./interpretation";
 import type { Audience, CheckKey, CheckOverride, Claim, ClaimType, MockFinding, Section, SectionKey } from "./types";
@@ -230,6 +230,11 @@ describe("generator skrip", () => {
       expect(recs.length, f.id).toBeGreaterThan(0);
       for (const r of recs) expect(f.evidence.find((e) => e.id === r.candidateId)?.validated, f.id).toBe(true);
     }
+  });
+
+  it("kindsPresent hanya memuat jenis yang ada, berurutan menurut label", () => {
+    expect(kindsPresent([])).toEqual([]);
+    expect(kindsPresent([{ kind: "skenario" }, { kind: "temuan" }, { kind: "skenario" }])).toEqual(["temuan", "skenario"]);
   });
 
   it("TARGET_KIND_LABEL memuat lima jenis", () => {

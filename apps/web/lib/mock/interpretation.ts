@@ -33,6 +33,9 @@ export const TARGET_KIND_LABEL: Record<TargetKind, string> = {
   skenario: "Skenario (M09)",
   uji_coba: "Usulan uji coba (M09)",
 };
+/** Jenis target yang punya minimal satu target, dalam urutan TARGET_KIND_LABEL. */
+export const kindsPresent = (targets: { kind: TargetKind }[]): TargetKind[] =>
+  (Object.keys(TARGET_KIND_LABEL) as TargetKind[]).filter((k) => targets.some((t) => t.kind === k));
 export const DECISION_PHRASES = ["dipilih", "akan diterapkan", "diputuskan", "pasti disebabkan", "jelas disebabkan", "membuktikan bahwa"];
 export const CHECK_LABEL: Record<CheckKey, string> = {
   skema: "Skema",
