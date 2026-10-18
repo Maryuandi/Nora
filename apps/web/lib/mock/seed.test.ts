@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { initialState as s } from "./data";
+import { buildGraph, lineage } from "./graph";
 import { projectCanonicalLabels } from "./rules";
 import { linkFreshness, unreviewedModelOutputs } from "./investigation";
 
@@ -146,5 +147,61 @@ describe("seed M11", () => {
   it("has no timestamps after MOCK_TODAY", () => {
     const ts = [...s.investigations, ...s.links, ...s.notes, ...s.comments, ...s.decisions].map((x) => ("at" in x ? x.at : x.createdAt));
     for (const t of [...ts, ...s.notifications.map((x) => x.at)]) expect(t.slice(0, 10) <= "2026-10-17").toBe(true);
+  });
+});
+
+describe("seed graph", () => {
+  it("findings, bundles and status point at real projects and nodes", () => {
+    const nodeIds = new Set(s.graphNodes.map((n) => n.id));
+    const derived = new Set([...s.sources, ...s.snapshots, ...s.mappings, ...s.rules].map((x) => x.id));
+    const known = (id: string) => nodeIds.has(id) || derived.has(id);
+    // Raw entries: buildGraph filters by project, so asserting on its output alone could never fail.
+    for (const n of s.graphNodes) expect(s.projects.some((p) => p.id === n.projectId), n.id).toBe(true);
+    for (const e of s.graphEdges) expect(s.projects.some((p) => p.id === e.projectId), e.id).toBe(true);
+    for (const f of s.traceFindings) {
+      expect(s.projects.some((p) => p.id === f.projectId)).toBe(true);
+      expect(nodeIds.has(f.analysisId)).toBe(true);
+    }
+    for (const b of s.bundles) {
+      expect(nodeIds.has(b.target)).toBe(true);
+      for (const i of b.items) expect(known(i.nodeId)).toBe(true);
+      for (const e of b.excluded) expect(known(e.nodeId)).toBe(true);
+    }
+    expect(s.graphStatus["p-p2p"]).toBeDefined();
+    expect(s.graphStatus["p-o2c"]).toBeDefined();
+  });
+
+  it("limited-context bundle exists and full bundle has 7 items, 3 excluded", () => {
+    const b1 = s.bundles.find((b) => b.id === "b-1")!;
+    expect(b1.items.length).toBe(7);
+    expect(b1.excluded.length).toBe(3);
+    expect(s.bundles.find((b) => b.id === "b-2")?.limitedContext).toBe(true);
+  });
+});
+
+describe("seed graph (resolved via buildGraph)", () => {
+  const reasons = ["dikecualikan karena anggaran", "di luar hak akses"];
+  it("every project's edges, bundles and findings resolve", () => {
+    for (const p of s.projects) {
+      const g = buildGraph(s, p.id);
+      const ids = new Set(g.nodes.map((n) => n.id));
+      for (const n of g.nodes) expect(n.projectId).toBe(p.id);
+      for (const e of g.edges) {
+        expect(e.projectId, e.id).toBe(p.id);
+        expect(ids.has(e.from), `${e.id} from ${e.from}`).toBe(true);
+        expect(ids.has(e.to), `${e.id} to ${e.to}`).toBe(true);
+      }
+      for (const f of s.traceFindings.filter((x) => x.projectId === p.id)) {
+        expect(lineage(g, f.id)!.nodes.some((n) => n.kind === "Snapshot"), f.id).toBe(true);
+      }
+      for (const b of s.bundles.filter((x) => x.projectId === p.id)) {
+        expect(ids.has(b.assessmentId), b.id).toBe(true);
+        for (const i of b.items) expect(ids.has(i.nodeId), i.nodeId).toBe(true);
+        for (const x of b.excluded) {
+          expect(ids.has(x.nodeId), x.nodeId).toBe(true);
+          expect(reasons).toContain(x.reason);
+        }
+      }
+    }
   });
 });

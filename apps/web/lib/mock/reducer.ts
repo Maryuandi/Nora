@@ -13,7 +13,7 @@ import { acceptsData, can } from "./permissions";
 import { nextStatuses, previewDataset, previewRule, projectCanonicalLabels, ruleVersions, validateRule, type RuleInput } from "./rules";
 import { ACTION_LABEL, CHECK_META, buildCapabilities, buildQualityReport, datasetHash, excludedAfter, qualityDataset, repairImpact } from "./quality";
 import { projectSchema, type ProjectInput } from "./schemas";
-import type { Audience, AuditEvent, CheckId, CheckKey, ColumnRole, DatasetVersion, Interpretation, Investigation, LabelRule, MappingVersion, MockFinding, MockState, MonitoringConfig, MonitoringRun, Notification, Project, ProjectStatus, RepairAction, RepairRule, RevalidationFlag, Role, RuleStatus, RuleVersion, SavedView, Snapshot, SnapshotStatus, Source } from "./types";
+import type { Audience, AuditEvent, CheckId, CheckKey, ColumnRole, DatasetVersion, Interpretation, Investigation, LabelRule, MappingVersion, MockFinding, MockState, MonitoringConfig, MonitoringRun, Notification, Project, ProjectStatus, RepairAction, RepairRule, RevalidationFlag, EvidenceBundle, Role, RuleStatus, RuleVersion, SavedView, Snapshot, SnapshotStatus, Source, TraceFinding } from "./types";
 
 export { MOCK_TODAY, initialState };
 export { ruleVersions } from "./rules"; // dipindah ke rules.ts agar investigation-reducer tak mengimpor nilai dari sini
@@ -42,6 +42,8 @@ export type MockAction =
   | { type: "revokeRepairRule"; ruleId: string }
   | { type: "publishDataset"; sourceId: string; note?: string }
   | { type: "saveView"; projectId: string; name: string; note?: string; filter: FilterSpec; mode: SavedView["mode"]; selection: SavedView["selection"]; activityPct: number; transitionPct: number }
+  | { type: "rebuildGraph"; projectId: string }
+  | { type: "finishGraphRebuild"; projectId: string }
   | { type: "setViewer"; userId: string }
   | InvestigationAction;
 
@@ -473,6 +475,25 @@ export function reduce(state: MockState, action: MockAction): ReduceResult {
       return { state: withAudit(next, { action: "tampilan.simpan", objectType: "Tampilan", objectLabel: name, projectId: project.id }), savedViewId: view.id };
     }
 
+    case "rebuildGraph": {
+      const project = state.projects.find((x) => x.id === action.projectId);
+      const g = state.graphStatus[action.projectId];
+      if (!project || !g) return fail("Graph tidak ditemukan");
+      if (!acceptsData(project.status)) return fail("Proyek ini tidak menerima data baru");
+      if (g.rebuilding) return fail("Pembangunan ulang sedang berjalan");
+      const next = { ...state, graphStatus: { ...state.graphStatus, [project.id]: { ...g, rebuilding: true } } };
+      return { state: withAudit(next, { action: "graf.bangun_ulang", objectType: "Graph", objectLabel: project.name, projectId: project.id }) };
+    }
+
+    // Deliberately no acceptsData check: a rebuild that already started must be able to finish.
+    case "finishGraphRebuild": {
+      const g = state.graphStatus[action.projectId];
+      if (!g) return fail("Graph tidak ditemukan");
+      if (!g.rebuilding) return fail("Tidak ada pembangunan ulang berjalan");
+      const done = { ...g, version: g.version + 1, projectedAt: g.authoritativeAt, failed: [], rebuilding: false };
+      return { state: { ...state, graphStatus: { ...state.graphStatus, [action.projectId]: done } } };
+    }
+
     case "confirmSnapshot":
     case "cancelSnapshot": {
       const snap = state.snapshots.find((x) => x.id === action.snapshotId);
@@ -569,6 +590,11 @@ export function sourceFreshness(s: MockState, sourceId: string): { lastImportAt:
   const latestEventAt = max(live.map((x) => x.stats?.latestEventAt));
   return { lastImportAt: max(live.map((x) => x.uploadedAt)), latestEventAt, stale: latestEventAt ? isStale(latestEventAt) : false };
 }
+
+export const traceFindingsForProject = (s: MockState, projectId: string): TraceFinding[] => s.traceFindings.filter((f) => f.projectId === projectId);
+
+export const bundleById = (s: MockState, projectId: string, bundleId: string): EvidenceBundle | null =>
+  s.bundles.find((b) => b.projectId === projectId && b.id === bundleId) ?? null;
 
 export const viewerRole = (s: MockState, projectId: string): Role | null =>
   s.memberships.find((m) => m.projectId === projectId && m.userId === s.viewerId)?.role ?? null;

@@ -176,6 +176,43 @@ export interface MonitoringRun {
 
 export interface MockCase { id: string; start: string; end: string | null } // end null = masih terbuka
 export interface CaseResult { caseId: string; start: string; status: CaseStatus; reason?: string; atRisk?: boolean; ruleVersionId: string | null }
+export type RelationCategory = "asal_usul" | "observasi" | "dukungan_hipotesis" | "keputusan";
+export type RelationCreator = "sistem" | "model" | "pengguna";
+export type GraphNodeKind =
+  | "Source" | "Snapshot" | "MappingVersion" | "Rule" | "Document"
+  | "Activity" | "Transition" | "Analysis" | "MetricDefinition" | "Finding"
+  | "Hypothesis" | "Intervention" | "Assessment" | "EvidenceBundle" | "Decision";
+
+export interface GraphNode {
+  id: string; projectId: string; kind: GraphNodeKind;
+  label: string; sublabel?: string;
+  href: string | null; // halaman asal; null = placeholder modul belum ada
+  module: "M02" | "M03" | "M04" | "M05" | "M06" | "M07" | "M08" | "M11";
+  supersededBy?: string; // id simpul versi lebih baru
+}
+export interface GraphEdge {
+  id: string; projectId: string; from: string; to: string;
+  type: string; // DERIVED_FROM, OBSERVED_AT, MAY_EXPLAIN, ...
+  category: RelationCategory; createdBy: RelationCreator;
+  status: "aktif" | "digantikan"; recordId: string; at: string;
+}
+
+export interface TraceFinding { id: string; projectId: string; title: string; metric: string; value: string; analysisId: string; at: string }
+
+export interface BundleItem { nodeId: string; version: number | null; kind: GraphNodeKind; summary: string; tokens: number }
+export interface EvidenceBundle {
+  id: string; projectId: string; hash: string;
+  target: string; // id simpul
+  purpose: "jev_assessment" | "llm_interpretation";
+  requestedBy: string; at: string;
+  budget: { items: number; tokens: number };
+  items: BundleItem[];
+  excluded: { nodeId: string; reason: "dikecualikan karena anggaran" | "di luar hak akses"; kind: GraphNodeKind }[];
+  limitedContext: boolean; // PRD: "konteks terbatas"
+  assessmentId: string;
+}
+
+export interface GraphStatus { version: number; projectedAt: string; authoritativeAt: string; failed: { eventId: string; reason: string; attempts: number }[]; rebuilding: boolean }
 
 export interface MockState {
   clients: Client[];
@@ -204,6 +241,11 @@ export interface MockState {
   repairRules: RepairRule[];
   datasetVersions: DatasetVersion[];
   savedViews: SavedView[];
+  traceFindings: TraceFinding[];
+  bundles: EvidenceBundle[];
+  graphNodes: GraphNode[];
+  graphEdges: GraphEdge[];
+  graphStatus: Record<string, GraphStatus>;
   viewerId: string;
 }
 

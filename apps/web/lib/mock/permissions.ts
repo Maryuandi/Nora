@@ -11,7 +11,8 @@ export type UiAction = "client.create" | "project.create" | "project.status" | "
   | "monitoring.view" | "monitoring.run" | "monitoring.configure"
   | "analysis.view"
   | "quality.view" | "repair.edit" | "dataset.publish"
-  | "view.save";
+  | "view.save"
+  | "trace.view" | "graph.rebuild";
 
 // Button matrix from PRD M01 "Matriks Kewenangan" (UI subset).
 const ALLOWED: Record<UiAction, readonly Role[]> = {
@@ -58,6 +59,9 @@ const ALLOWED: Record<UiAction, readonly Role[]> = {
   "dataset.publish": ["analis"],
   // PRD M05: Analis and Administrator save views; Pemilik Proses only reads them.
   "view.save": ["administrator", "analis"],
+  // PRD M07: every role can read traces; only Administrator rebuilds the graph.
+  "trace.view": ["administrator", "analis", "pemilik_proses"],
+  "graph.rebuild": ["administrator"],
 };
 
 export const can = (role: Role | null, action: UiAction): boolean => role !== null && ALLOWED[action].includes(role);

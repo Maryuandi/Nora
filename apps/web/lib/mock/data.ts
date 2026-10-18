@@ -2,6 +2,7 @@ import { FINDINGS } from "./interpretation-targets";
 import { runCheckedGeneration, statusOf } from "./interpretation";
 import { copyConfig } from "./metrics";
 import type { AnalysisState, Audience, AuditEvent, Client, Comment, Decision, Interpretation, Investigation, InvestigationLink, InvestigationNote, Notification, Membership, MappingVersion, MockState, MonitoringConfig, MonitoringRun, Project, RuleSourceRef, RuleVersion, Snapshot, Source, User } from "./types";
+import { graphSeed } from "./graph-data";
 
 export const MOCK_TODAY = "2026-10-17";
 
@@ -272,4 +273,4 @@ const decisions: Decision[] = [
 export const initialState: MockState = { clients, projects, users, memberships, audit, sources, snapshots, mappings, rules,
   runs, monitoringConfigs: [p2pConfig], repairRules: [], datasetVersions: [], savedViews: [],
   findings: FINDINGS, interpretations, investigations, links, notes, comments, notifications, reviews: [], decisions, flags: [], proposals: [], analysisStates,
-  viewerId: "u-dimas" };
+  ...graphSeed, viewerId: "u-dimas" };
