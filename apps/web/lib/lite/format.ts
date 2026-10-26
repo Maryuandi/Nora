@@ -1,3 +1,5 @@
+import type { FilterSpec } from "@nora/contracts";
+
 // Formatting for /lite only; kept apart from lib/format.ts, which pulls in the mock dataset.
 
 export const formatDate = (d: string | null | undefined) =>
@@ -27,3 +29,18 @@ export const formatSeconds = (s: number | null | undefined): string => {
   if (s < 86_400) return `${compact(s / 3600)} jam`;
   return `${compact(s / 86_400)} hari`;
 };
+
+/** An analysis filter in words. */
+export function describeFilter(f: Partial<FilterSpec>): string {
+  const parts: string[] = [];
+  if (f.period?.from || f.period?.to) parts.push(`periode ${f.period.from ? formatDate(f.period.from) : "awal data"} – ${f.period.to ? formatDate(f.period.to) : "akhir data"}`);
+  if (f.attribute) parts.push(`${f.attribute.key}: ${f.attribute.values.join(", ")}`);
+  if (f.activityPresent?.length) parts.push(`melewati ${f.activityPresent.join(", ")}`);
+  if (f.activityAbsent?.length) parts.push(`tidak melewati ${f.activityAbsent.join(", ")}`);
+  if (f.variants?.length) parts.push(`${f.variants.length} varian terpilih`);
+  if (f.duration?.minSeconds != null || f.duration?.maxSeconds != null) parts.push(`durasi ${f.duration.minSeconds != null ? `≥ ${formatSeconds(f.duration.minSeconds)}` : ""}${f.duration.minSeconds != null && f.duration.maxSeconds != null ? " dan " : ""}${f.duration.maxSeconds != null ? `≤ ${formatSeconds(f.duration.maxSeconds)}` : ""}`);
+  if (f.completion === "complete") parts.push("hanya kasus selesai");
+  if (f.completion === "incomplete") parts.push("hanya kasus belum selesai");
+  if (f.objectRef) parts.push(`objek ${f.objectRef}`);
+  return parts.length ? `Kasus dengan ${parts.join("; ")}` : "Semua kasus dalam dataset (tanpa filter)";
+}

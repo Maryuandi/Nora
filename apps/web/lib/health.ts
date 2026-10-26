@@ -1,6 +1,6 @@
 import { HeadBucketCommand, S3Client } from "@aws-sdk/client-s3";
 import neo4j from "neo4j-driver";
-import { Client } from "pg";
+import { createPrisma } from "@nora/db";
 import { getTemporalClient } from "./temporal";
 
 const TIMEOUT_MS = 2000;
@@ -21,18 +21,12 @@ export function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
 // settles soon after the outer 2s limit and its `finally` still closes the resource.
 export const defaultCheckers: Checkers = {
   async postgres() {
-    const client = new Client({
-      connectionString: process.env.DATABASE_URL,
-      connectionTimeoutMillis: TIMEOUT_MS,
-      query_timeout: TIMEOUT_MS,
-    });
-    client.on("error", () => {}); // a dropped connection must not crash the server
+    const prisma = createPrisma(process.env.DATABASE_URL, { max: 1, connectionTimeoutMillis: TIMEOUT_MS });
     try {
-      await client.connect();
-      await client.query("SELECT 1");
+      await prisma.$queryRaw`SELECT 1`;
       return "SELECT 1 ok";
     } finally {
-      await client.end().catch(() => {});
+      await prisma.$disconnect().catch(() => {});
     }
   },
   async neo4j() {

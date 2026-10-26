@@ -17,7 +17,8 @@
     "smoke:f07": "tsx --env-file-if-exists=../../.env scripts/smoke/f07.ts",
     "smoke:f08": "tsx --env-file-if-exists=../../.env scripts/smoke/f08.ts",
     "smoke:f09": "tsx --env-file-if-exists=../../.env scripts/smoke/f09.ts",
-    "smoke:f10": "tsx --env-file-if-exists=../../.env scripts/smoke/f10.ts"
+    "smoke:f10": "tsx --env-file-if-exists=../../.env scripts/smoke/f10.ts",
+    "seed": "tsx --env-file-if-exists=../../.env scripts/seed.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",
@@ -32,7 +33,11 @@
     "@react-stately/utils": "^3.12.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@tailwindcss/typography": "^0.5.20",
+    "@tanstack/react-query": "5.104.4",
     "@temporalio/client": "^1.24.0",
+    "@trpc/client": "11.19.0",
+    "@trpc/server": "11.19.0",
+    "@trpc/tanstack-react-query": "11.19.0",
     "@untitledui/icons": "^0.0.23",
     "@xyflow/react": "^12.12.0",
     "bpmn-js": "18.6.1",
@@ -41,7 +46,6 @@
     "input-otp": "^1.5.0",
     "neo4j-driver": "^6.2.0",
     "next": "^16.4.2",
-    "pg": "^8.23.1",
     "react": "^19.3.1",
     "react-aria": "^3.53.1",
     "react-aria-components": "^1.22.1",
@@ -57,7 +61,6 @@
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
-    "@types/pg": "^8.23.1",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "tsx": "^4.23.15",

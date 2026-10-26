@@ -14,3 +14,4 @@ apps/web/next-env.d.ts
 apps/web/AGENTS.md
 .claude/
 .playwright-mcp/
+packages/db/src/generated/

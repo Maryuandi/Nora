@@ -1,175 +1,199 @@
+import { jsonAs, type Prisma } from "@nora/db";
 import { deleteProjectGraph, ensureSchema, writeProjection, type NodeRef, type Writer } from "@nora/graph";
+import type { MappingConfig } from "@nora/contracts";
 import { db } from "../db.ts";
 
-type Row = Record<string, any>;
 type Handler = (w: Writer, id: string, projectId: string) => Promise<void>;
+type Props = Record<string, unknown>;
+type Stamped = { id: string; createdAt: Date };
 
-const one = async (sql: string, params: unknown[]): Promise<Row | undefined> => (await db().query(sql, params)).rows[0];
-const many = async (sql: string, params: unknown[]): Promise<Row[]> => (await db().query(sql, params)).rows;
 const ref = (type: NodeRef["type"], id: string): NodeRef => ({ type, id });
-const human = (r: Row, extra: Row = {}) => ({ creatorType: "human", recordId: r.id, at: r.created_at, ...extra });
-const code = (r: Row, extra: Row = {}) => ({ creatorType: "code", recordId: r.id, at: r.created_at, ...extra });
+const human = (r: Stamped, extra: Props = {}) => ({ creatorType: "human", recordId: r.id, at: r.createdAt, ...extra });
+const code = (r: Stamped, extra: Props = {}) => ({ creatorType: "code", recordId: r.id, at: r.createdAt, ...extra });
 
-async function cites(w: Writer, from: NodeRef, r: Row) {
-  if (r.source_document_id) await w.rel("CITES", from, ref("Document", r.source_document_id), human(r));
-}
+/** Finding subject, as the monitoring stage writes it. */
+interface Subject { from?: string; to?: string; ruleId?: string; ruleVersion?: number; modelId?: string; rules?: { activity?: string }[] }
+/** The catalog fields the projection reads from context payloads. */
+interface Payload { name?: string; statement?: string; action?: string; addressedHypotheses?: string[]; findingTypes?: string[]; activities?: string[] }
+
+const CONTEXT_SELECT = { id: true, createdAt: true, status: true, itemKey: true, version: true, payload: true, sourceDocumentId: true } as const;
+type ContextRecord = { id: string; createdAt: Date; status: string; itemKey: string; version: number; payload: Prisma.JsonValue; sourceDocumentId: string | null };
 
 /** Context items share a shape; only approved (or since-retired) versions become nodes. */
-const contextItem = (table: string, type: NodeRef["type"], labelOf: (r: Row) => string): Handler => async (w, id) => {
-  const r = await one(`SELECT * FROM ${table} WHERE id = $1`, [id]);
+const contextItem = (type: NodeRef["type"], load: (id: string) => Promise<ContextRecord | null>, labelOf: (p: Payload) => string): Handler => async (w, id) => {
+  const r = await load(id);
   if (!r || (r.status !== "approved" && r.status !== "obsolete")) return;
-  await w.node(ref(type, id), labelOf(r), { itemKey: r.item_key, version: r.version, status: r.status, superseded: r.status === "obsolete" });
-  await cites(w, ref(type, id), r);
+  await w.node(ref(type, id), labelOf(jsonAs<Payload>(r.payload)), { itemKey: r.itemKey, version: r.version, status: r.status, superseded: r.status === "obsolete" });
+  if (r.sourceDocumentId) await w.rel("CITES", ref(type, id), ref("Document", r.sourceDocumentId), human(r));
 };
+
+/** Hypotheses of a package that may explain a finding of this type and subject. */
+async function matchingHypotheses(packageId: string, findingType: string, subject: Subject) {
+  const refs = await db().contextPackageRef.findMany({ where: { packageId, refType: "hypothesis" }, select: { refId: true } });
+  const rows = await db().hypothesis.findMany({ where: { id: { in: refs.map((r) => r.refId) } }, select: { id: true, payload: true } });
+  const acts = [subject.from, subject.to].filter((a): a is string => !!a);
+  return rows.filter((h) => {
+    const p = jsonAs<Payload>(h.payload);
+    const types = p.findingTypes ?? [];
+    const hacts = p.activities ?? [];
+    return !((types.length && !types.includes(findingType)) || (hacts.length && acts.length && !hacts.some((a) => acts.includes(a))));
+  });
+}
 
 const HANDLERS: Record<string, Handler> = {
   async sources(w, id) {
-    const r = await one("SELECT * FROM sources WHERE id = $1", [id]);
-    if (r) await w.node(ref("Source", id), r.name, { createdAt: r.created_at });
+    const r = await db().source.findUnique({ where: { id } });
+    if (r) await w.node(ref("Source", id), r.name, { createdAt: r.createdAt });
   },
   async source_snapshots(w, id) {
-    const r = await one("SELECT * FROM source_snapshots WHERE id = $1", [id]);
+    const r = await db().sourceSnapshot.findUnique({ where: { id } });
     if (!r || !["ready_for_mapping", "needs_review"].includes(r.status)) return;
-    await w.node(ref("Snapshot", id), r.file_name, { sha256: r.sha256, status: r.status, rows: r.row_count });
-    await w.rel("DERIVED_FROM", ref("Snapshot", id), ref("Source", r.source_id), human(r));
+    await w.node(ref("Snapshot", id), r.fileName, { sha256: r.sha256, status: r.status, rows: r.rowCount });
+    await w.rel("DERIVED_FROM", ref("Snapshot", id), ref("Source", r.sourceId), human(r));
   },
   async mapping_versions(w, id) {
-    const r = await one("SELECT * FROM mapping_versions WHERE id = $1", [id]);
+    const r = await db().mappingVersion.findUnique({ where: { id } });
     if (!r) return;
-    await w.node(ref("MappingVersion", id), `Mapping v${r.version}`, { version: r.version, labelRules: Object.keys(r.config.labelMap ?? {}).length });
-    await w.rel("DERIVED_FROM", ref("MappingVersion", id), ref("Source", r.source_id), human(r, { version: r.version }));
-    for (const [i, rule] of (r.config.repairRules ?? []).entries()) {
+    const config = jsonAs<MappingConfig>(r.config);
+    await w.node(ref("MappingVersion", id), `Mapping v${r.version}`, { version: r.version, labelRules: Object.keys(config.labelMap ?? {}).length });
+    await w.rel("DERIVED_FROM", ref("MappingVersion", id), ref("Source", r.sourceId), human(r, { version: r.version }));
+    for (const [i, rule] of (config.repairRules ?? []).entries()) {
       await w.node(ref("RepairRule", `${id}:${i}`), `Aturan perbaikan: ${(rule.checks ?? []).join(", ")}`, { version: r.version });
       await w.rel("CITES", ref("MappingVersion", id), ref("RepairRule", `${id}:${i}`), human(r));
     }
   },
   async dataset_versions(w, id) {
-    const r = await one("SELECT * FROM dataset_versions WHERE id = $1", [id]);
+    const r = await db().datasetVersion.findUnique({ where: { id } });
     if (!r || !["published", "superseded"].includes(r.status)) return;
-    await w.node(ref("DatasetVersion", id), r.name, { version: r.version, status: r.status, contentHash: r.content_hash, superseded: r.status === "superseded", quality: r.quality_status });
-    await w.rel("USES_MAPPING", ref("DatasetVersion", id), ref("MappingVersion", r.mapping_version_id), code(r, { version: r.version }));
-    await w.rel("DERIVED_FROM", ref("DatasetVersion", id), ref("Snapshot", r.snapshot_id), code(r));
-    if (r.status === "superseded") {
-      const newer = await one("SELECT id FROM dataset_versions WHERE project_id = $1 AND published_at > $2 AND status IN ('published', 'superseded') ORDER BY published_at LIMIT 1", [r.project_id, r.published_at]);
+    await w.node(ref("DatasetVersion", id), r.name, { version: r.version, status: r.status, contentHash: r.contentHash, superseded: r.status === "superseded", quality: r.qualityStatus });
+    await w.rel("USES_MAPPING", ref("DatasetVersion", id), ref("MappingVersion", r.mappingVersionId), code(r, { version: r.version }));
+    await w.rel("DERIVED_FROM", ref("DatasetVersion", id), ref("Snapshot", r.snapshotId), code(r));
+    if (r.status === "superseded" && r.publishedAt) {
+      const newer = await db().datasetVersion.findFirst({
+        where: { projectId: r.projectId, publishedAt: { gt: r.publishedAt }, status: { in: ["published", "superseded"] } }, orderBy: { publishedAt: "asc" }, select: { id: true },
+      });
       if (newer) await w.rel("SUPERSEDES", ref("DatasetVersion", newer.id), ref("DatasetVersion", id), code(r));
     }
   },
   async context_documents(w, id) {
-    const r = await one("SELECT * FROM context_documents WHERE id = $1", [id]);
+    const r = await db().contextDocument.findUnique({ where: { id } });
     if (r) await w.node(ref("Document", id), r.title, { reference: r.reference, version: r.version });
   },
-  process_boundaries: contextItem("process_boundaries", "ProcessDefinition", () => "Batas proses"),
-  rework_definitions: contextItem("rework_definitions", "ReworkDefinition", () => "Definisi rework"),
-  rules: contextItem("rules", "Rule", (r) => r.payload.name),
-  calendars: contextItem("calendars", "Calendar", () => "Kalender kerja"),
-  hypotheses: contextItem("hypotheses", "Hypothesis", (r) => r.payload.statement),
-  rubrics: contextItem("rubrics", "Rubric", (r) => r.payload.name),
+  process_boundaries: contextItem("ProcessDefinition", (id) => db().processBoundary.findUnique({ where: { id }, select: CONTEXT_SELECT }), () => "Batas proses"),
+  rework_definitions: contextItem("ReworkDefinition", (id) => db().reworkDefinition.findUnique({ where: { id }, select: CONTEXT_SELECT }), () => "Definisi rework"),
+  rules: contextItem("Rule", (id) => db().rule.findUnique({ where: { id }, select: CONTEXT_SELECT }), (p) => p.name ?? ""),
+  calendars: contextItem("Calendar", (id) => db().calendar.findUnique({ where: { id }, select: CONTEXT_SELECT }), () => "Kalender kerja"),
+  hypotheses: contextItem("Hypothesis", (id) => db().hypothesis.findUnique({ where: { id }, select: CONTEXT_SELECT }), (p) => p.statement ?? ""),
+  rubrics: contextItem("Rubric", (id) => db().rubric.findUnique({ where: { id }, select: CONTEXT_SELECT }), (p) => p.name ?? ""),
   async interventions(w, id, projectId) {
-    await contextItem("interventions", "Intervention", (r) => r.payload.action)(w, id, projectId);
-    const r = await one("SELECT * FROM interventions WHERE id = $1 AND status = 'approved'", [id]);
-    for (const key of r?.payload.addressedHypotheses ?? []) {
-      const h = await one("SELECT id FROM hypotheses WHERE project_id = $1 AND item_key = $2 AND status = 'approved'", [projectId, key]);
+    await contextItem("Intervention", (x) => db().intervention.findUnique({ where: { id: x }, select: CONTEXT_SELECT }), (p) => p.action ?? "")(w, id, projectId);
+    const r = await db().intervention.findFirst({ where: { id, status: "approved" } });
+    for (const key of r ? jsonAs<Payload>(r.payload).addressedHypotheses ?? [] : []) {
+      const h = await db().hypothesis.findFirst({ where: { projectId, itemKey: key, status: "approved" }, select: { id: true } });
       if (h) await w.rel("CITES", ref("Intervention", id), ref("Hypothesis", h.id), human(r!));
     }
   },
   async bpmn_models(w, id) {
-    const r = await one("SELECT * FROM bpmn_models WHERE id = $1", [id]);
+    const r = await db().bpmnModel.findUnique({ where: { id } });
     if (!r || (r.status !== "approved" && r.status !== "obsolete")) return;
-    await w.node(ref("BpmnModel", id), r.name, { version: r.version, validation: r.validation_status, superseded: r.status === "obsolete" });
-    await cites(w, ref("BpmnModel", id), r);
-    for (const t of r.tasks) {
+    await w.node(ref("BpmnModel", id), r.name, { version: r.version, validation: r.validationStatus, superseded: r.status === "obsolete" });
+    if (r.sourceDocumentId) await w.rel("CITES", ref("BpmnModel", id), ref("Document", r.sourceDocumentId), human(r));
+    for (const t of jsonAs<{ id: string; name: string }[]>(r.tasks)) {
       await w.node(ref("BpmnTask", `${id}:${t.id}`), t.name, { taskId: t.id });
       await w.rel("DERIVED_FROM", ref("BpmnTask", `${id}:${t.id}`), ref("BpmnModel", id), human(r));
     }
   },
   async bpmn_mappings() { /* attached through the context package */ },
   async context_packages(w, id) {
-    const r = await one("SELECT * FROM context_packages WHERE id = $1", [id]);
+    const r = await db().contextPackage.findUnique({ where: { id } });
     if (!r || !["active", "superseded"].includes(r.status)) return;
     await w.node(ref("ContextPackage", id), r.name, { version: r.version, hash: r.hash, status: r.status, superseded: r.status === "superseded" });
     const TYPE: Record<string, NodeRef["type"]> = { process_boundary: "ProcessDefinition", rework_definition: "ReworkDefinition", rule: "Rule", calendar: "Calendar", hypothesis: "Hypothesis", intervention: "Intervention", rubric: "Rubric", bpmn_model: "BpmnModel" };
-    for (const x of await many("SELECT ref_type, ref_id, ref_version FROM context_package_refs WHERE package_id = $1", [id])) {
-      if (TYPE[x.ref_type]) await w.rel("CITES", ref("ContextPackage", id), ref(TYPE[x.ref_type]!, x.ref_id), human(r, { version: x.ref_version }));
+    for (const x of await db().contextPackageRef.findMany({ where: { packageId: id }, select: { refType: true, refId: true, refVersion: true } })) {
+      const type = TYPE[x.refType];
+      if (type) await w.rel("CITES", ref("ContextPackage", id), ref(type, x.refId), human(r, { version: x.refVersion }));
     }
     if (r.status === "superseded") {
-      const newer = await one("SELECT id FROM context_packages WHERE project_id = $1 AND version > $2 AND status IN ('active', 'superseded') ORDER BY version LIMIT 1", [r.project_id, r.version]);
+      const newer = await db().contextPackage.findFirst({
+        where: { projectId: r.projectId, version: { gt: r.version }, status: { in: ["active", "superseded"] } }, orderBy: { version: "asc" }, select: { id: true },
+      });
       if (newer) await w.rel("SUPERSEDES", ref("ContextPackage", newer.id), ref("ContextPackage", id), human(r));
     }
   },
   async analysis_runs(w, id) {
-    const r = await one("SELECT * FROM analysis_runs WHERE id = $1", [id]);
+    const r = await db().analysisRun.findUnique({ where: { id } });
     if (!r || r.status !== "completed") return;
-    await w.node(ref("Analysis", id), "Analysis run", { algorithm: r.algorithm_version, filter: r.filter_spec, completedAt: r.completed_at });
-    await w.rel("DERIVED_FROM", ref("Analysis", id), ref("DatasetVersion", r.dataset_version_id), code(r));
-    await w.rel("EVALUATED_AGAINST", ref("Analysis", id), ref("ContextPackage", r.context_package_id), code(r));
+    await w.node(ref("Analysis", id), "Analysis run", { algorithm: r.algorithmVersion, filter: r.filterSpec, completedAt: r.completedAt });
+    await w.rel("DERIVED_FROM", ref("Analysis", id), ref("DatasetVersion", r.datasetVersionId), code(r));
+    await w.rel("EVALUATED_AGAINST", ref("Analysis", id), ref("ContextPackage", r.contextPackageId), code(r));
     // Only aggregates: activities, the heaviest transitions and the top variants; never every event or case.
-    for (const n of await many("SELECT activity, case_count FROM process_nodes WHERE run_id = $1", [id])) {
+    for (const n of await db().processNode.findMany({ where: { runId: id }, select: { activity: true, caseCount: true } })) {
       await w.node(ref("Activity", n.activity), n.activity);
-      await w.rel("OBSERVED_AT", ref("Analysis", id), ref("Activity", n.activity), code(r, { caseCount: n.case_count }));
+      await w.rel("OBSERVED_AT", ref("Analysis", id), ref("Activity", n.activity), code(r, { caseCount: n.caseCount }));
     }
-    for (const e of await many("SELECT from_activity, to_activity, case_count, total_wait_s FROM process_edges WHERE run_id = $1 AND from_activity <> '__start' AND to_activity <> '__end' ORDER BY total_wait_s DESC LIMIT 30", [id])) {
-      const tid = `${e.from_activity}→${e.to_activity}`;
-      await w.node(ref("Transition", tid), tid, { from: e.from_activity, to: e.to_activity });
-      await w.rel("OBSERVED_AT", ref("Analysis", id), ref("Transition", tid), code(r, { caseCount: e.case_count, totalWaitSeconds: e.total_wait_s }));
-      await w.rel("CO_OCCURS_WITH", ref("Activity", e.from_activity), ref("Activity", e.to_activity), code(r));
+    const edges = await db().processEdge.findMany({
+      where: { runId: id, fromActivity: { not: "__start" }, toActivity: { not: "__end" } }, orderBy: { totalWaitS: "desc" }, take: 30,
+      select: { fromActivity: true, toActivity: true, caseCount: true, totalWaitS: true },
+    });
+    for (const e of edges) {
+      const tid = `${e.fromActivity}→${e.toActivity}`;
+      await w.node(ref("Transition", tid), tid, { from: e.fromActivity, to: e.toActivity });
+      await w.rel("OBSERVED_AT", ref("Analysis", id), ref("Transition", tid), code(r, { caseCount: e.caseCount, totalWaitSeconds: e.totalWaitS }));
+      await w.rel("CO_OCCURS_WITH", ref("Activity", e.fromActivity), ref("Activity", e.toActivity), code(r));
     }
-    for (const v of await many("SELECT sequence_hash, sequence, case_count FROM variants WHERE run_id = $1 ORDER BY rank LIMIT 10", [id])) {
-      await w.node(ref("Variant", v.sequence_hash), (v.sequence as string[]).join(" → "));
-      await w.rel("OBSERVED_AT", ref("Analysis", id), ref("Variant", v.sequence_hash), code(r, { caseCount: v.case_count }));
+    for (const v of await db().variant.findMany({ where: { runId: id }, orderBy: { rank: "asc" }, take: 10, select: { sequenceHash: true, sequence: true, caseCount: true } })) {
+      await w.node(ref("Variant", v.sequenceHash), jsonAs<string[]>(v.sequence).join(" → "));
+      await w.rel("OBSERVED_AT", ref("Analysis", id), ref("Variant", v.sequenceHash), code(r, { caseCount: v.caseCount }));
     }
     // Findings are written before the run is marked completed; project them again now that their run node exists.
-    for (const f of await many("SELECT id FROM findings WHERE analysis_run_id = $1", [id])) await HANDLERS.findings!(w, f.id, r.project_id);
+    for (const f of await db().finding.findMany({ where: { analysisRunId: id }, select: { id: true } })) await HANDLERS.findings!(w, f.id, r.projectId);
   },
   async findings(w, id) {
-    const f = await one("SELECT * FROM findings WHERE id = $1", [id]);
+    const f = await db().finding.findUnique({ where: { id } });
     if (!f) return;
-    await w.node(ref("Finding", id), f.title, { findingType: f.type, severity: f.severity_score });
-    await w.rel("DERIVED_FROM", ref("Finding", id), ref("Analysis", f.analysis_run_id), code(f));
-    const metricId = `${f.metric_key}:v${f.metric_version}`;
-    await w.node(ref("MetricDefinition", metricId), f.metric_key, { version: f.metric_version });
-    await w.rel("COMPUTED_WITH", ref("Finding", id), ref("MetricDefinition", metricId), code(f, { version: f.metric_version }));
-    if (f.subject.from && f.subject.to) await w.rel("OBSERVED_AT", ref("Finding", id), ref("Transition", `${f.subject.from}→${f.subject.to}`), code(f));
-    if (f.subject.ruleId) await w.rel("EVALUATED_AGAINST", ref("Finding", id), ref("Rule", f.subject.ruleId), code(f, { version: f.subject.ruleVersion }));
-    if (f.subject.modelId) await w.rel("EVALUATED_AGAINST", ref("Finding", id), ref("BpmnModel", f.subject.modelId), code(f));
-    for (const rw of f.subject.rules ?? []) if (rw.activity) await w.rel("OBSERVED_AT", ref("Finding", id), ref("Activity", rw.activity), code(f));
+    const subject = jsonAs<Subject>(f.subject);
+    await w.node(ref("Finding", id), f.title, { findingType: f.type, severity: f.severityScore });
+    await w.rel("DERIVED_FROM", ref("Finding", id), ref("Analysis", f.analysisRunId), code(f));
+    const metricId = `${f.metricKey}:v${f.metricVersion}`;
+    await w.node(ref("MetricDefinition", metricId), f.metricKey, { version: f.metricVersion });
+    await w.rel("COMPUTED_WITH", ref("Finding", id), ref("MetricDefinition", metricId), code(f, { version: f.metricVersion }));
+    if (subject.from && subject.to) await w.rel("OBSERVED_AT", ref("Finding", id), ref("Transition", `${subject.from}→${subject.to}`), code(f));
+    if (subject.ruleId) await w.rel("EVALUATED_AGAINST", ref("Finding", id), ref("Rule", subject.ruleId), code(f, { version: subject.ruleVersion }));
+    if (subject.modelId) await w.rel("EVALUATED_AGAINST", ref("Finding", id), ref("BpmnModel", subject.modelId), code(f));
+    for (const rw of subject.rules ?? []) if (rw.activity) await w.rel("OBSERVED_AT", ref("Finding", id), ref("Activity", rw.activity), code(f));
     // Selected case references only (pseudonymous case_uid), the ones a reader opens first.
-    for (const c of await many("SELECT case_uid, support_value FROM finding_cases WHERE finding_id = $1 ORDER BY rank LIMIT 5", [id])) {
-      await w.node(ref("CaseRef", c.case_uid), c.case_uid);
-      await w.rel("SUPPORTED_BY_CASE", ref("Finding", id), ref("CaseRef", c.case_uid), code(f, { supportValue: c.support_value }));
+    for (const c of await db().findingCase.findMany({ where: { findingId: id }, orderBy: { rank: "asc" }, take: 5, select: { caseUid: true, supportValue: true } })) {
+      await w.node(ref("CaseRef", c.caseUid), c.caseUid);
+      await w.rel("SUPPORTED_BY_CASE", ref("Finding", id), ref("CaseRef", c.caseUid), code(f, { supportValue: c.supportValue }));
     }
-    const acts = [f.subject.from, f.subject.to].filter(Boolean);
-    for (const h of await many(
-      `SELECT h.id, h.payload FROM context_package_refs p JOIN hypotheses h ON h.id = p.ref_id WHERE p.package_id = $1 AND p.ref_type = 'hypothesis'`, [f.context_package_id],
-    )) {
-      const types: string[] = h.payload.findingTypes ?? [];
-      const hacts: string[] = h.payload.activities ?? [];
-      if ((types.length && !types.includes(f.type)) || (hacts.length && acts.length && !hacts.some((a) => acts.includes(a)))) continue;
-      await w.rel("MAY_EXPLAIN", ref("Hypothesis", h.id), ref("Finding", id), { creatorType: "human", recordId: h.id, status: "unproven", at: f.created_at });
+    for (const h of await matchingHypotheses(f.contextPackageId, f.type, subject)) {
+      await w.rel("MAY_EXPLAIN", ref("Hypothesis", h.id), ref("Finding", id), { creatorType: "human", recordId: h.id, status: "unproven", at: f.createdAt });
     }
   },
   async assessments(w, id) {
-    const a = await one(`SELECT a.*, l.candidate_id FROM assessments a JOIN candidate_links l ON l.id = a.candidate_link_id WHERE a.id = $1`, [id]);
+    const a = await db().assessment.findUnique({ where: { id }, include: { candidateLink: { select: { candidateId: true } } } });
     if (!a || !["automatic", "needs_review", "insufficient_information"].includes(a.status)) return;
-    await w.node(ref("Assessment", id), `Penilaian Jev: ${a.conclusion ?? a.status}`, { status: a.status, conclusion: a.conclusion, totalScore: a.total_score, modelVersion: a.model_version });
-    const m = { creatorType: "model", recordId: id, at: a.completed_at, version: a.model_version };
-    await w.rel("DERIVED_FROM", ref("Assessment", id), ref("Finding", a.finding_id), m);
-    if (a.evidence_bundle_id) await w.rel("CITES", ref("Assessment", id), ref("EvidenceBundle", a.evidence_bundle_id), m);
+    await w.node(ref("Assessment", id), `Penilaian Jev: ${a.conclusion ?? a.status}`, { status: a.status, conclusion: a.conclusion, totalScore: a.totalScore, modelVersion: a.modelVersion });
+    const m = { creatorType: "model", recordId: id, at: a.completedAt, version: a.modelVersion };
+    await w.rel("DERIVED_FROM", ref("Assessment", id), ref("Finding", a.findingId), m);
+    if (a.evidenceBundleId) await w.rel("CITES", ref("Assessment", id), ref("EvidenceBundle", a.evidenceBundleId), m);
     // A model judgement is a hypothesis-level relation, never an observation.
-    if (a.conclusion === "relevant" || a.conclusion === "partly_relevant") await w.rel("SUPPORTS", ref("Intervention", a.candidate_id), ref("Finding", a.finding_id), { ...m, status: "unproven", assessmentId: id });
-    if (a.conclusion === "not_relevant") await w.rel("CONTRADICTS", ref("Intervention", a.candidate_id), ref("Finding", a.finding_id), { ...m, status: "unproven", assessmentId: id });
+    const candidate = a.candidateLink.candidateId;
+    if (a.conclusion === "relevant" || a.conclusion === "partly_relevant") await w.rel("SUPPORTS", ref("Intervention", candidate), ref("Finding", a.findingId), { ...m, status: "unproven", assessmentId: id });
+    if (a.conclusion === "not_relevant") await w.rel("CONTRADICTS", ref("Intervention", candidate), ref("Finding", a.findingId), { ...m, status: "unproven", assessmentId: id });
   },
   async assessment_corrections(w, id) {
-    const c = await one("SELECT * FROM assessment_corrections WHERE id = $1", [id]);
+    const c = await db().assessmentCorrection.findUnique({ where: { id }, include: { assessment: { select: { findingId: true } } } });
     if (!c) return;
-    await w.rel("REVIEWED", ref("Assessment", c.assessment_id), ref("Finding", (await one("SELECT finding_id FROM assessments WHERE id = $1", [c.assessment_id]))!.finding_id),
-      { creatorType: "human", recordId: id, at: c.created_at, kind: c.kind, conclusion: c.conclusion, status: c.kind === "confirm" ? "confirmed" : "corrected" });
+    await w.rel("REVIEWED", ref("Assessment", c.assessmentId), ref("Finding", c.assessment.findingId),
+      { creatorType: "human", recordId: id, at: c.createdAt, kind: c.kind, conclusion: c.conclusion, status: c.kind === "confirm" ? "confirmed" : "corrected" });
   },
   async evidence_bundles(w, id) {
-    const b = await one("SELECT * FROM evidence_bundles WHERE id = $1", [id]);
+    const b = await db().evidenceBundle.findUnique({ where: { id } });
     if (!b) return;
-    await w.node(ref("EvidenceBundle", id), `Paket bukti ${b.purpose}`, { purpose: b.purpose, hash: b.hash, contextLimited: b.context_limited });
-    const target = ({ finding: "Finding", assessment: "Assessment", candidate_comparison: "Comparison" } as const)[b.target_type as string];
-    if (target) await w.rel("CITES", ref("EvidenceBundle", id), ref(target, b.target_id), code(b));
+    await w.node(ref("EvidenceBundle", id), `Paket bukti ${b.purpose}`, { purpose: b.purpose, hash: b.hash, contextLimited: b.contextLimited });
+    const target = ({ finding: "Finding", assessment: "Assessment", candidate_comparison: "Comparison" } as const)[b.targetType];
+    if (target) await w.rel("CITES", ref("EvidenceBundle", id), ref(target, b.targetId), code(b));
   },
 };
 
@@ -179,47 +203,47 @@ export function registerGraphHandler(table: string, handler: Handler) {
 
 export async function pendingGraphProjects(): Promise<string[]> {
   await ensureSchema();
-  const { rows } = await db().query<{ project_id: string }>(
-    `SELECT DISTINCT project_id FROM outbox_events WHERE projected_at IS NULL AND NOT dead_letter
-     UNION SELECT project_id FROM graph_projection_state WHERE rebuild_requested_at IS NOT NULL`,
-  );
-  return rows.map((r) => r.project_id);
+  const [pending, rebuild] = await Promise.all([
+    db().outboxEvent.groupBy({ by: ["projectId"], where: { projectedAt: null, deadLetter: false } }),
+    db().graphProjectionState.findMany({ where: { rebuildRequestedAt: { not: null } }, select: { projectId: true } }),
+  ]);
+  return [...new Set([...pending, ...rebuild].map((r) => r.projectId))];
 }
 
 const MAX_ATTEMPTS = 3;
 
 /** Applies pending events in sequence order; a failing event is retried, then dead-lettered without blocking the rest. */
 export async function projectGraph(projectId: string): Promise<{ projected: number; failed: number }> {
-  const state = (await db().query<{ rebuild_requested_at: string | null }>(
-    "INSERT INTO graph_projection_state (project_id) VALUES ($1) ON CONFLICT (project_id) DO UPDATE SET project_id = EXCLUDED.project_id RETURNING rebuild_requested_at", [projectId],
-  )).rows[0]!;
-  if (state.rebuild_requested_at) {
+  const state = await db().graphProjectionState.upsert({ where: { projectId }, create: { projectId }, update: {}, select: { rebuildRequestedAt: true } });
+  if (state.rebuildRequestedAt) {
     await deleteProjectGraph(projectId);
-    await db().query("UPDATE outbox_events SET projected_at = NULL, attempts = 0, last_error = NULL, dead_letter = false WHERE project_id = $1", [projectId]);
-    await db().query("UPDATE graph_projection_state SET last_sequence = 0, rebuild_requested_at = NULL, rebuilt_at = now() WHERE project_id = $1", [projectId]);
+    await db().outboxEvent.updateMany({ where: { projectId }, data: { projectedAt: null, attempts: 0, lastError: null, deadLetter: false } });
+    await db().graphProjectionState.update({ where: { projectId }, data: { lastSequence: 0, rebuildRequestedAt: null, rebuiltAt: new Date() } });
   }
   let projected = 0, failed = 0;
-  const failedNow: number[] = []; // retried on the next sweep, not in a tight loop
+  const failedNow: bigint[] = []; // retried on the next sweep, not in a tight loop
   for (;;) {
-    const { rows } = await db().query<{ sequence: number; aggregate_type: string; aggregate_id: string }>(
-      "SELECT sequence, aggregate_type, aggregate_id FROM outbox_events WHERE project_id = $1 AND projected_at IS NULL AND NOT dead_letter AND sequence <> ALL($2::bigint[]) ORDER BY sequence LIMIT 200",
-      [projectId, failedNow],
-    );
+    const rows = await db().outboxEvent.findMany({
+      where: { projectId, projectedAt: null, deadLetter: false, sequence: { notIn: failedNow } }, orderBy: { sequence: "asc" }, take: 200,
+      select: { sequence: true, aggregateType: true, aggregateId: true },
+    });
     if (!rows.length) break;
     for (const e of rows) {
       try {
-        const h = HANDLERS[e.aggregate_type];
-        if (h) await writeProjection(projectId, (w) => h(w, e.aggregate_id, projectId));
-        await db().query("UPDATE outbox_events SET projected_at = now() WHERE sequence = $1", [e.sequence]);
-        await db().query("UPDATE graph_projection_state SET last_sequence = GREATEST(last_sequence, $2), last_projected_at = now() WHERE project_id = $1", [projectId, e.sequence]);
+        const h = HANDLERS[e.aggregateType];
+        if (h) await writeProjection(projectId, (w) => h(w, e.aggregateId, projectId));
+        const now = new Date();
+        await db().outboxEvent.update({ where: { sequence: e.sequence }, data: { projectedAt: now } });
+        // GREATEST: sweeps may overlap after a restart; the projected sequence never moves back.
+        await db().$executeRaw`UPDATE graph_projection_state SET last_sequence = GREATEST(last_sequence, ${e.sequence}), last_projected_at = now() WHERE project_id = ${projectId}::uuid`;
         projected++;
       } catch (err) {
         failed++;
         failedNow.push(e.sequence);
-        await db().query(
-          "UPDATE outbox_events SET attempts = attempts + 1, last_error = $2, dead_letter = attempts + 1 >= $3 WHERE sequence = $1",
-          [e.sequence, (err instanceof Error ? err.message : String(err)).slice(0, 500), MAX_ATTEMPTS],
-        );
+        const attempts = (await db().outboxEvent.update({
+          where: { sequence: e.sequence }, data: { attempts: { increment: 1 }, lastError: (err instanceof Error ? err.message : String(err)).slice(0, 500) }, select: { attempts: true },
+        })).attempts;
+        if (attempts >= MAX_ATTEMPTS) await db().outboxEvent.update({ where: { sequence: e.sequence }, data: { deadLetter: true } });
       }
     }
     if (projected + failed > 5000) break; // the next sweep continues

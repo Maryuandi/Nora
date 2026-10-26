@@ -1,4 +1,6 @@
 "use client";
+import { TRPCClientError } from "@trpc/client";
+import type { AppRouter } from "@/lib/trpc/router";
 
 export interface ApiError {
   status: number;
@@ -10,20 +12,22 @@ export interface ApiError {
 
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: ApiError };
 
-/** JSON fetch against /api/lite; never throws, so forms can render the error next to the field. */
-export async function api<T = unknown>(path: string, init: { method?: string; body?: unknown } = {}): Promise<ApiResult<T>> {
+/** The server's error (status, code, field details, correlation ID) as forms render it. */
+export function toApiError(err: unknown): ApiError {
+  const data = err instanceof TRPCClientError ? (err as TRPCClientError<AppRouter>).data : undefined;
+  if (!data) return { status: 0, code: "network", message: "Tidak dapat menghubungi server" };
+  return {
+    status: data.status, code: data.appCode, message: (err as Error).message || "Permintaan gagal",
+    details: data.details as Record<string, string> | undefined, correlationId: data.correlationId,
+  };
+}
+
+/** Awaits a tRPC call without throwing, so forms can render the error next to the field. */
+export async function attempt<T>(call: Promise<T>): Promise<ApiResult<T>> {
   try {
-    const res = await fetch(`/api/lite${path}`, {
-      method: init.method ?? (init.body === undefined ? "GET" : "POST"),
-      headers: init.body === undefined ? undefined : { "content-type": "application/json" },
-      body: init.body === undefined ? undefined : JSON.stringify(init.body),
-    });
-    if (res.status === 204) return { ok: true, data: undefined as T };
-    const json = await res.json().catch(() => ({}));
-    if (res.ok) return { ok: true, data: json as T };
-    return { ok: false, error: { status: res.status, code: json.error ?? "error", message: json.message ?? "Permintaan gagal", details: json.details, correlationId: json.correlationId } };
-  } catch {
-    return { ok: false, error: { status: 0, code: "network", message: "Tidak dapat menghubungi server" } };
+    return { ok: true, data: await call };
+  } catch (err) {
+    return { ok: false, error: toApiError(err) };
   }
 }
 

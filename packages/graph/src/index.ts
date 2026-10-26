@@ -62,7 +62,9 @@ function clean(props: Record<string, unknown>): Record<string, unknown> {
   for (const [k, v] of Object.entries(props)) {
     if (v === undefined || v === null) continue;
     if (RESERVED.has(k)) throw new Error(`property ${k} is reserved for the projection`);
-    out[k] = typeof v === "object" && !Array.isArray(v) ? JSON.stringify(v) : Array.isArray(v) ? v.map(String) : v;
+    // Timestamps are stored as ISO strings and bigints as numbers, the way PostgreSQL rows used to arrive.
+    out[k] = v instanceof Date ? v.toISOString() : typeof v === "bigint" ? Number(v)
+      : typeof v === "object" && !Array.isArray(v) ? JSON.stringify(v) : Array.isArray(v) ? v.map(String) : v;
   }
   return out;
 }

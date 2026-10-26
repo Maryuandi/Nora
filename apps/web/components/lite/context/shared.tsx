@@ -1,11 +1,13 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { ContextKind } from "@nora/contracts";
 import { Button } from "@/components/base/buttons/button";
+import { useTRPC } from "@/lib/trpc/client";
 import { StatePill } from "../badges";
-import { api, errorText, type ApiError } from "../api";
+import { attempt, errorText, type ApiError } from "../api";
 
 export interface Item {
   id: string;
@@ -30,15 +32,19 @@ export function ItemStatus({ item }: { item: Pick<Item, "status" | "version"> | 
 
 export function useContextApi(projectId: string) {
   const router = useRouter();
+  const trpc = useTRPC();
+  const saveItem = useMutation(trpc.context.save.mutationOptions());
+  const transitionItem = useMutation(trpc.context.transition.mutationOptions());
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  async function call<T>(tag: string, path: string, init: { method?: string; body?: unknown }, refresh = true): Promise<T | null> {
+  /** Runs one request under a busy tag; errors land in error/fieldErrors, success refreshes the server-rendered page. */
+  async function call<T>(tag: string, request: () => Promise<T>, refresh = true): Promise<T | null> {
     setBusy(tag);
     setError(null);
     setFieldErrors({});
-    const res = await api<T>(`/projects/${projectId}${path}`, init);
+    const res = await attempt(request());
     setBusy(null);
     if (!res.ok) {
       showError(res.error);
@@ -52,8 +58,9 @@ export function useContextApi(projectId: string) {
     setError(errorText(e));
   }
   const save = (kind: ContextKind, body: { key?: string | null; payload: unknown; sourceReference?: string; sourceDocumentId?: string | null }) =>
-    call<{ id: string }>(`save-${kind}`, "/context/setup", { body: { kind, ...body } });
-  const transition = (kind: ContextKind, id: string, to: "approved" | "obsolete" | "reviewed") => call(`status-${id}`, `/context/items/${kind}/${id}/status`, { body: { to } });
+    call(`save-${kind}`, () => saveItem.mutateAsync({ projectId, kind, ...body }));
+  const transition = (kind: ContextKind, id: string, to: "approved" | "obsolete" | "reviewed") =>
+    call(`status-${id}`, () => transitionItem.mutateAsync({ projectId, kind, id, to }));
   return { busy, error, fieldErrors, call, save, transition, setError };
 }
 

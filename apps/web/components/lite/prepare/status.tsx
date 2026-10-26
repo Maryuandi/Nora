@@ -9,7 +9,7 @@ const SNAPSHOT: Record<string, { label: string; tone: Tone }> = {
   cancelled: { label: "Dibatalkan", tone: "neutral" },
 };
 
-const DATASET: Record<string, { label: string; tone: Tone }> = {
+export const DATASET: Record<string, { label: string; tone: Tone }> = {
   draft: { label: "Draft", tone: "neutral" },
   processing: { label: "Diproses", tone: "info" },
   quality_review: { label: "Tinjauan kualitas", tone: "warning" },
@@ -18,7 +18,7 @@ const DATASET: Record<string, { label: string; tone: Tone }> = {
   failed: { label: "Gagal", tone: "error" },
 };
 
-const QUALITY: Record<string, { label: string; tone: Tone }> = {
+export const QUALITY: Record<string, { label: string; tone: Tone }> = {
   ready: { label: "Siap", tone: "active" },
   ready_with_notes: { label: "Siap dengan catatan", tone: "warning" },
   not_ready: { label: "Belum siap", tone: "error" },

@@ -1,5 +1,6 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
@@ -7,7 +8,7 @@ import { Buildings, FolderSimple, MagnifyingGlass, Plus, SidebarSimple, SignOut 
 import type { Icon } from "@phosphor-icons/react";
 import { useSidebarTabs } from "@/components/shell/sidebar-tabs";
 import { cx } from "@/utils/cx";
-import { api } from "./api";
+import { useTRPC } from "@/lib/trpc/client";
 
 const TILES = ["bg-[#ece6fb] text-[#7a5bd6]", "bg-[#fde6ee] text-[#d6527f]", "bg-[#e3f5e8] text-[#2f9e57]", "bg-[#fdf3d4] text-[#b8870f]"];
 const ROW = "flex h-8 w-full items-center gap-2 rounded-lg border border-transparent px-2 text-[14px] font-medium tracking-[-0.01em] transition-colors";
@@ -28,6 +29,7 @@ export function LiteSidebar({ projects, viewer }: { projects: { id: string; name
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(true);
   const allTabs = useSidebarTabs();
+  const logoutMutation = useMutation(useTRPC().auth.logout.mutationOptions());
   const currentId = path.match(/^\/lite\/projects\/([0-9a-f-]{36})/)?.[1];
   const current = projects.find((p) => p.id === currentId);
   const q = query.trim().toLowerCase();
@@ -35,7 +37,7 @@ export function LiteSidebar({ projects, viewer }: { projects: { id: string; name
   const list = projects.filter((p) => p.name.toLowerCase().includes(q));
 
   async function logout() {
-    await api("/auth/logout", { method: "POST", body: {} });
+    await logoutMutation.mutateAsync().catch(() => {});
     router.push("/lite/login");
     router.refresh();
   }

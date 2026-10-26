@@ -2,11 +2,13 @@
 
 import "bpmn-js/dist/assets/diagram-js.css";
 import "bpmn-js/dist/assets/bpmn-js.css";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/base/buttons/button";
 import { Input } from "@/components/base/input/input";
 import { StatePill } from "../badges";
 import { AutoRefresh } from "../auto-refresh";
+import { useTRPC } from "@/lib/trpc/client";
 import { ErrorLine, useContextApi } from "./shared";
 
 export interface BpmnModelView {
@@ -25,31 +27,35 @@ export interface BpmnModelView {
 
 /** Read-only render; XML comes from our API as text and bpmn-js draws SVG, so no source markup is injected as HTML. */
 function Viewer({ projectId, modelId }: { projectId: string; modelId: string }) {
+  const trpc = useTRPC();
+  const source = useQuery(trpc.context.bpmnXml.queryOptions({ projectId, modelId }));
   const el = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const xml = source.data;
   useEffect(() => {
+    if (!xml) return;
     type V = { importXML(x: string): Promise<unknown>; destroy(): void; get(s: string): any };
     let viewer: V | undefined;
     let cancelled = false;
     (async () => {
-      const [{ default: NavigatedViewer }, res] = await Promise.all([import("bpmn-js/lib/NavigatedViewer"), fetch(`/api/lite/projects/${projectId}/context/bpmn/${modelId}`)]);
+      const { default: NavigatedViewer } = await import("bpmn-js/lib/NavigatedViewer");
       if (cancelled || !el.current) return;
-      if (!res.ok) return setError("Model tidak dapat dimuat");
       const v = new NavigatedViewer({ container: el.current }) as unknown as V;
       viewer = v;
       try {
-        await v.importXML(await res.text());
+        await v.importXML(xml);
         v.get("canvas").zoom("fit-viewport");
       } catch {
         setError("Diagram tidak memiliki informasi tata letak (BPMNDI) yang dapat dirender.");
       }
     })();
     return () => { cancelled = true; viewer?.destroy(); };
-  }, [projectId, modelId]);
+  }, [xml]);
+  const shown = source.isError ? "Model tidak dapat dimuat" : error;
   return (
     <div className="relative h-80 overflow-hidden rounded-lg border border-line bg-white">
       <div ref={el} className="h-full w-full" aria-label="Diagram BPMN (hanya baca)" role="img" />
-      {error && <p className="absolute inset-x-0 top-1/2 text-center text-sm text-ink-2">{error}</p>}
+      {shown && <p className="absolute inset-x-0 top-1/2 text-center text-sm text-ink-2">{shown}</p>}
     </div>
   );
 }
@@ -58,6 +64,10 @@ const suggest = (taskName: string, labels: string[]) => labels.filter((l) => l.t
 
 export function BpmnPanel({ projectId, models, labels, readOnly }: { projectId: string; models: BpmnModelView[]; labels: string[]; readOnly: boolean }) {
   const ctx = useContextApi(projectId);
+  const trpc = useTRPC();
+  const uploadBpmn = useMutation(trpc.context.uploadBpmn.mutationOptions());
+  const approveBpmn = useMutation(trpc.context.approveBpmn.mutationOptions());
+  const saveMapping = useMutation(trpc.context.saveBpmnMapping.mutationOptions());
   const current = models.find((m) => m.status === "approved") ?? models[0];
   const [name, setName] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -69,7 +79,7 @@ export function BpmnPanel({ projectId, models, labels, readOnly }: { projectId: 
   async function upload() {
     if (!file) return;
     const xml = await file.text();
-    if (await ctx.call("upload", "/context/bpmn", { body: { name: name || file.name.replace(/\.[^.]+$/, ""), fileName: file.name, xml } })) { setFile(null); setName(""); }
+    if (await ctx.call("upload", () => uploadBpmn.mutateAsync({ projectId, name: name || file.name.replace(/\.[^.]+$/, ""), fileName: file.name, xml }))) { setFile(null); setName(""); }
   }
   const toggle = (task: string, label: string) => setMapping((m) => {
     const cur = m[task] ?? [];
@@ -88,7 +98,7 @@ export function BpmnPanel({ projectId, models, labels, readOnly }: { projectId: 
             {current.validationStatus === "valid" && <StatePill tone="active">Valid untuk PM4Py</StatePill>}
             {current.validationStatus === "invalid" && <StatePill tone={current.readable ? "warning" : "error"}>{current.readable ? "Referensi visual saja" : "Tidak valid"}</StatePill>}
             {current.status === "approved" ? <StatePill tone="active">Ready</StatePill> : !readOnly && current.readable && (
-              <Button size="xs" color="secondary" className="ml-auto" isLoading={ctx.busy === "approve"} onClick={() => ctx.call("approve", `/context/bpmn/${current.id}/approve`, { body: {} })}>Tandai Ready</Button>
+              <Button size="xs" color="secondary" className="ml-auto" isLoading={ctx.busy === "approve"} onClick={() => ctx.call("approve", () => approveBpmn.mutateAsync({ projectId, modelId: current.id }))}>Tandai Ready</Button>
             )}
           </div>
           {current.validationError && <p className="text-sm text-ink-2">{current.validationError}{current.readable ? " Conformance dinonaktifkan untuk model ini." : ""}</p>}
@@ -126,7 +136,7 @@ export function BpmnPanel({ projectId, models, labels, readOnly }: { projectId: 
                   {current.mapping.unmappedActivities.length > 0 && <li>Aktivitas dataset tanpa task: {current.mapping.unmappedActivities.join(", ")}</li>}
                 </ul>
               )}
-              {!readOnly && <div className="flex justify-end"><Button size="xs" color="primary" isDisabled={!mappedCount} isLoading={ctx.busy === "mapping"} onClick={() => ctx.call("mapping", `/context/bpmn/${current.id}/mapping`, { method: "PUT", body: { mapping } })}>Simpan pemetaan</Button></div>}
+              {!readOnly && <div className="flex justify-end"><Button size="xs" color="primary" isDisabled={!mappedCount} isLoading={ctx.busy === "mapping"} onClick={() => ctx.call("mapping", () => saveMapping.mutateAsync({ projectId, modelId: current.id, mapping }))}>Simpan pemetaan</Button></div>}
             </div>
           )}
         </>

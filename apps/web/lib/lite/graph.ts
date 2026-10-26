@@ -24,20 +24,22 @@ export interface GraphStatus {
 
 /** Graph version = last projected outbox sequence; lag is the age of the oldest unprojected event. */
 export async function graphStatus(projectId: string): Promise<GraphStatus> {
-  const s = (await db().query(
-    `SELECT coalesce((SELECT max(sequence) FROM outbox_events WHERE project_id = $1 AND projected_at IS NOT NULL), 0) AS projected,
-            coalesce((SELECT max(sequence) FROM outbox_events WHERE project_id = $1), 0) AS latest,
-            (SELECT count(*) FROM outbox_events WHERE project_id = $1 AND projected_at IS NULL AND NOT dead_letter) AS pending,
-            coalesce(extract(epoch FROM now() - (SELECT min(occurred_at) FROM outbox_events WHERE project_id = $1 AND projected_at IS NULL AND NOT dead_letter)), 0) AS lag,
-            g.last_projected_at, g.rebuild_requested_at, g.rebuilt_at
-       FROM (SELECT 1) x LEFT JOIN graph_projection_state g ON g.project_id = $1`, [projectId],
-  )).rows[0];
-  const dead = (await db().query(
-    `SELECT sequence, aggregate_type AS "aggregateType", aggregate_id AS "aggregateId", last_error AS error, attempts FROM outbox_events WHERE project_id = $1 AND dead_letter ORDER BY sequence LIMIT 50`, [projectId],
-  )).rows;
+  // Raw: lag is measured on the database clock, the same clock that stamped occurred_at.
+  const [s] = await db().$queryRaw<[{ projected: bigint; latest: bigint; pending: bigint; lag: number; last_projected_at: Date | null; rebuild_requested_at: Date | null; rebuilt_at: Date | null }]>`
+    SELECT coalesce((SELECT max(sequence) FROM outbox_events WHERE project_id = ${projectId}::uuid AND projected_at IS NOT NULL), 0) AS projected,
+           coalesce((SELECT max(sequence) FROM outbox_events WHERE project_id = ${projectId}::uuid), 0) AS latest,
+           (SELECT count(*) FROM outbox_events WHERE project_id = ${projectId}::uuid AND projected_at IS NULL AND NOT dead_letter) AS pending,
+           coalesce(extract(epoch FROM now() - (SELECT min(occurred_at) FROM outbox_events WHERE project_id = ${projectId}::uuid AND projected_at IS NULL AND NOT dead_letter)), 0)::float8 AS lag,
+           g.last_projected_at, g.rebuild_requested_at, g.rebuilt_at
+      FROM (SELECT 1) x LEFT JOIN graph_projection_state g ON g.project_id = ${projectId}::uuid`;
+  const dead = await db().outboxEvent.findMany({
+    where: { projectId, deadLetter: true }, orderBy: { sequence: "asc" }, take: 50, select: { sequence: true, aggregateType: true, aggregateId: true, lastError: true, attempts: true },
+  });
   return {
-    projectedSequence: Number(s.projected), latestSequence: Number(s.latest), pending: Number(s.pending), deadLetters: dead, lagSeconds: Math.round(Number(s.lag)),
-    stale: Number(s.lag) > STALE_AFTER_SECONDS || !!s.rebuild_requested_at, lastProjectedAt: s.last_projected_at, rebuildRequestedAt: s.rebuild_requested_at, rebuiltAt: s.rebuilt_at,
+    projectedSequence: Number(s.projected), latestSequence: Number(s.latest), pending: Number(s.pending), lagSeconds: Math.round(s.lag),
+    deadLetters: dead.map((d) => ({ sequence: Number(d.sequence), aggregateType: d.aggregateType, aggregateId: d.aggregateId, error: d.lastError, attempts: d.attempts })),
+    stale: s.lag > STALE_AFTER_SECONDS || !!s.rebuild_requested_at, lastProjectedAt: s.last_projected_at?.toISOString() ?? null,
+    rebuildRequestedAt: s.rebuild_requested_at?.toISOString() ?? null, rebuiltAt: s.rebuilt_at?.toISOString() ?? null,
   };
 }
 
@@ -52,10 +54,8 @@ export async function graphStatusFor(viewer: Viewer, projectId: string) {
 /** Admin-only: the projection is dropped and replayed from authoritative records by the worker. */
 export async function requestRebuild(viewer: Viewer, projectId: string, correlationId: string) {
   await can(viewer, "graph.rebuild", projectId);
-  await db().query(
-    `INSERT INTO graph_projection_state (project_id, rebuild_requested_at) VALUES ($1, now())
-     ON CONFLICT (project_id) DO UPDATE SET rebuild_requested_at = now()`, [projectId],
-  );
+  const now = new Date();
+  await db().graphProjectionState.upsert({ where: { projectId }, create: { projectId, rebuildRequestedAt: now }, update: { rebuildRequestedAt: now } });
   await audit(db(), { projectId, actorId: viewer.id, action: "graph.rebuild", objectType: "graph", objectId: projectId, correlationId });
   return { requested: true };
 }
@@ -76,20 +76,20 @@ export async function graphNeighborhood(viewer: Viewer, projectId: string, type:
 
 export async function listBundles(viewer: Viewer, projectId: string, targetId: string) {
   await can(viewer, "project.read", projectId);
-  const { rows } = await db().query(
-    `SELECT id, target_type AS "targetType", purpose, hash, graph_sequence AS "graphSequence", context_limited AS "contextLimited", context_maybe_stale AS "contextMaybeStale", created_at AS "createdAt",
-            (SELECT count(*) FILTER (WHERE included) FROM evidence_bundle_items i WHERE i.bundle_id = b.id) AS included,
-            (SELECT count(*) FILTER (WHERE NOT included) FROM evidence_bundle_items i WHERE i.bundle_id = b.id) AS excluded
-       FROM evidence_bundles b WHERE project_id = $1 AND target_id = $2 ORDER BY created_at DESC LIMIT 20`, [projectId, targetId],
-  );
-  return rows;
+  const rows = await db().evidenceBundle.findMany({
+    where: { projectId, targetId }, orderBy: { createdAt: "desc" }, take: 20,
+    select: { id: true, targetType: true, purpose: true, hash: true, graphSequence: true, contextLimited: true, contextMaybeStale: true, createdAt: true },
+  });
+  const counts = await db().evidenceBundleItem.groupBy({ by: ["bundleId", "included"], where: { bundleId: { in: rows.map((b) => b.id) } }, _count: { _all: true } });
+  const count = (bundleId: string, included: boolean) => counts.find((c) => c.bundleId === bundleId && c.included === included)?._count._all ?? 0;
+  return rows.map((b) => ({ ...b, graphSequence: Number(b.graphSequence), createdAt: b.createdAt.toISOString(), included: count(b.id, true), excluded: count(b.id, false) }));
 }
 
 export async function getBundle(viewer: Viewer, projectId: string, bundleId: string, correlationId: string): Promise<EvidenceBundle & { createdAt: string }> {
   await can(viewer, "project.read", projectId);
   if (!/^[0-9a-f-]{36}$/i.test(bundleId)) throw notFound();
-  const b = (await db().query<{ object_key: string; created_at: string }>("SELECT object_key, created_at FROM evidence_bundles WHERE id = $1 AND project_id = $2", [bundleId, projectId])).rows[0];
+  const b = await db().evidenceBundle.findFirst({ where: { id: bundleId, projectId }, select: { objectKey: true, createdAt: true } });
   if (!b) throw notFound();
   await audit(db(), { projectId, actorId: viewer.id, action: "evidence.bundle.read", objectType: "evidence_bundle", objectId: bundleId, correlationId });
-  return { ...EvidenceBundle.parse(await getJson(projectId, b.object_key)), createdAt: b.created_at };
+  return { ...EvidenceBundle.parse(await getJson(projectId, b.objectKey)), createdAt: b.createdAt.toISOString() };
 }

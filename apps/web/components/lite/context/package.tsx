@@ -1,7 +1,9 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/base/buttons/button";
 import { StatePill } from "../badges";
+import { useTRPC } from "@/lib/trpc/client";
 import { ErrorLine, useContextApi } from "./shared";
 
 export interface PackagePlan {
@@ -25,6 +27,7 @@ export function PackagePanel({ projectId, plan, packages, readOnly }: {
   packages: { id: string; version: number; name: string; status: string; hash: string; conformanceAvailable: boolean; activatedAt: string | null; refs: { type: string; key: string; version: number }[] }[];
 }) {
   const ctx = useContextApi(projectId);
+  const activate = useMutation(useTRPC().context.activatePackage.mutationOptions());
   const rows: [string, string, boolean | null][] = [
     ["Batas proses", plan.boundary ? "Ready" : "Wajib — belum Ready", plan.boundary],
     ["Definisi rework", plan.rework ? "Ready" : "Tidak ada — rework tidak dihitung", plan.rework ? true : null],
@@ -49,7 +52,7 @@ export function PackagePanel({ projectId, plan, packages, readOnly }: {
       <div className="flex flex-wrap items-center gap-2">
         {active && <span className="text-xs text-ink-3">Aktif: {active.name} · hash {active.hash.slice(0, 12)}</span>}
         <ErrorLine text={ctx.error} />
-        {!readOnly && <Button className="ml-auto" size="xs" color="primary" isDisabled={!plan.boundary} isLoading={ctx.busy === "pkg"} onClick={() => ctx.call("pkg", "/context/packages", { body: {} })}>Bekukan & aktifkan paket</Button>}
+        {!readOnly && <Button className="ml-auto" size="xs" color="primary" isDisabled={!plan.boundary} isLoading={ctx.busy === "pkg"} onClick={() => ctx.call("pkg", () => activate.mutateAsync({ projectId }))}>Bekukan & aktifkan paket</Button>}
       </div>
       {packages.length > 0 && (
         <details className="rounded-lg border border-line bg-canvas px-4 py-3">

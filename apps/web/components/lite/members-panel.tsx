@@ -1,12 +1,14 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { Role } from "@nora/authz";
 import { Button } from "@/components/base/buttons/button";
 import { Input } from "@/components/base/input/input";
 import { NativeSelect } from "@/components/base/select/select-native";
-import { api, errorText } from "./api";
+import { useTRPC } from "@/lib/trpc/client";
+import { attempt, errorText } from "./api";
 import { ROLE_LABEL } from "./badges";
 
 const ROLE_OPTIONS = (Object.keys(ROLE_LABEL) as Role[]).map((r) => ({ value: r, label: ROLE_LABEL[r] }));
@@ -20,13 +22,14 @@ export function AddMemberForm({ projectId }: { projectId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [fieldErr, setFieldErr] = useState<Record<string, string>>({});
   const [link, setLink] = useState<string | null>(null);
+  const add = useMutation(useTRPC().members.add.mutationOptions());
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
     setLink(null);
-    const res = await api<{ activationUrl: string | null }>(`/projects/${projectId}/members`, { body: { email, name, role } });
+    const res = await attempt(add.mutateAsync({ projectId, email, name, role }));
     setBusy(false);
     if (!res.ok) {
       setFieldErr(res.error.details ?? {});
@@ -63,10 +66,13 @@ export function MemberRowActions({ projectId, userId, role, email }: { projectId
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const trpc = useTRPC();
+  const add = useMutation(trpc.members.add.mutationOptions());
+  const removeMember = useMutation(trpc.members.remove.mutationOptions());
 
   async function changeRole(next: Role) {
     setBusy(true);
-    const res = await api(`/projects/${projectId}/members`, { body: { email, role: next } });
+    const res = await attempt(add.mutateAsync({ projectId, email, role: next }));
     setBusy(false);
     if (!res.ok) return setError(errorText(res.error));
     setError(null);
@@ -74,7 +80,7 @@ export function MemberRowActions({ projectId, userId, role, email }: { projectId
   }
   async function remove() {
     setBusy(true);
-    const res = await api(`/projects/${projectId}/members?userId=${userId}`, { method: "DELETE" });
+    const res = await attempt(removeMember.mutateAsync({ projectId, userId }));
     setBusy(false);
     if (!res.ok) return setError(errorText(res.error));
     router.refresh();
