@@ -2,8 +2,9 @@
 
 import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { X } from "@phosphor-icons/react";
+import { MagnifyingGlass, X } from "@phosphor-icons/react";
 import { Button } from "@/components/base/buttons/button";
+import { Input } from "@/components/base/input/input";
 import { NativeSelect } from "@/components/base/select/select-native";
 import { formatDateTime, formatSeconds } from "@/lib/lite/format";
 import { cx } from "@/utils/cx";
@@ -34,13 +35,17 @@ export function CaseList({ projectId, source, sorts = MAP_SORTS, support, onOpen
   const [sort, setSort] = useState(sorts[0]!.value);
   const [dir, setDir] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
+  const [text, setText] = useState("");
+  const [search, setSearch] = useState("");
+  // One request per pause in typing, not per keystroke.
+  useEffect(() => { const t = setTimeout(() => setSearch(text.trim()), 300); return () => clearTimeout(t); }, [text]);
   const sourceKey = JSON.stringify(source);
-  useEffect(() => { setPage(1); }, [sourceKey, sort, dir]);
+  useEffect(() => { setPage(1); }, [sourceKey, sort, dir, search]);
   const trpc = useTRPC();
   const paging = { sort, dir, page, size: 25 };
   // The previous page stays visible while the next one loads.
   const runCases = useQuery({ ...trpc.analyses.cases.queryOptions("runId" in source ? { projectId, ...source, ...paging } : skipToken), placeholderData: keepPreviousData });
-  const findingCases = useQuery({ ...trpc.findings.cases.queryOptions("findingId" in source ? { projectId, findingId: source.findingId, ...paging } : skipToken), placeholderData: keepPreviousData });
+  const findingCases = useQuery({ ...trpc.findings.cases.queryOptions("findingId" in source ? { projectId, findingId: source.findingId, ...paging, search: search || undefined } : skipToken), placeholderData: keepPreviousData });
   const q = "runId" in source ? runCases : findingCases;
   const data: Page | undefined = q.data;
   const error = q.error ? errorText(toApiError(q.error)) : null;
@@ -48,7 +53,8 @@ export function CaseList({ projectId, source, sorts = MAP_SORTS, support, onOpen
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-end gap-2">
-        <p className="mr-auto text-sm text-ink-2">{data ? `${data.total.toLocaleString("id-ID")} kasus` : "Memuat…"}</p>
+        <p className={cx("mr-auto text-sm text-ink-2", "findingId" in source && "basis-full")}>{data ? `${data.total.toLocaleString("id-ID")} kasus${search ? ` cocok dengan "${search}"` : ""}` : "Memuat…"}</p>
+        {"findingId" in source && <Input aria-label="Cari ID kasus" placeholder="Cari ID kasus" icon={MagnifyingGlass} className="w-44" value={text} onChange={setText} />}
         <NativeSelect aria-label="Urutkan" size="sm" className="w-52" value={sort} onChange={(e) => setSort(e.target.value)} options={sorts} />
         <NativeSelect aria-label="Arah" size="sm" className="w-32" value={dir} onChange={(e) => setDir(e.target.value as "asc" | "desc")} options={[{ value: "desc", label: "Menurun" }, { value: "asc", label: "Menaik" }]} />
       </div>
@@ -71,6 +77,7 @@ export function CaseList({ projectId, source, sorts = MAP_SORTS, support, onOpen
             ))}
           </tbody>
         </table>
+        {data && !data.cases.length && <p className="px-3 py-4 text-center text-sm text-ink-3">{search ? `Tidak ada kasus dengan ID mengandung "${search}".` : "Tidak ada kasus."}</p>}
       </div>
       {pages > 1 && (
         <div className="flex items-center justify-end gap-2 text-sm">

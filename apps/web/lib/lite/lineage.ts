@@ -1,8 +1,10 @@
 import "server-only";
 import type { Viewer } from "./auth";
-import type { MappingConfig } from "@nora/contracts";
+import type { FilterSpec, MappingConfig } from "@nora/contracts";
 import { jsonAs } from "@nora/db";
+import { QUALITY_CHECK_LABEL } from "./data";
 import { db } from "./db";
+import { describeFilter, formatInt } from "./format";
 import { getFinding } from "./findings";
 
 export type RelationCategory = "lineage" | "observation" | "hypothesis" | "review";
@@ -21,6 +23,8 @@ export interface LineageNode {
   creator?: "code" | "human" | "model";
   recordId?: string;
   at?: string | null;
+  /** identifiers for auditors (hashes, algorithm versions); shown on hover, not in the text */
+  technical?: string;
   children: LineageNode[];
 }
 
@@ -36,7 +40,7 @@ export async function findingLineage(viewer: Viewer, projectId: string, findingI
   const ds = await q.datasetVersion.findUniqueOrThrow({
     where: { id: f.datasetVersionId },
     select: {
-      id: true, name: true, version: true, status: true, contentHash: true, publishedAt: true, mappingVersionId: true, snapshotId: true, sourceId: true,
+      id: true, name: true, version: true, status: true, contentHash: true, publishedAt: true, caseCount: true, eventCount: true, mappingVersionId: true, snapshotId: true, sourceId: true,
       mappingVersion: { select: { version: true, config: true, createdAt: true } }, snapshot: { select: { fileName: true, sha256: true, createdAt: true } }, source: { select: { name: true } },
     },
   });
@@ -73,19 +77,19 @@ export async function findingLineage(viewer: Viewer, projectId: string, findingI
   return {
     id: `finding:${f.id}`, type: "finding", label: f.title, detail: f.summary, status: f.severityLabel, creator: "code", recordId: f.id, at: f.createdAt, href: `${base}/findings/${f.id}`, children: [
       {
-        id: `analysis:${run.id}`, type: "analysis", label: "Analysis run", detail: run.algorithmVersion, relation: "DERIVED_FROM", category: "lineage", creator: "code", recordId: run.id,
+        id: `analysis:${run.id}`, type: "analysis", label: "Analisis proses", detail: "Peta proses dan metrik dihitung otomatis dari dataset di bawah", technical: `algoritma ${run.algorithmVersion}`, relation: "DERIVED_FROM", category: "lineage", creator: "code", recordId: run.id,
         at: iso(run.completedAt), href: `${base}/analysis?run=${run.id}`, children: [
           { id: `metric:${f.metricKey}:${f.metricVersion}`, type: "metric_definition", label: f.metricName ?? f.metricKey, detail: f.formula ?? undefined, version: f.metricVersion, relation: "COMPUTED_WITH", category: "lineage", creator: "code", children: [] },
-          { id: `filter:${run.id}`, type: "filter", label: "Filter analisis", detail: JSON.stringify(run.filterSpec), relation: "COMPUTED_WITH", category: "lineage", creator: "human", children: [] },
+          { id: `filter:${run.id}`, type: "filter", label: "Filter analisis", detail: describeFilter(jsonAs<Partial<FilterSpec>>(run.filterSpec)), relation: "COMPUTED_WITH", category: "lineage", creator: "human", children: [] },
           {
-            id: `dataset:${ds.id}`, type: "dataset_version", label: ds.name, detail: `hash ${ds.contentHash.slice(0, 12)}`, version: ds.version, status: ds.status, superseded: ds.status === "superseded",
+            id: `dataset:${ds.id}`, type: "dataset_version", label: ds.name, detail: `${formatInt(Number(ds.caseCount))} kasus · ${formatInt(Number(ds.eventCount))} event`, technical: `hash ${ds.contentHash.slice(0, 12)}`, version: ds.version, status: ds.status, superseded: ds.status === "superseded",
             relation: "DERIVED_FROM", category: "lineage", creator: "code", recordId: ds.id, at: iso(ds.publishedAt), href: `${base}/prepare/datasets/${ds.id}`, children: [
               {
-                id: `mapping:${ds.mappingVersionId}`, type: "mapping_version", label: `Mapping v${ds.mappingVersion.version}`, detail: `${Object.keys(config.labelMap ?? {}).length} label · ${repair.length ? `aturan perbaikan: ${repair.flatMap((r) => r.checks).join(", ")}` : "tanpa aturan perbaikan"}`,
+                id: `mapping:${ds.mappingVersionId}`, type: "mapping_version", label: `Pemetaan kolom v${ds.mappingVersion.version}`, detail: `${Object.keys(config.labelMap ?? {}).length} penyeragaman nama aktivitas · ${repair.length ? `perbaikan data: ${repair.flatMap((r) => r.checks).map((c) => QUALITY_CHECK_LABEL[c] ?? c).join(", ")}` : "tanpa perbaikan data"}`,
                 version: ds.mappingVersion.version, relation: "USES_MAPPING", category: "lineage", creator: "human", recordId: ds.mappingVersionId, at: iso(ds.mappingVersion.createdAt), href: `${base}/prepare/sources/${ds.sourceId}?mapping=${ds.mappingVersionId}`, children: [],
               },
               {
-                id: `snapshot:${ds.snapshotId}`, type: "snapshot", label: ds.snapshot.fileName, detail: `sha256 ${String(ds.snapshot.sha256).slice(0, 12)}`, relation: "DERIVED_FROM", category: "lineage", creator: "human",
+                id: `snapshot:${ds.snapshotId}`, type: "snapshot", label: ds.snapshot.fileName, detail: "File yang diunggah", technical: `sha256 ${String(ds.snapshot.sha256).slice(0, 12)}`, relation: "DERIVED_FROM", category: "lineage", creator: "human",
                 recordId: ds.snapshotId, at: iso(ds.snapshot.createdAt), href: `${base}/prepare/sources/${ds.sourceId}?snapshot=${ds.snapshotId}`, children: [
                   { id: `source:${ds.sourceId}`, type: "source", label: ds.source.name, relation: "DERIVED_FROM", category: "lineage", creator: "human", recordId: ds.sourceId, href: `${base}/prepare/sources/${ds.sourceId}`, children: [] },
                 ],
@@ -93,7 +97,7 @@ export async function findingLineage(viewer: Viewer, projectId: string, findingI
             ],
           },
           {
-            id: `context:${pkg.id}`, type: "context_package", label: pkg.name, detail: `hash ${pkg.hash.slice(0, 12)}`, version: pkg.version, status: pkg.status, superseded: pkg.status === "superseded",
+            id: `context:${pkg.id}`, type: "context_package", label: pkg.name, detail: "Batas proses, aturan dan katalog yang dipakai saat analisis", technical: `hash ${pkg.hash.slice(0, 12)}`, version: pkg.version, status: pkg.status, superseded: pkg.status === "superseded",
             relation: "EVALUATED_AGAINST", category: "lineage", creator: "human", recordId: pkg.id, at: iso(pkg.activatedAt), href: `${base}/prepare/context`, children: contextChildren,
           },
         ],
@@ -103,3 +107,5 @@ export async function findingLineage(viewer: Viewer, projectId: string, findingI
 }
 
 const LABEL: Record<string, string> = { rule: "Aturan", process_boundary: "Batas proses", rework_definition: "Definisi rework", bpmn_model: "Model BPMN", bpmn_mapping: "Pemetaan BPMN" };
+
+/** The run's filter in words, e.g. "Kasus dengan periode 1 Jan 2026 – 31 Mar 2026; branch: Bandung". */

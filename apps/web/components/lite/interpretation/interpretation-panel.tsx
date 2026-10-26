@@ -141,15 +141,12 @@ export function InterpretationPanel({ projectId, targetType, targetId, canReques
   const usable = detail && ["passed", "accepted", "flagged"].includes(detail.status);
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-end gap-2">
-        <p className="max-w-xl text-sm text-ink-2">LLM menjelaskan paket bukti dalam Bahasa Indonesia. Angka diisi kode dari bukti; klaim yang tidak lolos pemeriksaan tidak ditampilkan.</p>
-        {canRequest && (
-          <div className="ml-auto flex items-end gap-2">
+      {canRequest && (
+          <div className="flex items-end justify-end gap-2">
             <NativeSelect label="Pembaca" size="sm" value={audience} onChange={(e) => setAudience(e.target.value)} options={Object.entries(AUDIENCE_LABEL).map(([value, label]) => ({ value, label }))} />
             <Button size="sm" color="secondary" isLoading={busy} onClick={() => act(() => requestDraft.mutateAsync({ projectId, request: { targetType, targetId, audience } }))}>Buat draft</Button>
           </div>
         )}
-      </div>
       {error && <p role="alert" className="text-sm text-error-primary">{error}</p>}
       {history.length === 0 && <p className="text-sm text-ink-3">Belum ada interpretasi untuk target ini.</p>}
       {history.length > 1 && (

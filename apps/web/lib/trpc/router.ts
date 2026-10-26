@@ -212,8 +212,8 @@ const findings = router({
     .query(({ ctx, input }) => listFindings(ctx.viewer, input.projectId, { runId: input.runId, types: list(input.types), sort: input.sort })),
   get: projectProcedure.input(findingInput).query(({ ctx, input }) => getFinding(ctx.viewer, input.projectId, input.findingId)),
   /** sort = support|duration|events|start|additional (rework); size ≤ 100. */
-  cases: projectProcedure.input(findingInput.extend({ sort: z.string().optional(), dir: z.string().optional(), page: z.number().int().optional(), size: z.number().int().optional() }))
-    .query(({ ctx, input }) => listFindingCases(ctx.viewer, input.projectId, input.findingId, { sort: input.sort, dir: input.dir, page: input.page || 1, size: input.size || 25 })),
+  cases: projectProcedure.input(findingInput.extend({ sort: z.string().optional(), dir: z.string().optional(), page: z.number().int().optional(), size: z.number().int().optional(), search: z.string().max(200).optional() }))
+    .query(({ ctx, input }) => listFindingCases(ctx.viewer, input.projectId, input.findingId, { sort: input.sort, dir: input.dir, page: input.page || 1, size: input.size || 25, search: input.search })),
   /** Tree from authoritative records plus the projection status, so the UI can flag a lagging graph. */
   lineage: projectProcedure.input(findingInput).query(async ({ ctx, input }) => {
     const tree = await findingLineage(ctx.viewer, input.projectId, input.findingId);

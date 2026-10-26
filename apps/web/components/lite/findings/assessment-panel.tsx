@@ -139,7 +139,7 @@ export function AssessmentPanel({ projectId, findingId, canRun, canCorrect, canI
         {data.assessments.map((a) => (
           <li key={a.id} className="rounded-lg border border-line px-3 py-2">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="min-w-0 flex-1 text-sm font-medium">{a.candidateAction}</span>
+              <span className="min-w-0 flex-1 text-sm font-medium">{a.candidateAction ?? `Kandidat analis: ${a.candidateKey}`}</span>
               <StatePill tone={STATUS[a.status]?.tone ?? "neutral"}>{STATUS[a.status]?.label ?? a.status}</StatePill>
               {a.adapter === "fixture" && <StatePill tone="warning">Mode fixture</StatePill>}
               {a.specSuperseded && <StatePill tone="neutral">Spesifikasi lama</StatePill>}
@@ -148,9 +148,8 @@ export function AssessmentPanel({ projectId, findingId, canRun, canCorrect, canI
             {a.status === "failed" ? <p className="mt-1 text-sm text-error-primary">{a.errorMessage}</p> : (
               <div className="mt-1 grid gap-x-6 gap-y-1 text-xs text-ink-2 sm:grid-cols-2">
                 <p><span className="text-ink-3">Hasil model:</span> {a.conclusion ? CONCLUSION[a.conclusion] : "–"} {a.topProbability != null && `(p ${a.topProbability.toFixed(2)}, margin ${a.margin?.toFixed(2)})`}</p>
-                <p><span className="text-ink-3">Nilai efektif:</span> <span className="font-medium text-ink">{a.effective.conclusion ? CONCLUSION[a.effective.conclusion] : "–"}</span> · {a.effective.source === "model" ? "dari model, belum ditinjau" : a.effective.source === "confirmation" ? "dikonfirmasi analis" : "dikoreksi analis"}</p>
+                <p><span className="text-ink-3">Nilai efektif:</span> <span className="font-medium text-ink">{a.effective.conclusion ? CONCLUSION[a.effective.conclusion] : "–"}</span>{a.effective.source !== "model" && ` · ${a.effective.source === "confirmation" ? "dikonfirmasi analis" : "dikoreksi analis"}`}</p>
                 <p><span className="text-ink-3">Skor rubrik:</span> {a.totalScore != null ? a.totalScore.toFixed(2) : a.missingCriteria.length ? `tidak dihitung (kurang: ${a.missingCriteria.join(", ")})` : "–"} · kecukupan bukti p {a.sufficiencyProbability?.toFixed(2) ?? "–"}</p>
-                <p><span className="text-ink-3">Model:</span> {a.model ?? "–"} {a.modelVersion} · spesifikasi {a.questionSpecs.map((s) => `${s.task}@${s.version}`).join(", ")} · rubrik v{a.rubricVersion ?? "–"}</p>
                 {a.criteria.length > 0 && <p className="sm:col-span-2"><span className="text-ink-3">Kriteria:</span> {a.criteria.map((c) => `${c.key} ${c.score ?? "?"} (bobot ${c.weight}, p ${c.probability?.toFixed(2) ?? "–"})`).join(" · ")}</p>}
                 {a.corrections.map((c) => <p key={c.id} className="sm:col-span-2"><span className="text-ink-3">{c.kind === "confirm" ? "Konfirmasi" : "Koreksi"} oleh {c.by}:</span> {c.reason}</p>)}
               </div>
@@ -164,7 +163,7 @@ export function AssessmentPanel({ projectId, findingId, canRun, canCorrect, canI
         <details className="text-sm">
           <summary className="cursor-pointer text-ink-2">Kandidat tidak dinilai karena syarat ({data.blocked.length})</summary>
           <ul className="mt-2 flex flex-col gap-1">{data.blocked.map((b) => (
-            <li key={b.id} className="text-xs"><span className="font-medium">{b.candidateAction}</span> · {b.preconditionStatus === "not_eligible" ? "tidak memenuhi syarat" : "informasi tidak cukup"}: {b.checks.filter((c) => c.status !== "pass").map((c) => c.reason).join("; ")}</li>
+            <li key={b.id} className="text-xs"><span className="font-medium">{b.candidateAction ?? `Kandidat analis: ${b.candidateKey}`}</span> · {b.preconditionStatus === "not_eligible" ? "tidak memenuhi syarat" : "informasi tidak cukup"}: {b.checks.filter((c) => c.status !== "pass").map((c) => c.reason).join("; ")}</li>
           ))}</ul>
         </details>
       )}

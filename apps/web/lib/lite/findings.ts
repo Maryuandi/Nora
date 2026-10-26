@@ -106,7 +106,7 @@ export const FINDING_CASE_SORTS = {
 } as const;
 
 /** Supporting cases of a finding; total always equals the stored finding_cases count. */
-export async function listFindingCases(viewer: Viewer, projectId: string, findingId: string, q: { sort?: string; dir?: string; page?: number; size?: number }) {
+export async function listFindingCases(viewer: Viewer, projectId: string, findingId: string, q: { sort?: string; dir?: string; page?: number; size?: number; search?: string }) {
   const f = await getFinding(viewer, projectId, findingId);
   const size = Math.min(Math.max(q.size ?? 25, 1), 100);
   const page = Math.max(q.page ?? 1, 1);
@@ -115,15 +115,18 @@ export async function listFindingCases(viewer: Viewer, projectId: string, findin
   let order: string = FINDING_CASE_SORTS[key];
   if (q.dir === "asc") order = order.replace("DESC", "ASC").replace("rank ASC", "rank DESC");
   const without = Number(f.metrics.medianWithoutSeconds ?? NaN);
+  const search = q.search?.trim() || null;
+  // ILIKE's default escape is backslash; escape it and the wildcards so the search is literal.
+  const like = search && `%${search.replace(/[\\%_]/g, "\\$&")}%`;
   // Raw: a left join to the run's case rows with a per-request sort; the order comes from FINDING_CASE_SORTS only.
   const rows = await db().$queryRaw<{ caseUid: string; caseId: string; rank: number; supportMetric: string; supportValue: number | null; startTime: Date | null; endTime: Date | null; durationSeconds: number | null; eventCount: number | null; additional_s: number | null }[]>`
     SELECT fc.case_uid AS "caseUid", fc.case_id AS "caseId", fc.rank, fc.support_metric AS "supportMetric", fc.support_value AS "supportValue",
            c.start_time AS "startTime", c.end_time AS "endTime", c.duration_s AS "durationSeconds", c.event_count AS "eventCount",
            c.duration_s - ${Number.isFinite(without) ? without : null}::float8 AS additional_s
       FROM finding_cases fc LEFT JOIN analysis_cases c ON c.run_id = ${f.analysisRunId}::uuid AND c.case_uid = fc.case_uid
-     WHERE fc.finding_id = ${findingId}::uuid ORDER BY ${Prisma.raw(order)}, fc.case_uid LIMIT ${size} OFFSET ${(page - 1) * size}`;
+     WHERE fc.finding_id = ${findingId}::uuid AND (${like}::text IS NULL OR fc.case_id ILIKE ${like}) ORDER BY ${Prisma.raw(order)}, fc.case_uid LIMIT ${size} OFFSET ${(page - 1) * size}`;
   return {
-    total: f.caseCount, page, size,
+    total: search ? await db().findingCase.count({ where: { findingId, caseId: { contains: search, mode: "insensitive" } } }) : f.caseCount, page, size,
     cases: rows.map(({ additional_s, ...r }) => ({ ...plain(r), additionalSeconds: additional_s, selectedWaitSeconds: r.supportMetric === "wait_seconds" ? r.supportValue : null })),
   };
 }
