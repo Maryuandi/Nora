@@ -90,6 +90,6 @@ await run("f09", async (s) => {
   check(stale.stale === true && stale.status === d3.status, "data update marks validation stale", stale.stale);
   const actions = (await admin.call((t) => t.projects.audit.query({ projectId }))).body.events.map((e) => e.action);
   check(["recommendation.refresh", "recommendation.validate", "recommendation.policy", "recommendation.candidate.add", "recommendation.compare"].every((x) => actions.includes(x)), "recommendation actions audited");
-  const page = await a.page(`/lite/projects/${projectId}/recommendations/${findingId}/compare?ids=${ids.join(",")}`);
+  const page = await a.page(`/projects/${projectId}/recommendations/${findingId}/compare?ids=${ids.join(",")}`);
   check(page.status === 200 && page.body.includes("Perbandingan kandidat"), "compare page renders");
 }, { workers: true, env: { JEV_MODE: "fixture", GRAPH_SWEEP_INTERVAL: "2s" } });

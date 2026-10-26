@@ -38,7 +38,7 @@ export function LiteSidebar({ projects, viewer }: { projects: { id: string; name
 
   async function logout() {
     await logoutMutation.mutateAsync().catch(() => {});
-    router.push("/lite/login");
+    router.push("/login");
     router.refresh();
   }
 
@@ -49,19 +49,19 @@ export function LiteSidebar({ projects, viewer }: { projects: { id: string; name
           <SidebarSimple size={20} aria-hidden />
         </button>
         {viewer.isAdmin && (
-          <Link href="/lite/projects/new" title="Buat proyek" aria-label="Buat proyek" className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-accent text-white shadow-[0_1px_2px_rgb(20_18_15/0.2)]">
+          <Link href="/projects/new" title="Buat proyek" aria-label="Buat proyek" className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-accent text-white shadow-[0_1px_2px_rgb(20_18_15/0.2)]">
             <Plus size={20} weight="bold" aria-hidden />
           </Link>
         )}
-        <RailLink href="/lite" label="Semua proyek" icon={FolderSimple} active={path === "/lite"} />
+        <RailLink href="/" label="Semua proyek" icon={FolderSimple} active={path === "/"} />
         <div aria-hidden className="my-1 h-px w-8 bg-line" />
         {projects.map((p, i) => (
-          <Link key={p.id} href={`/lite/projects/${p.id}`} title={p.name} aria-label={p.name} aria-current={p.id === currentId ? "page" : undefined} className={cx("flex size-10 shrink-0 items-center justify-center rounded-lg border border-transparent transition-colors", p.id === currentId ? LIFT : HOVER)}>
+          <Link key={p.id} href={`/projects/${p.id}`} title={p.name} aria-label={p.name} aria-current={p.id === currentId ? "page" : undefined} className={cx("flex size-10 shrink-0 items-center justify-center rounded-lg border border-transparent transition-colors", p.id === currentId ? LIFT : HOVER)}>
             <span aria-hidden className={cx("flex size-7 items-center justify-center rounded-md text-[13px] font-medium", TILES[i % TILES.length])}>{p.name[0]}</span>
           </Link>
         ))}
         <div className="mt-auto flex flex-col items-center gap-2">
-          {viewer.isAdmin && <RailLink href="/lite/clients/new" label="Tambah klien" icon={Buildings} active={path === "/lite/clients/new"} />}
+          {viewer.isAdmin && <RailLink href="/clients/new" label="Tambah klien" icon={Buildings} active={path === "/clients/new"} />}
           <button type="button" onClick={logout} title="Keluar" aria-label="Keluar" className={cx("flex size-10 items-center justify-center rounded-lg border border-transparent text-ink-2 transition-colors hover:text-ink", HOVER)}>
             <SignOut size={20} aria-hidden />
           </button>
@@ -85,7 +85,7 @@ export function LiteSidebar({ projects, viewer }: { projects: { id: string; name
                   </Link>
                 ))
               : list.map((p) => (
-                  <Link key={p.id} href={`/lite/projects/${p.id}`} className={cx(ROW, "gap-2.5", HOVER)}>
+                  <Link key={p.id} href={`/projects/${p.id}`} className={cx(ROW, "gap-2.5", HOVER)}>
                     <FolderSimple size={16} className="shrink-0 text-ink-2" aria-hidden />
                     <span className="flex-1 truncate">{p.name}</span>
                   </Link>

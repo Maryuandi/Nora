@@ -116,8 +116,8 @@ await run("f10", async (s) => {
 
   const actions = (await admin.call((t) => t.projects.audit.query({ projectId }))).body.events.map((e) => e.action);
   check(["interpretation.request", "interpretation.generate", "interpretation.regenerate", "interpretation.accept", "interpretation.flag", "interpretation.template"].every((x) => actions.includes(x)), "interpretation actions audited");
-  const page = await a.page(`/lite/projects/${projectId}/findings/${findingId}`);
+  const page = await a.page(`/projects/${projectId}/findings/${findingId}`);
   check(page.status === 200 && page.body.includes("Interpretasi temuan"), "finding page renders the interpretation panel");
-  const cpage = await a.page(`/lite/projects/${projectId}/recommendations/${findingId}/compare?ids=${by.delegation!.id},${by.generic!.id}`);
+  const cpage = await a.page(`/projects/${projectId}/recommendations/${findingId}/compare?ids=${by.delegation!.id},${by.generic!.id}`);
   check(cpage.status === 200 && cpage.body.includes("Interpretasi perbandingan"), "compare page renders the interpretation panel");
 }, { workers: true, env: { JEV_MODE: "fixture", LLM_MODE: "fixture", LLM_FIXTURE_FAULT: "first_attempt", GRAPH_SWEEP_INTERVAL: "2s" } });

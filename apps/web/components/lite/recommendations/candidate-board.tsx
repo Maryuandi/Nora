@@ -63,12 +63,12 @@ export function CandidateBoard({ projectId, findingId, candidates, set, catalogS
         {candidates.some((c) => c.stale) && <StatePill tone="warning">Data/konteks berubah — validasi usang</StatePill>}
         <div className="ml-auto flex gap-2">
           {canWrite && <Button size="xs" color="secondary" isLoading={busy || running} onClick={refresh}>{candidates.length ? "Validasi ulang" : "Susun kandidat"}</Button>}
-          <Button size="xs" color="primary" isDisabled={sel.length < 2} onClick={() => router.push(`/lite/projects/${projectId}/recommendations/${findingId}/compare?ids=${sel.join(",")}`)}>Bandingkan ({sel.length})</Button>
+          <Button size="xs" color="primary" isDisabled={sel.length < 2} onClick={() => router.push(`/projects/${projectId}/recommendations/${findingId}/compare?ids=${sel.join(",")}`)}>Bandingkan ({sel.length})</Button>
         </div>
       </div>
       {error && <p role="alert" className="text-sm text-error-primary">{error}</p>}
       {catalogSize === 0 && !candidates.length && (
-        <p className="text-sm text-ink-2">Katalog intervensi pada paket konteks kosong, sehingga tidak ada kandidat yang dibuat. <a className="text-accent hover:underline" href={`/lite/projects/${projectId}/prepare/context`}>Impor atau buat katalog</a>.</p>
+        <p className="text-sm text-ink-2">Katalog intervensi pada paket konteks kosong, sehingga tidak ada kandidat yang dibuat. <a className="text-accent hover:underline" href={`/projects/${projectId}/prepare/context`}>Impor atau buat katalog</a>.</p>
       )}
       {catalogSize > 0 && !candidates.length && !running && <p className="text-sm text-ink-2">Belum ada kandidat. {canWrite ? "Susun kandidat untuk memilih intervensi katalog yang cocok dengan temuan." : ""}</p>}
       {candidates.length > 0 && shown.length === 0 && <p className="text-sm text-ink-2">Tidak ada kandidat tervalidasi atau perlu review. Lihat semua untuk alasan per kandidat.</p>}

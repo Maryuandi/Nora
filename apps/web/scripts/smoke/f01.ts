@@ -2,7 +2,7 @@ import { check, Client, rejects, run } from "./harness.ts";
 
 await run("f01", async (s) => {
   const anon = new Client(s.baseUrl);
-  check((await anon.page("/lite")).headers.get("location")?.endsWith("/lite/setup"), "empty database redirects to setup");
+  check((await anon.page("/")).headers.get("location")?.endsWith("/setup"), "empty database redirects to setup");
   check((await s.db.project.count()) === 0, "fresh database has no projects");
 
   const admin = new Client(s.baseUrl);
@@ -68,9 +68,9 @@ await run("f01", async (s) => {
   await s.db.project.update({ where: { id: B }, data: { status: "active", contractStart: new Date("2020-01-01"), contractEnd: new Date("2020-12-31") } });
   check((await admin.call((t) => t.projects.get.query({ projectId: B }))).body.status === "ended", "expired contract moves project to ended");
 
-  const page = await admin.page(`/lite/projects/${A}`);
+  const page = await admin.page(`/projects/${A}`);
   check(page.status === 200 && page.body.includes("Kesiapan analisis"), "summary page renders");
-  check((await ana.page(`/lite/projects/${A}`)).status === 404, "summary page answers 404 to non-members");
+  check((await ana.page(`/projects/${A}`)).status === 404, "summary page answers 404 to non-members");
   await admin.call((t) => t.projects.setStatus.mutate({ projectId: A, status: "active" }));
   check((await admin.call((t) => t.clients.create.mutate({} as never))).status === 400, "invalid client body rejected");
   // Mutations are POSTs to /api/trpc/<procedure> with the input as the JSON body.

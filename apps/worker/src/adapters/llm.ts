@@ -105,6 +105,8 @@ class DeepSeekAdapter implements LlmAdapter {
       "- Nilai terukur hanya boleh muncul sebagai placeholder metrik persis seperti {{M1}}, dan ref itu wajib dicantumkan di metric_placeholders.",
       "- Sebut dataset, konteks, versi, hash, kode fitur, atau tanggal tanpa angka: tulis \"dataset terbit\", \"paket konteks aktif\", bukan \"v1\", \"F03\", atau \"sha256\".",
       "- Jika sebuah kalimat butuh angka yang tidak ada placeholder-nya, hilangkan angkanya atau hilangkan kalimatnya.",
+      "- metric_placeholders sebuah klaim berisi tepat ref yang muncul sebagai {{...}} di text_template klaim itu: jangan mencantumkan ref yang tidak ditulis di teks; isi [] bila tidak ada.",
+      "- Pakai type \"measured_fact\" hanya untuk kalimat yang memuat placeholder metrik. Kalimat tentang konteks, mapping, ketersediaan analisis, atau keterbatasan data memakai type \"interpretation\".",
     ].join("\n");
     const system = `${req.system}\n\n${digits}\n\nKeluarkan satu objek JSON valid saja, tanpa teks lain, yang sesuai JSON Schema berikut:\n${schema}`;
     let res: Response;

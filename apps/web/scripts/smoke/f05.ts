@@ -58,6 +58,6 @@ await run("f05", async (s) => {
   const owner = await addAnalyst(s, admin, projectId, "po5@example.test");
   await admin.call((t) => t.members.add.mutate({ projectId, email: "po5@example.test", role: "process_owner" }));
   check((await owner.call((t) => t.analyses.saveSettings.mutate({ projectId, config: settings.config }))).status === 403, "process owner cannot change thresholds");
-  const page = await a.page(`/lite/projects/${projectId}/analysis/dashboard?run=${r.body.id}`);
+  const page = await a.page(`/projects/${projectId}/analysis/dashboard?run=${r.body.id}`);
   check(page.status === 200 && page.body.includes("Indikasi bottleneck"), "dashboard page renders");
 }, { workers: true });

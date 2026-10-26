@@ -86,6 +86,6 @@ await run("f08", async (s) => {
   check((await assessment(d.id)).specSuperseded === true, "historical result shows superseded spec");
   const actions = (await admin.call((t) => t.projects.audit.query({ projectId }))).body.events.map((e) => e.action);
   check(["assessment.request", "assessment.run", "assessment.correct", "assessment.spec"].every((x) => actions.includes(x)), "assessment actions audited");
-  const page = await a.page(`/lite/projects/${projectId}/findings/${findingId}`);
+  const page = await a.page(`/projects/${projectId}/findings/${findingId}`);
   check(page.status === 200, "finding page renders with assessment panel");
 }, { workers: true, env: { JEV_MODE: "fixture" } });

@@ -104,7 +104,7 @@ export function MappingEditor(p: MappingEditorProps) {
     const d = await attempt(prepareDataset.mutateAsync({ projectId: p.projectId, snapshotId: p.snapshotId, mappingVersionId: m.data.id }));
     setBusy(null);
     if (!d.ok) return setError(errorText(d.error));
-    router.push(`/lite/projects/${p.projectId}/prepare/datasets/${d.data.id}`);
+    router.push(`/projects/${p.projectId}/prepare/datasets/${d.data.id}`);
   }
 
   const activityValues = preview?.activityValues ?? Object.keys(labels).map((raw) => ({ raw, count: 0 }));

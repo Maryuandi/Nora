@@ -14,7 +14,7 @@ import { attempt, errorText } from "../api";
 export function PrepareTabs({ projectId, tabs, section = "prepare" }: { projectId: string; tabs: { label: string; path: string }[]; section?: string }) {
   const pathname = usePathname();
   const run = useSearchParams().get("run");
-  const base = `/lite/projects/${projectId}/${section}`;
+  const base = `/projects/${projectId}/${section}`;
   return (
     <nav aria-label={section === "analysis" ? "Analisis" : "Persiapan"} className="mb-5 flex gap-6 border-b border-line">
       {tabs.map((t) => {
@@ -43,7 +43,7 @@ export function NewSourceForm({ projectId }: { projectId: string }) {
     const res = await attempt(createSource.mutateAsync({ projectId, name }));
     setBusy(false);
     if (!res.ok) return setError(res.error.details?.name ?? errorText(res.error));
-    router.push(`/lite/projects/${projectId}/prepare/sources/${res.data.id}`);
+    router.push(`/projects/${projectId}/prepare/sources/${res.data.id}`);
     router.refresh();
   }
   return (

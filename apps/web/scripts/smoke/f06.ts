@@ -53,8 +53,8 @@ await run("f06", async (s) => {
   check((await owner.call((t) => t.findings.get.query({ projectId, findingId: fb.id }))).status === 200, "process owner reads findings");
   const other = await otherProjectUser(s);
   check((await other.call((t) => t.findings.get.query({ projectId, findingId: fb.id }))).status === 404 && (await other.call((t) => t.findings.cases.query({ projectId, findingId: fb.id }))).status === 404, "other project gets 404");
-  const page = await a.page(`/lite/projects/${projectId}/findings/${fb.id}`);
+  const page = await a.page(`/projects/${projectId}/findings/${fb.id}`);
   check(page.status === 200 && page.body.includes("Observasi terukur") && page.body.includes("belum terbukti"), "detail page renders summary panels");
-  const listPage = await a.page(`/lite/projects/${projectId}/findings`);
+  const listPage = await a.page(`/projects/${projectId}/findings`);
   check(listPage.status === 200 && listPage.body.includes(fb.title.replace("→", "").slice(0, 20)), "list page renders");
 }, { workers: true });

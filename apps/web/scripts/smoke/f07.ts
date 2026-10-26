@@ -81,7 +81,7 @@ await run("f07", async (s) => {
   check(rebuilt.counts!.nodes >= before && (await s.db.finding.count()) === findingsBefore, "rebuild restores the graph without touching findings", { before, after: rebuilt.counts });
   const actions = (await admin.call((t) => t.projects.audit.query({ projectId }))).body.events.map((e) => e.action);
   check(["graph.read", "graph.rebuild", "evidence.bundle.create", "evidence.bundle.read"].every((x) => actions.includes(x)), "graph access, rebuild and bundles audited");
-  const page = await a.page(`/lite/projects/${projectId}/findings/${findingId}`);
+  const page = await a.page(`/projects/${projectId}/findings/${findingId}`);
   check(page.status === 200, "finding page renders with evidence panel");
   await closeGraph();
 }, { workers: true, env: { GRAPH_SWEEP_INTERVAL: "2s" } });

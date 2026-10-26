@@ -24,7 +24,7 @@ const FLOW: NavItem[] = [
 
 export function ProjectNav({ projectId }: { projectId: string }) {
   const pathname = usePathname();
-  const base = `/lite/projects/${projectId}`;
+  const base = `/projects/${projectId}`;
   const tabs = FLOW.map((t) => {
     const href = t.path ? `${base}/${t.path}` : base;
     return { label: t.label, icon: t.icon, href, active: t.path ? pathname.startsWith(href) : pathname === base };
@@ -33,7 +33,7 @@ export function ProjectNav({ projectId }: { projectId: string }) {
 }
 
 export function ProjectUtilities({ projectId, items }: { projectId: string; items: { members: boolean; audit: boolean; settings: boolean; system: boolean } }) {
-  const base = `/lite/projects/${projectId}`;
+  const base = `/projects/${projectId}`;
   const links = [
     items.members && { id: "members", label: "Anggota", href: `${base}/members` },
     items.audit && { id: "audit", label: "Audit log", href: `${base}/audit` },

@@ -61,7 +61,7 @@ await run("f04", async (s) => {
 
   const ready = (await a.call((t) => t.projects.readiness.query({ projectId }))).body;
   check(ready.state === "results_ready", "readiness reaches results_ready", ready.state);
-  const page = await a.page(`/lite/projects/${projectId}/analysis?run=${runId}`);
+  const page = await a.page(`/projects/${projectId}/analysis?run=${runId}`);
   check(page.status === 200 && page.body.includes("Peta proses"), "analysis page renders");
 
   const other = await otherProjectUser(s);

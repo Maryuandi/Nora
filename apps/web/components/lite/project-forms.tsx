@@ -40,7 +40,7 @@ export function ClientForm() {
   const f = useFields({ name: "", sector: "", contact: "" });
   const create = useMutation(useTRPC().clients.create.mutationOptions());
   return (
-    <form noValidate className="px-8 py-6" onSubmit={async (e) => { e.preventDefault(); if ((await f.send(() => create.mutateAsync(f.values))).ok) router.push("/lite/projects/new"); }}>
+    <form noValidate className="px-8 py-6" onSubmit={async (e) => { e.preventDefault(); if ((await f.send(() => create.mutateAsync(f.values))).ok) router.push("/projects/new"); }}>
       <Card className="max-w-[880px] px-6">
         <FormSection title="Klien" description="Perusahaan pemilik proses yang dianalisis.">
           <Input label="Nama klien" {...f.field("name")} isRequired />
@@ -49,7 +49,7 @@ export function ClientForm() {
         </FormSection>
         <div className="flex items-center justify-end gap-2 border-t border-line py-4">
           {f.error && <p role="alert" className="mr-auto text-sm text-error-primary">{f.error}</p>}
-          <Button color="secondary" size="xs" href="/lite">Batal</Button>
+          <Button color="secondary" size="xs" href="/">Batal</Button>
           <Button color="primary" size="xs" type="submit" isLoading={f.busy}>Simpan klien</Button>
         </div>
       </Card>
@@ -100,7 +100,7 @@ export function NewProjectForm({ clients }: { clients: { id: string; name: strin
     <form noValidate className="px-8 py-6" onSubmit={async (e) => {
       e.preventDefault();
       const res = await f.send(() => create.mutateAsync(f.values));
-      if (res.ok) { router.push(`/lite/projects/${res.data.id}`); router.refresh(); }
+      if (res.ok) { router.push(`/projects/${res.data.id}`); router.refresh(); }
     }}>
       <Card className="max-w-[880px] px-6">
         <FormSection title="Klien" description="Proyek baru disimpan sebagai Draft; kamu menjadi Administrator-nya.">
@@ -109,7 +109,7 @@ export function NewProjectForm({ clients }: { clients: { id: string; name: strin
         <ProjectFields f={f} />
         <div className="flex items-center justify-end gap-2 border-t border-line py-4">
           {f.error && <p role="alert" className="mr-auto text-sm text-error-primary">{f.error}</p>}
-          <Button color="secondary" size="xs" href="/lite">Batal</Button>
+          <Button color="secondary" size="xs" href="/">Batal</Button>
           <Button color="primary" size="xs" type="submit" isLoading={f.busy}>Buat proyek</Button>
         </div>
       </Card>

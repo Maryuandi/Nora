@@ -34,7 +34,7 @@ export interface LineageNode {
  */
 export async function findingLineage(viewer: Viewer, projectId: string, findingId: string): Promise<LineageNode> {
   const f = await getFinding(viewer, projectId, findingId);
-  const base = `/lite/projects/${projectId}`;
+  const base = `/projects/${projectId}`;
   const q = db();
   const run = await q.analysisRun.findUniqueOrThrow({ where: { id: f.analysisRunId }, select: { id: true, completedAt: true, algorithmVersion: true, filterSpec: true } });
   const ds = await q.datasetVersion.findUniqueOrThrow({

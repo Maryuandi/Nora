@@ -54,7 +54,7 @@ export function UploadPanel({ projectId, sourceId }: { projectId: string; source
     if (!done.ok) return setError(errorText(done.error));
     setFile(null);
     if (input.current) input.current.value = "";
-    router.push(`/lite/projects/${projectId}/prepare/sources/${sourceId}?snapshot=${init.data.snapshotId}`);
+    router.push(`/projects/${projectId}/prepare/sources/${sourceId}?snapshot=${init.data.snapshotId}`);
     router.refresh();
   }
 

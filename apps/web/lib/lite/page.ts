@@ -18,7 +18,7 @@ export async function orNotFound<T>(p: Promise<T>): Promise<T> {
 
 export const requirePageViewer = cache(async (): Promise<Viewer> => {
   const viewer = await currentViewer();
-  if (!viewer) redirect("/lite/login");
+  if (!viewer) redirect("/login");
   return viewer;
 });
 
