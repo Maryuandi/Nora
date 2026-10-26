@@ -5,3 +5,8 @@ allowBuilds:
   esbuild: true
   "@swc/core": true
   protobufjs: false
+  "@prisma/engines": true
+  prisma: true
+minimumReleaseAgeExclude:
+  - '@tanstack/query-core@5.104.4'
+  - '@tanstack/react-query@5.104.4'

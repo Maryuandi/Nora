@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "mapKey": {
+      "type": "string"
+    },
+    "variantsKey": {
+      "type": "string"
+    },
+    "caseIndexKey": {
+      "type": "string"
+    },
+    "caseRowsKey": {
+      "type": "string"
+    },
+    "caseCount": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "eventCount": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "mapAvailable": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "mapKey",
+    "variantsKey",
+    "caseIndexKey",
+    "caseRowsKey",
+    "caseCount",
+    "eventCount",
+    "mapAvailable"
+  ],
+  "additionalProperties": false
+}
